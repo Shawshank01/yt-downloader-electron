@@ -1,4 +1,3 @@
-# yt-downloader-electron
 # YT Downloader Electron
 
 A simple, cross-platform GUI application for downloading YouTube videos and audio using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [ffmpeg](https://ffmpeg.org/) on your desktop.  
