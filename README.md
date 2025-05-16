@@ -8,7 +8,7 @@ Built with Electron, runs on macOS and Linux (should also work on Windows with m
 ## Features
 
 - Download best quality video or audio from YouTube (and other supported sites)
-- Choose audio/video format by code (e.g., 140, 137+140, etc.)
+- Choose audio/video format by code (e.g., 140, 356, 140+356, etc.)
 - Download subtitles (all available languages)
 - Select browser cookies (Brave, Chrome, Firefox)
 - Customizable download folder
