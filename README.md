@@ -1,6 +1,6 @@
 # YT Downloader Electron
 
-A simple, cross-platform GUI application for downloading YouTube videos and audio using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [ffmpeg](https://ffmpeg.org/) on your desktop.  
+A simple, cross-platform GUI application for downloading YouTube video and audio using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [ffmpeg](https://ffmpeg.org/) on your desktop.  
 Built with Electron, runs on macOS and Linux (should also work on Windows with minor tweaks).
 
 ---
@@ -13,7 +13,6 @@ Built with Electron, runs on macOS and Linux (should also work on Windows with m
 - Select browser cookies (Brave, Chrome, Firefox)
 - Customizable download folder
 - Full support for advanced `yt-dlp` features (merge, format selection)
-- No command-line needed!
 
 ---
 
