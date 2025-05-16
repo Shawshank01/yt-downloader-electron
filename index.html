@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>YT Downloader</title>
+</head>
+
+<body>
+    <h2>YT Downloader (yt-dlp + ffmpeg)</h2>
+    <label>YouTube URL:</label>
+    <input type="text" id="url" size="45"><br><br>
+    <label>Browser cookies:</label>
+    <select id="browser">
+        <option value="brave" selected>Brave</option>
+        <option value="chrome">Chrome</option>
+        <option value="firefox">Firefox</option>
+    </select>
+    <label>Format code (e.g., 140, 356, or 140+356):</label>
+    <input type="text" id="formatCode" size="10" placeholder="optional"><br><br>
+    <label>Action:</label>
+    <select id="action">
+        <option>Download Video (Best Quality)</option>
+        <option>List Formats</option>
+        <option>Choose Format</option>
+        <option>Download Subtitles</option>
+        <option>Download & Merge as MP4</option>
+    </select>
+    <label>Download Folder:</label>
+    <input type="text" id="downloadFolder" readonly style="width: 300px;">
+    <button onclick="chooseFolder()">Choose...</button>
+    <br><br>
+    <button onclick="runCommand()">Run</button>
+    <pre id="output"></pre>
+    <script src="renderer.js" defer></script>
+</body>
+
+</html>
