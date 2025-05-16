@@ -30,7 +30,7 @@ Built with Electron, runs on macOS and Linux (should also work on Windows with m
       ```
       Or [download the latest release](https://github.com/yt-dlp/yt-dlp/releases).
 
-2. **[ffmpeg](https://ffmpeg.org/download.html) installed and in your PATH**
+2. **[ffmpeg](https://ffmpeg.org/download.html) installed and in your PATH (Optional for use with Action 5)**
 
     - On macOS:
       ```sh
