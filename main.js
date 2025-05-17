@@ -22,7 +22,7 @@ function createWindow() {
     const win = new BrowserWindow({
         fullscreen: true,
         webPreferences: {
-            preload: join(__dirname, 'preload.js'), // Preload script
+            preload: join(__dirname, 'preload.js'), // Preload script with explicit .js extension
             nodeIntegration: false,                 // Do NOT use node integration!
             contextIsolation: true,                 // Isolate context for security
         }
@@ -46,11 +46,29 @@ ipcMain.handle('run-command', async (event, args) => {
     console.log("process.env.PATH:", process.env.PATH);
 
     return new Promise((resolve) => {
-        exec(args, (error, stdout, stderr) => {
-            let output = '';
-            if (stdout) output += stdout;
-            if (stderr) output += '\n' + stderr;
-            if (error) output += '\nError: ' + error;
+        const process = exec(args);
+        let output = '';
+
+        process.stdout.on('data', (data) => {
+            output += data;
+            // Check if the line contains download progress
+            if (data.includes('[download]')) {
+                event.sender.send('download-progress', data.trim());
+            }
+        });
+
+        process.stderr.on('data', (data) => {
+            output += '\n' + data;
+            // Check if the line contains download progress
+            if (data.includes('[download]')) {
+                event.sender.send('download-progress', data.trim());
+            }
+        });
+
+        process.on('close', (code) => {
+            if (code !== 0) {
+                output += `\nProcess exited with code ${code}`;
+            }
             resolve(output.trim());
         });
     });

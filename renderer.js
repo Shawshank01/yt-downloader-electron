@@ -1,5 +1,8 @@
 console.log("renderer.js loaded! window.electronAPI:", window.electronAPI);
 
+// Initialize progress handler
+let progressHandler = null;
+
 window.chooseFolder = async function () {
     console.log("chooseFolder called! electronAPI:", window.electronAPI);
     if (!window.electronAPI) {
@@ -32,6 +35,20 @@ window.runCommand = async function () {
         document.getElementById('output').textContent = "Error: Please select a download folder.";
         return;
     }
+
+    // Clear previous progress handler
+    if (progressHandler) {
+        progressHandler();
+    }
+
+    // Set up new progress handler
+    progressHandler = window.electronAPI.onProgress((progress) => {
+        const outputElement = document.getElementById('output');
+        const currentText = outputElement.textContent;
+        // Keep the command line but update the progress
+        const commandLine = currentText.split('\n')[0];
+        outputElement.textContent = commandLine + '\n' + progress;
+    });
 
     let cmd;
     switch (action) {
@@ -66,6 +83,18 @@ window.runCommand = async function () {
     try {
         const result = await window.electronAPI.runCommand(cmd);
         document.getElementById('output').textContent += result;
+        
+        // Add completion hint if it's a download action
+        if (action !== 'List Formats') {
+            const completionHint = document.createElement('div');
+            completionHint.style.marginTop = '10px';
+            completionHint.style.padding = '10px';
+            completionHint.style.backgroundColor = '#e8f5e9';
+            completionHint.style.borderRadius = '4px';
+            completionHint.style.color = '#2e7d32';
+            completionHint.innerHTML = '✅ Download completed!';
+            document.getElementById('output').appendChild(completionHint);
+        }
     } catch (e) {
         document.getElementById('output').textContent += "\nError: " + e;
     }
