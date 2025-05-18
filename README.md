@@ -1,93 +1,75 @@
-# YT Downloader Electron
+# Video Downloader (Electron)
 
-A simple, cross-platform GUI application for downloading YouTube video and audio using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [ffmpeg](https://ffmpeg.org/) on your desktop.  
+A simple, cross-platform GUI application for downloading video and audio using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [ffmpeg](https://ffmpeg.org/) on your desktop.  
 Built with Electron, runs on macOS and Linux (should also work on Windows with minor tweaks).
 
 ---
 
 ## Features
 
-- Download best quality video or audio from YouTube (and other supported sites)
-- Choose audio/video format by code (e.g., 140, 356, 140+356, etc.)
+- Download videos in best quality
+- List available video formats
+- Download specific formats using format codes (e.g., 140, 356, 140+356, etc.)
 - Download subtitles (all available languages)
-- Select browser cookies (Brave, Chrome, Firefox)
-- Customizable download folder
-- Full support for advanced `yt-dlp` features (merge, format selection)
-
----
+- Download and merge as MP4
+- Real-time download progress
+- Support for multiple browsers (Chrome, Firefox, Brave) for cookies
+- Easy-to-use interface
 
 ## Prerequisites
 
-**Before using this app, you must have:**
+- Node.js and npm installed
+- yt-dlp installed (the app will try to find it in common locations)
 
-1. **[yt-dlp](https://github.com/yt-dlp/yt-dlp) installed and in your PATH**
+## Installation
 
-    - On macOS or Linux:
-      ```sh
-      brew install yt-dlp     # with Homebrew
-      # OR
-      pip install -U yt-dlp
-      ```
-      Or [download the latest release](https://github.com/yt-dlp/yt-dlp/releases).
-
-2. **[ffmpeg](https://ffmpeg.org/download.html) installed and in your PATH (Optional for use with the last Action)**
-
-    - On macOS:
-      ```sh
-      brew install ffmpeg
-      ```
-    - On Ubuntu/Debian:
-      ```sh
-      sudo apt install ffmpeg
-      ```
-    - On other Linux:
-      Use your distro’s package manager, or [see instructions here](https://ffmpeg.org/download.html).
-
-**Test in your terminal:**
-```sh
-yt-dlp --version
-ffmpeg -version
+1. Clone the repository:
+```bash
+git clone https://github.com/Shawshank01/yt-downloader-electron.git
+cd yt-downloader-electron
 ```
-Both commands must print a version number. If not, install or fix your PATH first!
 
----
+2. Install dependencies:
+```bash
+npm install
+```
+
+## Running the Application
+
+### Method 1: Using Terminal
+```bash
+npm start
+```
+
+### Method 2: Double-click (macOS)
+Simply double-click the `start.command` file in the application directory.
 
 ## Usage
 
-1. **Clone this repository:**
-    ```sh
-    git clone https://github.com/Shawshank01/yt-downloader-electron.git
-    cd yt-downloader-electron
-    ```
+1. Enter a YouTube URL in the input field
+2. Select your preferred browser for cookies
+3. Choose a download folder
+4. Select an action:
+   - Download Video (Best Quality)
+   - List Formats
+   - Choose Format
+   - Download Subtitles
+   - Download & Merge as MP4
 
-2. **Install dependencies:**
-    ```sh
-    npm install
-    ```
+### Format Codes
+When using "Choose Format" option, you can enter format codes like:
+- `140` for audio only
+- `356` for video+audio
+- `140+356` for your choice of video+audio format
 
-3. **Run the app:**
-    ```sh
-    npm start
-    ```
+## Development
 
-4. **Paste a YouTube URL, choose action, format, and download folder. Click "Run".**
+The application is built with:
+- Electron
+- Node.js
+- yt-dlp
+- FFmpeg (Recommend)
 
----
+## Contributing
 
-## Notes
-
-- This app relies on `yt-dlp` and `ffmpeg` being installed and accessible in your system PATH.
-- Supports macOS and most Linux distributions.
-- Windows support is possible but not tested.
-
----
-
-## Security
-
-- Uses Electron’s secure context bridge (no node integration in renderer).
-- No user data is collected or transmitted.
-
----
-
-**Reminder:**  
-If downloads fail, double-check that both `yt-dlp` and `ffmpeg` are installed and available in your shell’s `$PATH`.
+Feel free to open issues or submit pull requests.
