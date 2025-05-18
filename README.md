@@ -7,7 +7,7 @@ Built with Electron, runs on macOS and Linux (should also work on Windows with m
 
 ## Features
 
-- Download videos in best quality
+- Download video in best quality
 - List available video formats
 - Download specific formats using format codes (e.g., 140, 356, 140+356, etc.)
 - Download subtitles (all available languages)
@@ -46,8 +46,8 @@ Simply double-click the `start.command` file in the application directory.
 
 ## Usage
 
-1. Enter a YouTube URL in the input field
-2. Select your preferred browser for cookies
+1. Enter a video URL in the input field
+2. Select your preferred browser for cookies (If the site requires a login or membership)
 3. Choose a download folder
 4. Select an action:
    - Download Video (Best Quality)
