@@ -4,35 +4,62 @@
 <head>
     <meta charset="UTF-8">
     <title>YT Downloader</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
-    <h2>YT Downloader (yt-dlp + ffmpeg)</h2>
-    <label>Video URL:</label>
-    <input type="text" id="url" size="45"><br><br>
-    <label>Browser cookies:</label>
-    <select id="browser">
-        <option value="brave" selected>Brave</option>
-        <option value="chrome">Chrome</option>
-        <option value="firefox">Firefox</option>
-    </select>
-    <label>Format code (e.g., 140, 356, or 140+356):</label>
-    <input type="text" id="formatCode" size="10" placeholder="optional"><br><br>
-    <label>Action:</label>
-    <select id="action">
-        <option>Download Video (Best Quality)</option>
-        <option>List Formats</option>
-        <option>Choose Format</option>
-        <option>Download Subtitles</option>
-        <option>Download & Merge as MP4</option>
-    </select>
-    <label>Download Folder:</label>
-    <input type="text" id="downloadFolder" readonly style="width: 300px;">
-    <button onclick="chooseFolder()">Choose...</button>
-    <br><br>
-    <button onclick="runCommand()">Run</button>
-    <pre id="output"></pre>
-    <script src="renderer.js" defer></script>
+    <div class="container">
+        <h1>YT Downloader (yt-dlp + ffmpeg)</h1>
+
+        <div class="input-row">
+            <div class="input-group url-input">
+                <label for="url">Video URL:</label>
+                <input type="url" id="url" placeholder="Enter video URL">
+            </div>
+
+            <div class="input-group short-input">
+                <label for="formatCode">Format Code:</label>
+                <input type="text" id="formatCode" placeholder="e.g., 140, 356, or 140+356">
+            </div>
+
+            <div class="input-group short-input">
+                <label for="browser">Browser for Cookies:</label>
+                <select id="browser">
+                    <option value="brave" selected>Brave</option>
+                    <option value="chrome">Chrome</option>
+                    <option value="firefox">Firefox</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="input-row">
+            <div class="input-group">
+                <label for="action">Action:</label>
+                <select id="action">
+                    <option value="Download Video (Best Quality)">Download Video (Best Quality)</option>
+                    <option value="List Formats">List Formats</option>
+                    <option value="Choose Format">Choose Format</option>
+                    <option value="Download Subtitles">Download Subtitles</option>
+                    <option value="Download & Merge as MP4">Download & Merge as MP4</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label for="downloadFolder">Download Folder:</label>
+                <div class="folder-input">
+                    <input type="text" id="downloadFolder" readonly>
+                    <button onclick="window.chooseFolder()">Choose</button>
+                </div>
+            </div>
+
+            <div class="input-group run-button-group">
+                <button class="run-button" onclick="window.runCommand()">Run</button>
+            </div>
+        </div>
+
+        <div id="output"></div>
+    </div>
+    <script src="renderer.js"></script>
 </body>
 
 </html>

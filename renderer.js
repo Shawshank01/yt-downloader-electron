@@ -24,7 +24,7 @@ window.runCommand = async function () {
     const downloadFolder = document.getElementById('downloadFolder').value.trim();
 
     if (!url) {
-        document.getElementById('output').textContent = "Error: You must enter a YouTube URL.";
+        document.getElementById('output').textContent = "Error: You must enter a video URL.";
         return;
     }
     if (!["brave", "chrome", "firefox"].includes(browser)) {

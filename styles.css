@@ -1,0 +1,131 @@
+:root {
+    --bg-color: #1a1a1a;
+    --text-color: #ffffff;
+    --input-bg: #2d2d2d;
+    --input-border: #404040;
+    --button-bg: #404040;
+    --button-hover: #505050;
+    --output-bg: #2d2d2d;
+    --output-border: #404040;
+    --run-button-bg: #2196f3;
+    --run-button-hover: #1976d2;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.input-row {
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+    margin-bottom: 20px;
+}
+
+.input-group {
+    flex: 1;
+}
+
+.input-group.url-input {
+    flex: 2;
+}
+
+.input-group.short-input {
+    flex: 0.7;
+}
+
+.input-group.run-button-group {
+    flex: 0.3;
+    display: flex;
+    justify-content: flex-end;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    white-space: nowrap;
+}
+
+input[type="text"],
+input[type="url"],
+select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+}
+
+.folder-input {
+    display: flex;
+    gap: 5px;
+}
+
+.folder-input input {
+    flex: 1;
+}
+
+button {
+    background-color: var(--button-bg);
+    color: var(--text-color);
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    white-space: nowrap;
+}
+
+button:hover {
+    background-color: var(--button-hover);
+}
+
+button.run-button {
+    background-color: var(--run-button-bg);
+    padding: 10px 25px;
+    border-radius: 25px;
+    font-weight: 500;
+    font-size: 1.1em;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+button.run-button:hover {
+    background-color: var(--run-button-hover);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+#output {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid var(--output-border);
+    border-radius: 4px;
+    background-color: var(--output-bg);
+    white-space: pre-wrap;
+    font-family: monospace;
+    min-height: 100px;
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+}
+
+.completion-hint {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #1b5e20;
+    border-radius: 4px;
+    color: #81c784;
+} 
