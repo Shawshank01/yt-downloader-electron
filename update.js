@@ -1,5 +1,4 @@
 import { exec } from 'child_process';
-import { app } from 'electron';
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
 
