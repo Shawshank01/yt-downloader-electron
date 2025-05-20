@@ -61,7 +61,7 @@ The app will automatically check for and install required dependencies (yt-dlp a
 1. **Basic Video Download**
    - Enter the video URL
    - Select "Download Video (Best Quality)"
-   - Choose your browser for cookies
+   - Choose your browser for cookies (For Log-in or Membership Requirements)
    - Select a download folder
    - Click "Run"
 
