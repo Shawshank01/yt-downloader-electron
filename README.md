@@ -26,7 +26,14 @@ A modern, user-friendly desktop application for downloading videos from YouTube 
 1. Download the latest release from the [Releases](https://github.com/Shawshank01/yt-downloader-electron/releases) page
 2. Extract the downloaded zip file
 3. Double-click `start.command` to run the application
-   - If you get a security warning, right-click the file and select "Open"
+   - If you get a security warning saying "Apple could not verify 'start.command' is free of malware":
+     1. Click "Done" on the warning dialog
+     2. Open System Settings (or System Preferences)
+     3. Go to Privacy & Security
+     4. Scroll down to the Security section
+     5. Look for the message about "start.command" being blocked
+     6. Click "Open Anyway"
+     7. Double-click `start.command` again
    - The app will automatically check for and install required dependencies
 
 ### Method 2: From Source (For Developers)
