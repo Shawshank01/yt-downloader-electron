@@ -1,25 +1,47 @@
 {
   "name": "yt-downloader-electron",
-  "version": "1.0.1",
-  "description": "",
+  "version": "2.0.0",
+  "description": "Video downloader using yt-dlp and ffmpeg",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron ."
+    "prestart": "node check-dependencies.js",
+    "start": "electron .",
+    "postinstall": "electron-builder install-app-deps"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Shawshank01/yt-downloader-electron.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "youtube",
+    "video",
+    "downloader",
+    "yt-dlp",
+    "ffmpeg",
+    "electron"
+  ],
+  "author": "Shawshank01",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/Shawshank01/yt-downloader-electron/issues"
   },
   "homepage": "https://github.com/Shawshank01/yt-downloader-electron#readme",
   "dependencies": {
-    "electron": "^36.2.1"
+    "electron": "^36.2.1",
+    "electron-updater": "^6.6.2"
+  },
+  "devDependencies": {
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.ytdownloader.app",
+    "mac": {
+      "category": "public.app-category.utilities"
+    },
+    "publish": {
+      "provider": "github"
+    }
   }
 }

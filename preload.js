@@ -10,5 +10,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => {
             ipcRenderer.removeAllListeners('download-progress');
         };
-    }
+    },
+    checkAppUpdate: () => ipcRenderer.invoke('check-app-update'),
+    checkYtDlpUpdate: () => ipcRenderer.invoke('check-yt-dlp-update'),
+    checkFfmpegUpdate: () => ipcRenderer.invoke('check-ffmpeg-update'),
+    updateYtDlp: () => ipcRenderer.invoke('update-yt-dlp'),
+    updateFfmpeg: () => ipcRenderer.invoke('update-ffmpeg'),
+    checkFfmpeg: () => ipcRenderer.invoke('check-ffmpeg'),
+    checkYtDlp: () => ipcRenderer.invoke('check-yt-dlp')
 });

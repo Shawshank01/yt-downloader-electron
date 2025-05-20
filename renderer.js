@@ -16,6 +16,54 @@ window.chooseFolder = async function () {
     }
 };
 
+window.checkUpdate = async function() {
+    const output = document.getElementById('output');
+    output.textContent = "Checking for updates...\n";
+    
+    try {
+        // Check app update
+        const appUpdate = await window.electronAPI.checkAppUpdate();
+        output.textContent += `\nApp: ${appUpdate}`;
+        
+        // Check yt-dlp version and update status
+        const ytDlpVersion = await window.electronAPI.checkYtDlp();
+        output.textContent += `\n${ytDlpVersion}`;
+        const ytDlpUpdate = await window.electronAPI.checkYtDlpUpdate();
+        output.textContent += `\n${ytDlpUpdate.message}`;
+        
+        // Check ffmpeg version and update status
+        const ffmpegVersion = await window.electronAPI.checkFfmpeg();
+        output.textContent += `\n${ffmpegVersion}`;
+        const ffmpegUpdate = await window.electronAPI.checkFfmpegUpdate();
+        output.textContent += `\n${ffmpegUpdate.message}`;
+        
+        // Only prompt for yt-dlp update if needed
+        if (ytDlpUpdate.needsUpdate) {
+            if (confirm('Would you like to update yt-dlp to the latest version?')) {
+                output.textContent += "\n\nUpdating yt-dlp...";
+                const updateResult = await window.electronAPI.updateYtDlp();
+                output.textContent += `\n${updateResult}`;
+            }
+        }
+        
+        // Only prompt for ffmpeg update if needed
+        if (ffmpegUpdate.needsUpdate) {
+            if (confirm('Would you like to update ffmpeg to the latest version?')) {
+                output.textContent += "\n\nUpdating ffmpeg...";
+                const updateResult = await window.electronAPI.updateFfmpeg();
+                output.textContent += `\n${updateResult}`;
+            }
+        }
+        
+        // If no updates are needed, show a message
+        if (!ytDlpUpdate.needsUpdate && !ffmpegUpdate.needsUpdate) {
+            output.textContent += "\n\nAll components are up to date!";
+        }
+    } catch (error) {
+        output.textContent += `\nError: ${error.message}`;
+    }
+};
+
 window.runCommand = async function () {
     const url = document.getElementById('url').value.trim();
     const action = document.getElementById('action').value;

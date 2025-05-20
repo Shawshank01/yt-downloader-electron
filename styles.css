@@ -120,6 +120,7 @@ button.run-button:hover {
     min-height: 100px;
     max-height: calc(100vh - 300px);
     overflow-y: auto;
+    margin-bottom: 60px;
 }
 
 .completion-hint {
@@ -128,4 +129,29 @@ button.run-button:hover {
     background-color: #1b5e20;
     border-radius: 4px;
     color: #81c784;
+}
+
+/* Add styles for the update button container */
+.update-button-container {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1000;
+}
+
+.update-button {
+    background-color: transparent;
+    color: var(--run-button-bg);
+    padding: 10px 15px;
+    border: 1px solid var(--run-button-bg);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.update-button:hover {
+    background-color: rgba(33, 150, 243, 0.1);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 } 

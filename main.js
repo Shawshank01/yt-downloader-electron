@@ -2,6 +2,15 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { exec } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { 
+    checkAppUpdate, 
+    updateYtDlp, 
+    updateFfmpeg, 
+    checkFfmpeg, 
+    checkYtDlp,
+    checkYtDlpUpdate,
+    checkFfmpegUpdate 
+} from './update.js';
 
 // ESM-compatible __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -73,3 +82,12 @@ ipcMain.handle('run-command', async (event, args) => {
         });
     });
 });
+
+// Update-related IPC handlers
+ipcMain.handle('check-app-update', checkAppUpdate);
+ipcMain.handle('check-yt-dlp-update', checkYtDlpUpdate);
+ipcMain.handle('check-ffmpeg-update', checkFfmpegUpdate);
+ipcMain.handle('update-yt-dlp', updateYtDlp);
+ipcMain.handle('update-ffmpeg', updateFfmpeg);
+ipcMain.handle('check-ffmpeg', checkFfmpeg);
+ipcMain.handle('check-yt-dlp', checkYtDlp);
