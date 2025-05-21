@@ -34,20 +34,31 @@
   },
   "devDependencies": {
     "electron": "^36.2.1",
-    "electron-builder": "^24.13.3",
+    "electron-builder": "^24.13.3"
+  },
+  "optionalDependencies": {
     "dmg-license": "^1.0.10"
   },
   "build": {
     "appId": "com.ytdownloader.app",
     "mac": {
       "category": "public.app-category.utilities",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Utility"
     },
     "publish": {
