@@ -61,7 +61,7 @@ jobs:
             dist/**/*-mac.zip
             dist/**/*.AppImage
             dist/**/*.deb
-            dist/**/*Setup.*.exe
+            dist/**/*.exe
             dist/**/latest-mac.yml
             dist/**/latest.yml
             dist/**/app-update.yml
