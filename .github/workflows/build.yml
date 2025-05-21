@@ -13,8 +13,6 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-        build_script: [build:mac, build:win, build:linux]
         include:
           - os: macos-latest
             build_script: build:mac
