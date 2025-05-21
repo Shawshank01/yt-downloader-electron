@@ -64,6 +64,5 @@ jobs:
             dist/**/*.exe
             dist/**/latest-mac.yml
             dist/**/latest.yml
-            dist/**/app-update.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
