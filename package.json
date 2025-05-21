@@ -1,6 +1,6 @@
 {
   "name": "yt-downloader-electron",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Video downloader using yt-dlp and ffmpeg",
   "main": "main.js",
   "type": "module",
