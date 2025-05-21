@@ -65,9 +65,6 @@
         "deb"
       ],
       "category": "Utility"
-    },
-    "publish": {
-      "provider": "github"
     }
   }
 }
