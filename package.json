@@ -9,7 +9,7 @@
     "prestart": "node check-dependencies.js",
     "start": "electron .",
     "postinstall": "electron-builder install-app-deps",
-    "build:mac": "electron-builder build --mac --publish never",
+    "build:mac": "electron-builder build --mac --universal --publish never",
     "build:win": "electron-builder build --win --publish never",
     "build:linux": "electron-builder build --linux --publish never"
   },
