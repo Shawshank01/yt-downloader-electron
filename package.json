@@ -34,7 +34,8 @@
   },
   "devDependencies": {
     "electron": "^36.2.1",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "dmg-license": "^1.0.10"
   },
   "build": {
     "appId": "com.ytdownloader.app",
