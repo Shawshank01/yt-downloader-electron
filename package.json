@@ -9,7 +9,9 @@
     "prestart": "node check-dependencies.js",
     "start": "electron .",
     "postinstall": "electron-builder install-app-deps",
-    "build": "electron-builder build --mac --win --linux"
+    "build:mac": "electron-builder build --mac",
+    "build:win": "electron-builder build --win",
+    "build:linux": "electron-builder build --linux"
   },
   "repository": {
     "type": "git",

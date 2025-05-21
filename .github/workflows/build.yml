@@ -28,9 +28,17 @@ jobs:
         run: npm install
 
       - name: Build Electron app
-        uses: samuelmeuli/action-electron-builder@v1
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            npm run build:mac
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            npm run build:win
+          else
+            npm run build:linux
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          github_token: ${{ secrets.github_token }}
-          release: ${{ startsWith(github.ref, 'refs/tags/v') }}
-        env:
-          GH_TOKEN: ${{ secrets.github_token }} 
+          name: ${{ runner.os }}-build
+          path: dist/
