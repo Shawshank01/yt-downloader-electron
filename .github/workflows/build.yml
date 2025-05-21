@@ -57,13 +57,13 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: |
-            dist/yt-downloader-electron-*-universal.dmg
-            dist/yt-downloader-electron-*-universal-mac.zip
-            dist/yt-downloader-electron-*.AppImage
-            dist/yt-downloader-electron_*.deb
-            dist/yt-downloader-electron.Setup.*.exe
-            dist/latest-mac.yml
-            dist/latest.yml
-            dist/app-update.yml
+            dist/**/*.dmg
+            dist/**/*-mac.zip
+            dist/**/*.AppImage
+            dist/**/*.deb
+            dist/**/*Setup.*.exe
+            dist/**/latest-mac.yml
+            dist/**/latest.yml
+            dist/**/app-update.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
