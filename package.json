@@ -25,7 +25,10 @@
     "ffmpeg",
     "electron"
   ],
-  "author": "Shawshank01 lelouch@outlook.ie",
+  "author": {
+    "name": "Shawshank01",
+    "email": "lelouch@outlook.ie"
+  },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/Shawshank01/yt-downloader-electron/issues"
