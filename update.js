@@ -26,7 +26,7 @@ async function checkYtDlpUpdate() {
     return new Promise(async (resolve) => {
         try {
             const isHomebrew = await isInstalledViaHomebrew('yt-dlp');
-            const command = isHomebrew ? 'brew outdated yt-dlp' : 'yt-dlp -U --dry-run';
+            const command = isHomebrew ? 'brew update && brew outdated yt-dlp' : 'yt-dlp -U --dry-run';
             
             exec(command, (error, stdout, stderr) => {
                 // For brew outdated, error code 1 means no updates available
@@ -52,7 +52,7 @@ export async function updateYtDlp() {
     return new Promise(async (resolve) => {
         try {
             const isHomebrew = await isInstalledViaHomebrew('yt-dlp');
-            const command = isHomebrew ? 'brew upgrade yt-dlp' : 'yt-dlp -U';
+            const command = isHomebrew ? 'brew update && brew upgrade yt-dlp' : 'yt-dlp -U';
             
             exec(command, (error, stdout, stderr) => {
                 if (error) {
@@ -81,7 +81,7 @@ async function checkFfmpegUpdate() {
                 return;
             }
             
-            exec('brew outdated ffmpeg', (error, stdout, stderr) => {
+            exec('brew update && brew outdated ffmpeg', (error, stdout, stderr) => {
                 // For brew outdated, error code 1 means no updates available
                 if (error && error.code === 1) {
                     resolve({ needsUpdate: false, message: 'ffmpeg is up to date' });
@@ -119,7 +119,7 @@ export async function updateFfmpeg() {
     return new Promise(async (resolve) => {
         try {
             const isHomebrew = await isInstalledViaHomebrew('ffmpeg');
-            const command = isHomebrew ? 'brew upgrade ffmpeg' : 'ffmpeg -version';
+            const command = isHomebrew ? 'brew update && brew upgrade ffmpeg' : 'ffmpeg -version';
             
             if (!isHomebrew) {
                 resolve('ffmpeg is not installed via Homebrew. Please update it using your system package manager.');
