@@ -17,5 +17,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateYtDlp: () => ipcRenderer.invoke('update-yt-dlp'),
     updateFfmpeg: () => ipcRenderer.invoke('update-ffmpeg'),
     checkFfmpeg: () => ipcRenderer.invoke('check-ffmpeg'),
-    checkYtDlp: () => ipcRenderer.invoke('check-yt-dlp')
+    checkYtDlp: () => ipcRenderer.invoke('check-yt-dlp'),
+    reEncodeToMp4: (downloadFolder, videoId) => ipcRenderer.invoke('re-encode-to-mp4', downloadFolder, videoId)
 });

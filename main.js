@@ -2,14 +2,14 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { exec } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { 
-    checkAppUpdate, 
-    updateYtDlp, 
-    updateFfmpeg, 
-    checkFfmpeg, 
+import {
+    checkAppUpdate,
+    updateYtDlp,
+    updateFfmpeg,
+    checkFfmpeg,
     checkYtDlp,
     checkYtDlpUpdate,
-    checkFfmpegUpdate 
+    checkFfmpegUpdate
 } from './update.js';
 
 // ESM-compatible __dirname
@@ -81,6 +81,85 @@ ipcMain.handle('run-command', async (event, args) => {
             resolve(output.trim());
         });
     });
+});
+
+// IPC handler for re-encoding videos to MP4 with H.264 and AAC
+ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
+    console.log("Re-encoding video in folder:", downloadFolder, "for video ID:", videoId);
+
+    try {
+        const fs = await import('fs');
+        const path = await import('path');
+
+        // Find the specific downloaded file by looking for files containing the video ID
+        const files = fs.default.readdirSync(downloadFolder).filter(file =>
+            file.toLowerCase().endsWith('.mp4') && file.includes(videoId)
+        );
+
+        if (files.length === 0) {
+            return "No matching MP4 file found to re-encode.";
+        }
+
+        // Only process the first matching file (should be the one just downloaded)
+        const file = files[0];
+        const filePath = path.default.join(downloadFolder, file);
+        const filename = path.default.basename(file, '.mp4');
+        const outputPath = path.default.join(downloadFolder, `${filename}_reencoded.mp4`);
+
+        console.log(`Re-encoding file: ${file}`);
+        event.sender.send('download-progress', `Re-encoding ${file}...`);
+
+        return new Promise((resolve) => {
+            // Try with libfdk_aac first, fallback to aac if it fails
+            const tryReEncode = (audioCodec) => {
+                const ffmpegCmd = `ffmpeg -i "${filePath}" -c:v libx264 -crf 18 -preset veryslow -c:a ${audioCodec} -tag:v avc1 "${outputPath}"`;
+                const process = exec(ffmpegCmd);
+
+                process.stdout.on('data', (data) => {
+                    // Send progress updates for ffmpeg
+                    if (data.includes('time=')) {
+                        event.sender.send('download-progress', `Re-encoding ${file} (${audioCodec}): ${data.trim()}`);
+                    }
+                });
+
+                process.stderr.on('data', (data) => {
+                    // ffmpeg sends progress to stderr
+                    if (data.includes('time=')) {
+                        event.sender.send('download-progress', `Re-encoding ${file} (${audioCodec}): ${data.trim()}`);
+                    }
+                });
+
+                process.on('close', (code) => {
+                    if (code === 0) {
+                        // Success - replace original file with re-encoded version
+                        fs.default.unlinkSync(filePath);
+                        fs.default.renameSync(outputPath, filePath);
+                        console.log(`Successfully re-encoded: ${file} with ${audioCodec}`);
+                        resolve(`Re-encoding completed successfully for ${file}`);
+                    } else if (code !== 0 && audioCodec === 'libfdk_aac') {
+                        // libfdk_aac failed, try with aac
+                        console.log(`libfdk_aac failed for ${file}, trying with aac...`);
+                        event.sender.send('download-progress', `libfdk_aac not available, trying with aac...`);
+                        tryReEncode('aac');
+                    } else {
+                        // Both codecs failed
+                        console.log(`Failed to re-encode: ${file}`);
+                        // Clean up temporary file if it exists
+                        if (fs.default.existsSync(outputPath)) {
+                            fs.default.unlinkSync(outputPath);
+                        }
+                        resolve(`Failed to re-encode ${file}`);
+                    }
+                });
+            };
+
+            // Start with libfdk_aac
+            tryReEncode('libfdk_aac');
+        });
+
+    } catch (error) {
+        return `Error during re-encoding: ${error.message}`;
+    }
 });
 
 // Update-related IPC handlers

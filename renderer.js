@@ -16,27 +16,27 @@ window.chooseFolder = async function () {
     }
 };
 
-window.checkUpdate = async function() {
+window.checkUpdate = async function () {
     const output = document.getElementById('output');
     output.textContent = "Checking for updates...\n";
-    
+
     try {
         // Check app update
         const appUpdate = await window.electronAPI.checkAppUpdate();
         output.textContent += `\nApp: ${appUpdate}`;
-        
+
         // Check yt-dlp version and update status
         const ytDlpVersion = await window.electronAPI.checkYtDlp();
         output.textContent += `\n${ytDlpVersion}`;
         const ytDlpUpdate = await window.electronAPI.checkYtDlpUpdate();
         output.textContent += `\n${ytDlpUpdate.message}`;
-        
+
         // Check ffmpeg version and update status
         const ffmpegVersion = await window.electronAPI.checkFfmpeg();
         output.textContent += `\n${ffmpegVersion}`;
         const ffmpegUpdate = await window.electronAPI.checkFfmpegUpdate();
         output.textContent += `\n${ffmpegUpdate.message}`;
-        
+
         // Only prompt for yt-dlp update if needed
         if (ytDlpUpdate.needsUpdate) {
             if (confirm('Would you like to update yt-dlp to the latest version?')) {
@@ -45,7 +45,7 @@ window.checkUpdate = async function() {
                 output.textContent += `\n${updateResult}`;
             }
         }
-        
+
         // Only prompt for ffmpeg update if needed
         if (ffmpegUpdate.needsUpdate) {
             if (confirm('Would you like to update ffmpeg to the latest version?')) {
@@ -54,7 +54,7 @@ window.checkUpdate = async function() {
                 output.textContent += `\n${updateResult}`;
             }
         }
-        
+
         // If no updates are needed, show a message
         if (!ytDlpUpdate.needsUpdate && !ffmpegUpdate.needsUpdate) {
             output.textContent += "\n\nAll components are up to date!";
@@ -117,7 +117,7 @@ window.runCommand = async function () {
         case 'Download Subtitles':
             cmd = `yt-dlp --write-subs --all-subs --skip-download "${url}"`;
             break;
-        case 'Download & Merge as MP4':
+        case 'Download & Re-encode as high quality MP4 (H.264/AAC)':
             cmd = `yt-dlp --merge-output-format mp4 -P "${downloadFolder}" --cookies-from-browser ${browser} "${url}"`;
             break;
         default:
@@ -131,7 +131,38 @@ window.runCommand = async function () {
     try {
         const result = await window.electronAPI.runCommand(cmd);
         document.getElementById('output').textContent += result;
-        
+
+        // If this was a "Download & Re-encode as high quality MP4 (H.264/AAC)" action, re-encode the files
+        if (action === 'Download & Re-encode as high quality MP4 (H.264/AAC)' && downloadFolder) {
+            document.getElementById('output').textContent += "\n\nRe-encoding videos to H.264/AAC...\n";
+
+            try {
+                // Extract video ID from URL
+                const urlObj = new URL(url);
+                let videoId = '';
+
+                // Handle different YouTube URL formats
+                if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
+                    if (urlObj.pathname.includes('/shorts/')) {
+                        videoId = urlObj.pathname.split('/shorts/')[1];
+                    } else if (urlObj.pathname.includes('/watch')) {
+                        videoId = urlObj.searchParams.get('v');
+                    } else if (urlObj.hostname.includes('youtu.be')) {
+                        videoId = urlObj.pathname.substring(1);
+                    }
+                }
+
+                if (videoId) {
+                    const reEncodeResult = await window.electronAPI.reEncodeToMp4(downloadFolder, videoId);
+                    document.getElementById('output').textContent += reEncodeResult;
+                } else {
+                    document.getElementById('output').textContent += "Could not extract video ID from URL.";
+                }
+            } catch (reEncodeError) {
+                document.getElementById('output').textContent += `\nRe-encoding error: ${reEncodeError}`;
+            }
+        }
+
         // Add completion hint if it's a download action
         if (action !== 'List Formats') {
             const completionHint = document.createElement('div');

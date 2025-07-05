@@ -27,7 +27,7 @@ async function checkYtDlpUpdate() {
         try {
             const isHomebrew = await isInstalledViaHomebrew('yt-dlp');
             const command = isHomebrew ? 'brew update && brew outdated yt-dlp' : 'yt-dlp -U --dry-run';
-            
+
             exec(command, (error, stdout, stderr) => {
                 // For brew outdated, error code 1 means no updates available
                 if (error && error.code === 1) {
@@ -53,7 +53,7 @@ export async function updateYtDlp() {
         try {
             const isHomebrew = await isInstalledViaHomebrew('yt-dlp');
             const command = isHomebrew ? 'brew update && brew upgrade yt-dlp' : 'yt-dlp -U';
-            
+
             exec(command, (error, stdout, stderr) => {
                 if (error) {
                     resolve(`Error updating yt-dlp: ${error.message}`);
@@ -80,7 +80,7 @@ async function checkFfmpegUpdate() {
                 resolve({ needsUpdate: false, message: 'ffmpeg is not installed via Homebrew' });
                 return;
             }
-            
+
             exec('brew update && brew outdated ffmpeg', (error, stdout, stderr) => {
                 // For brew outdated, error code 1 means no updates available
                 if (error && error.code === 1) {
@@ -120,12 +120,12 @@ export async function updateFfmpeg() {
         try {
             const isHomebrew = await isInstalledViaHomebrew('ffmpeg');
             const command = isHomebrew ? 'brew update && brew upgrade ffmpeg' : 'ffmpeg -version';
-            
+
             if (!isHomebrew) {
                 resolve('ffmpeg is not installed via Homebrew. Please update it using your system package manager.');
                 return;
             }
-            
+
             exec(command, (error, stdout, stderr) => {
                 if (error) {
                     resolve(`Error updating ffmpeg: ${error.message}`);
@@ -157,4 +157,4 @@ export async function checkYtDlp() {
 }
 
 // Export the check update functions
-export { checkYtDlpUpdate, checkFfmpegUpdate }; 
+export { checkYtDlpUpdate, checkFfmpegUpdate };

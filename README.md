@@ -11,7 +11,7 @@ A modern, user-friendly desktop application for downloading videos from YouTube 
 - 📂 Custom download folder selection
 - 📊 Real-time download progress
 - 🎯 Format selection with detailed format list
-- 🔄 MP4 merging support
+- 🔄 MP4 re-encoding with H.264/AAC codecs for maximum compatibility
 
 ## 🚩 Important: yt-dlp and ffmpeg Are Not Bundled
 
@@ -98,10 +98,14 @@ This will create a distributable package in the `dist` directory.
    - Select "Download Subtitles"
    - Click "Run"
 
-4. **MP4 Merge**
+4. **MP4 Re-encoding (H.264/AAC)**
    - Enter the video URL
-   - Select "Download & Merge as MP4"
+   - Select "Download & Re-encode as MP4 (H.264/AAC)"
    - Click "Run"
+   - The video will be downloaded and then re-encoded using ffmpeg with:
+     - Video: H.264 (libx264) with CRF 18 and veryslow preset for maximum quality
+     - Audio: AAC (libfdk_aac preferred, falls back to aac if not available)
+     - Container: MP4 with proper AVC1 tag
 
 ## Updating
 

@@ -101,12 +101,12 @@ button.run-button {
     border-radius: 25px;
     font-weight: 500;
     font-size: 1.1em;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 button.run-button:hover {
     background-color: var(--run-button-hover);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 #output {
@@ -147,11 +147,11 @@ button.run-button:hover {
     border-radius: 4px;
     cursor: pointer;
     font-size: 14px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
 }
 
 .update-button:hover {
     background-color: rgba(33, 150, 243, 0.1);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-} 
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
