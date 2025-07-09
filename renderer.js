@@ -115,7 +115,7 @@ window.runCommand = async function () {
             }
             break;
         case 'Download Subtitles':
-            cmd = `yt-dlp --write-subs --all-subs --skip-download "${url}"`;
+            cmd = `yt-dlp --write-subs --all-subs --skip-download -P "${downloadFolder}" "${url}"`;
             break;
         case 'Download & Re-encode as high quality MP4 (H.264/AAC)':
             cmd = `yt-dlp --merge-output-format mp4 -P "${downloadFolder}" --cookies-from-browser ${browser} "${url}"`;
