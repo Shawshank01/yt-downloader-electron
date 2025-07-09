@@ -29,7 +29,7 @@ process.env.PATH = [...new Set([...(process.env.PATH || '').split(':'), ...extra
 
 function createWindow() {
     const win = new BrowserWindow({
-        fullscreen: true,
+        fullscreenable: true,
         webPreferences: {
             preload: join(__dirname, 'preload.js'), // Preload script with explicit .js extension
             nodeIntegration: false,                 // Do NOT use node integration!
@@ -37,6 +37,9 @@ function createWindow() {
         }
     });
     win.loadFile('index.html');
+    
+    // Maximize the window instead of fullscreen to keep it in current desktop
+    win.maximize();
 }
 
 app.whenReady().then(createWindow).catch(console.error);
