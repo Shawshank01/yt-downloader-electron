@@ -118,7 +118,7 @@ window.runCommand = async function () {
             cmd = `yt-dlp --write-subs --all-subs --skip-download -P "${downloadFolder}" "${url}"`;
             break;
         case 'Download & Re-encode as high quality MP4 (H.264/AAC)':
-            cmd = `yt-dlp --merge-output-format mp4 -P "${downloadFolder}" --cookies-from-browser ${browser} "${url}"`;
+            cmd = `yt-dlp -P "${downloadFolder}" --cookies-from-browser ${browser} "${url}"`;
             break;
         default:
             cmd = `yt-dlp -P "${downloadFolder}" --cookies-from-browser ${browser} "${url}"`;
@@ -132,34 +132,40 @@ window.runCommand = async function () {
         const result = await window.electronAPI.runCommand(cmd);
         document.getElementById('output').textContent += result;
 
-        // If this was a "Download & Re-encode as high quality MP4 (H.264/AAC)" action, re-encode the files
+        // If this was a "Download & Re-encode as high quality MP4 (H.264/AAC)" action, ask for confirmation before re-encoding
         if (action === 'Download & Re-encode as high quality MP4 (H.264/AAC)' && downloadFolder) {
-            document.getElementById('output').textContent += "\n\nRe-encoding videos to H.264/AAC...\n";
+            const shouldReEncode = confirm('Video download completed! Would you like to re-encode it to high quality MP4 (H.264/AAC)?\n\nThis will:\n• Use H.264 video codec with maximum quality (CRF 18)\n• Use AAC audio codec for maximum compatibility\n• Replace the original file with the re-encoded version\n\nNote: Re-encoding may take some time depending on the video length.\n\nIf you skip re-encoding, the original video format will be preserved.');
 
-            try {
-                // Extract video ID from URL
-                const urlObj = new URL(url);
-                let videoId = '';
+            if (shouldReEncode) {
+                document.getElementById('output').textContent += "\n\nRe-encoding videos to H.264/AAC...\n";
 
-                // Handle different YouTube URL formats
-                if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
-                    if (urlObj.pathname.includes('/shorts/')) {
-                        videoId = urlObj.pathname.split('/shorts/')[1];
-                    } else if (urlObj.pathname.includes('/watch')) {
-                        videoId = urlObj.searchParams.get('v');
-                    } else if (urlObj.hostname.includes('youtu.be')) {
-                        videoId = urlObj.pathname.substring(1);
+                try {
+                    // Extract video ID from URL
+                    const urlObj = new URL(url);
+                    let videoId = '';
+
+                    // Handle different YouTube URL formats
+                    if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
+                        if (urlObj.pathname.includes('/shorts/')) {
+                            videoId = urlObj.pathname.split('/shorts/')[1];
+                        } else if (urlObj.pathname.includes('/watch')) {
+                            videoId = urlObj.searchParams.get('v');
+                        } else if (urlObj.hostname.includes('youtu.be')) {
+                            videoId = urlObj.pathname.substring(1);
+                        }
                     }
-                }
 
-                if (videoId) {
-                    const reEncodeResult = await window.electronAPI.reEncodeToMp4(downloadFolder, videoId);
-                    document.getElementById('output').textContent += reEncodeResult;
-                } else {
-                    document.getElementById('output').textContent += "Could not extract video ID from URL.";
+                    if (videoId) {
+                        const reEncodeResult = await window.electronAPI.reEncodeToMp4(downloadFolder, videoId);
+                        document.getElementById('output').textContent += reEncodeResult;
+                    } else {
+                        document.getElementById('output').textContent += "Could not extract video ID from URL.";
+                    }
+                } catch (reEncodeError) {
+                    document.getElementById('output').textContent += `\nRe-encoding error: ${reEncodeError}`;
                 }
-            } catch (reEncodeError) {
-                document.getElementById('output').textContent += `\nRe-encoding error: ${reEncodeError}`;
+            } else {
+                document.getElementById('output').textContent += "\n\nRe-encoding skipped. Original video file preserved.";
             }
         }
 

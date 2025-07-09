@@ -91,19 +91,22 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
         const fs = await import('fs');
         const path = await import('path');
 
-        // Find the specific downloaded file by looking for files containing the video ID
-        const files = fs.default.readdirSync(downloadFolder).filter(file =>
-            file.toLowerCase().endsWith('.mp4') && file.includes(videoId)
-        );
+        // Find the specific downloaded file by looking for video files containing the video ID
+        const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
+        const files = fs.default.readdirSync(downloadFolder).filter(file => {
+            const lowerFile = file.toLowerCase();
+            return videoExtensions.some(ext => lowerFile.endsWith(ext)) && file.includes(videoId);
+        });
 
         if (files.length === 0) {
-            return "No matching MP4 file found to re-encode.";
+            return "No matching video file found to re-encode.";
         }
 
         // Only process the first matching file (should be the one just downloaded)
         const file = files[0];
         const filePath = path.default.join(downloadFolder, file);
-        const filename = path.default.basename(file, '.mp4');
+        const fileExt = path.default.extname(file);
+        const filename = path.default.basename(file, fileExt);
         const outputPath = path.default.join(downloadFolder, `${filename}_reencoded.mp4`);
 
         console.log(`Re-encoding file: ${file}`);
