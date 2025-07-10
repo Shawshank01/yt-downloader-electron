@@ -9,9 +9,11 @@
     "prestart": "node check-dependencies.js",
     "start": "electron .",
     "postinstall": "electron-builder install-app-deps",
-    "build:mac": "electron-builder build --mac --universal --publish never",
-    "build:win": "electron-builder build --win --publish never && (mv dist/latest.yml dist/latest-win.yml 2>/dev/null || echo 'latest.yml not found, skipping rename')",
-    "build:linux": "electron-builder build --linux --publish never"
+    "build": "npm run build:icons && electron-builder",
+    "build:icons": "electron-icon-builder --input=./build/icon.svg --output=build && cp ./build/icon.svg ./build/icon.png",
+    "build:mac": "npm run build:icons && electron-builder build --mac --universal --publish never",
+    "build:win": "npm run build:icons && electron-builder build --win --publish never && (mv dist/latest.yml dist/latest-win.yml 2>/dev/null || echo 'latest.yml not found, skipping rename')",
+    "build:linux": "npm run build:icons && electron-builder build --linux --publish never"
   },
   "repository": {
     "type": "git",
@@ -39,7 +41,8 @@
   },
   "devDependencies": {
     "electron": "^36.2.1",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "electron-icon-builder": "^2.0.1"
   },
   "optionalDependencies": {
     "dmg-license": "^1.0.10"
