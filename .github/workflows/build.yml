@@ -67,13 +67,26 @@ jobs:
           echo "=== Looking for specific file types ==="
           find dist/ -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.yml" 2>/dev/null | sort || echo "No matching files found"
 
+      - name: Clean up unnecessary files
+        shell: bash
+        run: |
+          echo "=== Cleaning up unnecessary files ==="
+          # Remove portable exe files (keep only installer)
+          find dist/ -name "yt-downloader-electron.exe" -delete
+          # Remove elevate.exe files
+          find dist/ -name "elevate.exe" -delete
+          # Remove any other unnecessary files
+          find dist/ -name "*.blockmap" -delete
+          echo "=== Files after cleanup ==="
+          find dist/ -type f 2>/dev/null | sort || echo "No files found in dist/"
+
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           files: |
             dist/**/*.dmg
-            dist/**/*.exe
+            dist/**/yt-downloader-electron-*-win.exe
             dist/**/*.AppImage
             dist/**/*.deb
             dist/**/latest*.yml

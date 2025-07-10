@@ -57,9 +57,13 @@
     },
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
       ],
-      "artifactName": "${productName}-${version}-win.${ext}"
+      "artifactName": "${productName}-${version}-win.${ext}",
+      "signAndEditExecutable": false
     },
     "linux": {
       "target": [
