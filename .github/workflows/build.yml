@@ -36,6 +36,12 @@ jobs:
       - name: Build Electron app
         run: npm run ${{ matrix.build_script }}
 
+      - name: List build artifacts
+        run: |
+          echo "=== Build artifacts for ${{ runner.os }} ==="
+          ls -la dist/ || echo "dist/ directory not found"
+          find dist/ -type f -name "*.yml" -o -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" 2>/dev/null || echo "No matching files found"
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -52,17 +58,22 @@ jobs:
         with:
           path: dist
 
+      - name: List all downloaded artifacts
+        run: |
+          echo "=== All downloaded artifacts ==="
+          find dist/ -type f 2>/dev/null | sort || echo "No files found in dist/"
+          echo "=== Looking for specific file types ==="
+          find dist/ -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.yml" 2>/dev/null | sort || echo "No matching files found"
+
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           files: |
-            dist/**/yt-downloader-electron-*-mac.dmg
-            dist/**/yt-downloader-electron-*-win.exe
-            dist/**/yt-downloader-electron-*-linux.AppImage
-            dist/**/yt-downloader-electron-*-linux.deb
-            dist/**/latest-mac.yml
-            dist/**/latest-win.yml
-            dist/**/latest-linux.yml
+            dist/**/*.dmg
+            dist/**/*.exe
+            dist/**/*.AppImage
+            dist/**/*.deb
+            dist/**/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}

@@ -10,7 +10,7 @@
     "start": "electron .",
     "postinstall": "electron-builder install-app-deps",
     "build:mac": "electron-builder build --mac --universal --publish never",
-    "build:win": "electron-builder build --win --publish never && mv dist/latest.yml dist/latest-win.yml 2>/dev/null || true",
+    "build:win": "electron-builder build --win --publish never && (mv dist/latest.yml dist/latest-win.yml 2>/dev/null || echo 'latest.yml not found, skipping rename')",
     "build:linux": "electron-builder build --linux --publish never"
   },
   "repository": {
