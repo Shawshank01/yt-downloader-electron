@@ -10,7 +10,7 @@
     "start": "electron .",
     "postinstall": "electron-builder install-app-deps",
     "build:mac": "electron-builder build --mac --universal --publish never",
-    "build:win": "electron-builder build --win --publish never",
+    "build:win": "electron-builder build --win --publish never && mv dist/latest.yml dist/latest-win.yml 2>/dev/null || true",
     "build:linux": "electron-builder build --linux --publish never"
   },
   "repository": {
@@ -46,25 +46,57 @@
   },
   "build": {
     "appId": "com.ytdownloader.app",
+    "publish": {
+      "provider": "github"
+    },
     "mac": {
       "category": "public.app-category.utilities",
       "target": [
-        "dmg",
-        "zip"
+        "dmg"
       ]
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
-      ]
+        "nsis"
+      ],
+      "artifactName": "${productName}-${version}-win.${ext}",
+      "publish": {
+        "provider": "github",
+        "updateProvider": "github"
+      }
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "category": "Utility"
-    }
+      "category": "Utility",
+      "publish": {
+        "provider": "github"
+      }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ]
   }
 }

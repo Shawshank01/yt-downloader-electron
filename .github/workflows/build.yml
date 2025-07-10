@@ -57,12 +57,12 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: |
-            dist/**/*.dmg
-            dist/**/*-mac.zip
-            dist/**/*.AppImage
-            dist/**/*.deb
-            dist/**/*.exe
+            dist/**/yt-downloader-electron-*-mac.dmg
+            dist/**/yt-downloader-electron-*-win.exe
+            dist/**/yt-downloader-electron-*-linux.AppImage
+            dist/**/yt-downloader-electron-*-linux.deb
             dist/**/latest-mac.yml
-            dist/**/latest.yml
+            dist/**/latest-win.yml
+            dist/**/latest-linux.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}

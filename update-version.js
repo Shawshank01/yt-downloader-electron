@@ -102,6 +102,48 @@ try {
         process.exit(0);
     }
 
+    // Ask if user wants to write custom release notes
+    const rl2 = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    const customNotes = await new Promise((resolve) => {
+        rl2.question(`\nDo you want to write custom release notes? (y/N): `, resolve);
+    });
+
+    let commitMessage = `Bump version to ${newVersion}`;
+    let releaseNotes = '';
+
+    if (customNotes.toLowerCase() === 'y' || customNotes.toLowerCase() === 'yes') {
+        log('\n📝 Please enter your custom release notes (press Enter twice to finish):', 'cyan');
+        log('(You can use markdown formatting)', 'yellow');
+        
+        const notes = [];
+        let lineCount = 0;
+        
+        while (true) {
+            const line = await new Promise((resolve) => {
+                rl2.question(lineCount === 0 ? 'Release notes: ' : '> ', resolve);
+            });
+            
+            if (line === '' && lineCount > 0) {
+                break; // Empty line after content means done
+            }
+            
+            notes.push(line);
+            lineCount++;
+        }
+        
+        releaseNotes = notes.join('\n');
+        commitMessage = `Bump version to ${newVersion}\n\n${releaseNotes}`;
+        
+        log('\n📋 Your release notes:', 'cyan');
+        console.log(releaseNotes);
+    }
+    
+    rl2.close();
+
     // Check if git is clean
     try {
         const gitStatus = execSync('git status --porcelain', { encoding: 'utf8' });
@@ -123,7 +165,7 @@ try {
     // Commit the version change
     try {
         execSync('git add package.json');
-        execSync(`git commit -m "Bump version to ${newVersion}"`);
+        execSync(`git commit -m "${commitMessage}"`);
         success('Committed version change');
     } catch (err) {
         error('Failed to commit version change: ' + err.message);
