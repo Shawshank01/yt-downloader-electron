@@ -85,22 +85,78 @@ try {
 
     log(`New version: ${newVersion}`, 'cyan');
 
-    // Confirm with user
+    // Interactive version selection
     const readline = await import('readline');
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout
     });
 
-    const answer = await new Promise((resolve) => {
-        rl.question(`\nDo you want to update from ${currentVersion} to ${newVersion}? (y/N): `, resolve);
-    });
-    rl.close();
+    let selectedVersion = newVersion;
+    let confirmed = false;
 
-    if (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes') {
-        info('Version update cancelled.');
-        process.exit(0);
+    while (!confirmed) {
+        const [major, minor, patch] = currentVersion.split('.').map(Number);
+        
+        log('\n📋 Available version options:', 'cyan');
+        log(`1. Patch: ${major}.${minor}.${patch + 1} (bug fixes)`, 'yellow');
+        log(`2. Minor: ${major}.${minor + 1}.0 (new features)`, 'yellow');
+        log(`3. Major: ${major + 1}.0.0 (breaking changes)`, 'yellow');
+        log(`4. Custom: Enter specific version`, 'yellow');
+        log(`5. Cancel: Exit without updating`, 'red');
+
+        const choice = await new Promise((resolve) => {
+            rl.question(`\nSelect version type (1-5) or press Enter for ${newVersion}: `, resolve);
+        });
+
+        switch (choice.trim()) {
+            case '1':
+                selectedVersion = `${major}.${minor}.${patch + 1}`;
+                break;
+            case '2':
+                selectedVersion = `${major}.${minor + 1}.0`;
+                break;
+            case '3':
+                selectedVersion = `${major + 1}.0.0`;
+                break;
+            case '4':
+                const customVersion = await new Promise((resolve) => {
+                    rl.question('Enter custom version (e.g., 2.3.0): ', resolve);
+                });
+                if (/^\d+\.\d+\.\d+$/.test(customVersion.trim())) {
+                    selectedVersion = customVersion.trim();
+                } else {
+                    log('❌ Invalid version format. Use semantic versioning (e.g., 2.3.0)', 'red');
+                    continue;
+                }
+                break;
+            case '5':
+                info('Version update cancelled.');
+                rl.close();
+                process.exit(0);
+            case '':
+                // Use the originally calculated version
+                selectedVersion = newVersion;
+                break;
+            default:
+                log('❌ Invalid choice. Please select 1-5 or press Enter.', 'red');
+                continue;
+        }
+
+        log(`\nSelected version: ${selectedVersion}`, 'green');
+        
+        const confirm = await new Promise((resolve) => {
+            rl.question(`Confirm update from ${currentVersion} to ${selectedVersion}? (y/N): `, resolve);
+        });
+
+        if (confirm.toLowerCase() === 'y' || confirm.toLowerCase() === 'yes') {
+            confirmed = true;
+        } else {
+            log('Let\'s try a different version...', 'blue');
+        }
     }
+
+    rl.close();
 
     // Ask if user wants to write custom release notes
     const rl2 = readline.createInterface({
@@ -112,7 +168,7 @@ try {
         rl2.question(`\nDo you want to write custom release notes? (y/N): `, resolve);
     });
 
-    let commitMessage = `Bump version to ${newVersion}`;
+    let commitMessage = `Bump version to ${selectedVersion}`;
     let releaseNotes = '';
 
     if (customNotes.toLowerCase() === 'y' || customNotes.toLowerCase() === 'yes') {
@@ -136,7 +192,7 @@ try {
         }
         
         releaseNotes = notes.join('\n');
-        commitMessage = `Bump version to ${newVersion}\n\n${releaseNotes}`;
+        commitMessage = `Bump version to ${selectedVersion}\n\n${releaseNotes}`;
         
         log('\n📋 Your release notes:', 'cyan');
         console.log(releaseNotes);
@@ -158,9 +214,9 @@ try {
     }
 
     // Update package.json
-    packageJson.version = newVersion;
+    packageJson.version = selectedVersion;
     writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
-    success(`Updated package.json to version ${newVersion}`);
+    success(`Updated package.json to version ${selectedVersion}`);
 
     // Commit the version change
     try {
@@ -173,7 +229,7 @@ try {
 
     // Create and push git tag
     try {
-        const tagName = `v${newVersion}`;
+        const tagName = `v${selectedVersion}`;
         execSync(`git tag ${tagName}`);
         success(`Created git tag: ${tagName}`);
 
@@ -189,8 +245,8 @@ try {
     }
 
     log('\n🎉 Version update completed successfully!', 'green');
-    log(`📦 New version: ${newVersion}`, 'cyan');
-    log(`🏷️  Git tag: v${newVersion}`, 'cyan');
+    log(`📦 New version: ${selectedVersion}`, 'cyan');
+    log(`🏷️  Git tag: v${selectedVersion}`, 'cyan');
     log('🚀 GitHub Actions will automatically build and release the new version.', 'cyan');
 
 } catch (err) {
