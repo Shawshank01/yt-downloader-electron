@@ -37,6 +37,7 @@ jobs:
         run: npm run ${{ matrix.build_script }}
 
       - name: List build artifacts
+        shell: bash
         run: |
           echo "=== Build artifacts for ${{ runner.os }} ==="
           ls -la dist/ || echo "dist/ directory not found"
@@ -59,6 +60,7 @@ jobs:
           path: dist
 
       - name: List all downloaded artifacts
+        shell: bash
         run: |
           echo "=== All downloaded artifacts ==="
           find dist/ -type f 2>/dev/null | sort || echo "No files found in dist/"
