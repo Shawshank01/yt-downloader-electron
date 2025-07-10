@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="build/icon.svg" alt="Video Downloader Icon" width="128">
+</p>
+
 # Video Downloader (Electron)
 
 A modern, user-friendly desktop application for downloading videos from YouTube and other supported platforms using yt-dlp and ffmpeg.
