@@ -1,5 +1,6 @@
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
+import { app } from 'electron';
 
 // Check for app updates across all platforms (macOS, Windows, Linux)
 export async function checkAppUpdate() {
@@ -30,7 +31,6 @@ export async function checkAppUpdate() {
 // Get current app version
 export function getCurrentVersion() {
     try {
-        const { app } = require('electron');
         return app.getVersion();
     } catch (error) {
         return 'Unknown';

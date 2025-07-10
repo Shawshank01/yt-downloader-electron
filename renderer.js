@@ -38,11 +38,18 @@ window.checkUpdate = async function () {
 
         if (appUpdate.error) {
             output.textContent += `\nError checking for updates: ${appUpdate.message}`;
-        } else if (appUpdate.hasUpdate) {
+        } else if (
+            appUpdate.hasUpdate &&
+            appUpdate.version &&
+            appUpdate.version !== currentVersion
+        ) {
             output.textContent += `\n✅ Update available!\n`;
             output.textContent += `New version: ${appUpdate.version}\n`;
             output.textContent += `Release notes: ${appUpdate.releaseNotes}\n`;
-            output.textContent += `\nThe app will automatically download and install the update.`;
+
+            if (confirm('A new version is available. Do you want to open the GitHub releases page to download the latest version?')) {
+                window.open('https://github.com/Shawshank01/yt-downloader-electron/releases/latest', '_blank');
+            }
         } else {
             output.textContent += `\n✅ App is up to date!`;
         }

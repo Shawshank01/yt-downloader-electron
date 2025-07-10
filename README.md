@@ -109,16 +109,19 @@ This will create a distributable package in the `dist` directory.
 
 ## Updating
 
-The app includes an automatic update system:
+The app includes a built-in update checker:
 
 1. Click the "Check for Updates" button to:
-   - Check for app updates
-   - Check yt-dlp version
-   - Check ffmpeg version
-2. If updates are available, you'll be prompted to install them
+   - Check for a new version of the app
+   - See your current version
+2. If a new version is available, you will be prompted to open the [GitHub Releases](https://github.com/Shawshank01/yt-downloader-electron/releases/latest) page to download the latest installer for your platform (macOS, Windows, or Linux).
+3. If you are already on the latest version, the app will let you know that you are up to date.
 
-**Note:**  
-The app can update itself (auto-update) and will prompt if a new version is available, but it cannot update `yt-dlp` or `ffmpeg` on Windows or Linux automatically—you must update them yourself.
+**Auto-update is only supported when running the packaged app** (from `.dmg`, `.exe`, or `.AppImage`/`.deb`). If you run the app in development mode (using `start.command` or `npm start`), auto-update is not available.
+
+**Note:**
+- The app cannot update `yt-dlp` or `ffmpeg` automatically on Windows or Linux—you must update them yourself (see Troubleshooting below).
+- On macOS, the app can help install or update dependencies via Homebrew if needed.
 
 ## Troubleshooting
 
