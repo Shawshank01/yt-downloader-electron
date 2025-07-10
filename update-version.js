@@ -1,0 +1,156 @@
+#!/usr/bin/env node
+
+import { execSync } from 'child_process';
+import { readFileSync, writeFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Colors for console output
+const colors = {
+    reset: '\x1b[0m',
+    bright: '\x1b[1m',
+    red: '\x1b[31m',
+    green: '\x1b[32m',
+    yellow: '\x1b[33m',
+    blue: '\x1b[34m',
+    magenta: '\x1b[35m',
+    cyan: '\x1b[36m'
+};
+
+function log(message, color = 'reset') {
+    console.log(`${colors[color]}${message}${colors.reset}`);
+}
+
+function error(message) {
+    log(`❌ Error: ${message}`, 'red');
+    process.exit(1);
+}
+
+function success(message) {
+    log(`✅ ${message}`, 'green');
+}
+
+function info(message) {
+    log(`ℹ️  ${message}`, 'blue');
+}
+
+function warning(message) {
+    log(`⚠️  ${message}`, 'yellow');
+}
+
+// Get command line arguments
+const args = process.argv.slice(2);
+const versionType = args[0]; // 'patch', 'minor', 'major', or specific version like '2.2.3'
+
+if (!versionType) {
+    error('Please specify version type: patch, minor, major, or specific version (e.g., 2.2.3)');
+    process.exit(1);
+}
+
+try {
+    // Read current package.json
+    const packagePath = join(__dirname, 'package.json');
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
+    const currentVersion = packageJson.version;
+
+    log(`Current version: ${currentVersion}`, 'cyan');
+
+    let newVersion;
+
+    // Determine new version
+    if (versionType === 'patch' || versionType === 'minor' || versionType === 'major') {
+        const [major, minor, patch] = currentVersion.split('.').map(Number);
+
+        switch (versionType) {
+            case 'patch':
+                newVersion = `${major}.${minor}.${patch + 1}`;
+                break;
+            case 'minor':
+                newVersion = `${major}.${minor + 1}.0`;
+                break;
+            case 'major':
+                newVersion = `${major + 1}.0.0`;
+                break;
+        }
+    } else {
+        // Specific version provided
+        if (!/^\d+\.\d+\.\d+$/.test(versionType)) {
+            error('Invalid version format. Use semantic versioning (e.g., 2.2.3)');
+        }
+        newVersion = versionType;
+    }
+
+    log(`New version: ${newVersion}`, 'cyan');
+
+    // Confirm with user
+    const readline = await import('readline');
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    const answer = await new Promise((resolve) => {
+        rl.question(`\nDo you want to update from ${currentVersion} to ${newVersion}? (y/N): `, resolve);
+    });
+    rl.close();
+
+    if (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes') {
+        info('Version update cancelled.');
+        process.exit(0);
+    }
+
+    // Check if git is clean
+    try {
+        const gitStatus = execSync('git status --porcelain', { encoding: 'utf8' });
+        if (gitStatus.trim()) {
+            warning('Git working directory is not clean. Please commit or stash your changes first.');
+            log('Uncommitted changes:', 'yellow');
+            console.log(gitStatus);
+            process.exit(1);
+        }
+    } catch (err) {
+        error('Failed to check git status. Make sure you are in a git repository.');
+    }
+
+    // Update package.json
+    packageJson.version = newVersion;
+    writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
+    success(`Updated package.json to version ${newVersion}`);
+
+    // Commit the version change
+    try {
+        execSync('git add package.json');
+        execSync(`git commit -m "Bump version to ${newVersion}"`);
+        success('Committed version change');
+    } catch (err) {
+        error('Failed to commit version change: ' + err.message);
+    }
+
+    // Create and push git tag
+    try {
+        const tagName = `v${newVersion}`;
+        execSync(`git tag ${tagName}`);
+        success(`Created git tag: ${tagName}`);
+
+        execSync(`git push origin ${tagName}`);
+        success(`Pushed tag ${tagName} to GitHub`);
+
+        // Push the commit as well
+        execSync('git push origin main');
+        success('Pushed commit to GitHub');
+
+    } catch (err) {
+        error('Failed to create/push tag: ' + err.message);
+    }
+
+    log('\n🎉 Version update completed successfully!', 'green');
+    log(`📦 New version: ${newVersion}`, 'cyan');
+    log(`🏷️  Git tag: v${newVersion}`, 'cyan');
+    log('🚀 GitHub Actions will automatically build and release the new version.', 'cyan');
+
+} catch (err) {
+    error('Script failed: ' + err.message);
+} 

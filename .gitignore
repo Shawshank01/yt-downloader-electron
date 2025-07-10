@@ -160,7 +160,3 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
-
-# Version update script (kept local for security)
-update-version.js
-update-version-patch.command
