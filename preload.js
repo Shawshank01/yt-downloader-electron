@@ -12,11 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         };
     },
     checkAppUpdate: () => ipcRenderer.invoke('check-app-update'),
-    checkYtDlpUpdate: () => ipcRenderer.invoke('check-yt-dlp-update'),
-    checkFfmpegUpdate: () => ipcRenderer.invoke('check-ffmpeg-update'),
-    updateYtDlp: () => ipcRenderer.invoke('update-yt-dlp'),
-    updateFfmpeg: () => ipcRenderer.invoke('update-ffmpeg'),
-    checkFfmpeg: () => ipcRenderer.invoke('check-ffmpeg'),
-    checkYtDlp: () => ipcRenderer.invoke('check-yt-dlp'),
+    getCurrentVersion: () => ipcRenderer.invoke('get-current-version'),
+    isAutoUpdaterSupported: () => ipcRenderer.invoke('is-auto-updater-supported'),
     reEncodeToMp4: (downloadFolder, videoId) => ipcRenderer.invoke('re-encode-to-mp4', downloadFolder, videoId)
 });

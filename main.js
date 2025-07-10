@@ -4,12 +4,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import {
     checkAppUpdate,
-    updateYtDlp,
-    updateFfmpeg,
-    checkFfmpeg,
-    checkYtDlp,
-    checkYtDlpUpdate,
-    checkFfmpegUpdate
+    getCurrentVersion,
+    isAutoUpdaterSupported
 } from './update.js';
 
 // ESM-compatible __dirname
@@ -37,7 +33,7 @@ function createWindow() {
         }
     });
     win.loadFile('index.html');
-    
+
     // Maximize the window instead of fullscreen to keep it in current desktop
     win.maximize();
 }
@@ -168,11 +164,7 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
     }
 });
 
-// Update-related IPC handlers
+// App update-related IPC handlers
 ipcMain.handle('check-app-update', checkAppUpdate);
-ipcMain.handle('check-yt-dlp-update', checkYtDlpUpdate);
-ipcMain.handle('check-ffmpeg-update', checkFfmpegUpdate);
-ipcMain.handle('update-yt-dlp', updateYtDlp);
-ipcMain.handle('update-ffmpeg', updateFfmpeg);
-ipcMain.handle('check-ffmpeg', checkFfmpeg);
-ipcMain.handle('check-yt-dlp', checkYtDlp);
+ipcMain.handle('get-current-version', getCurrentVersion);
+ipcMain.handle('is-auto-updater-supported', isAutoUpdaterSupported);

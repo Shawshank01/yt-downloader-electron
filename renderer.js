@@ -18,46 +18,33 @@ window.chooseFolder = async function () {
 
 window.checkUpdate = async function () {
     const output = document.getElementById('output');
-    output.textContent = "Checking for updates...\n";
+    output.textContent = "Checking for app updates...\n";
 
     try {
+        // Get current version
+        const currentVersion = await window.electronAPI.getCurrentVersion();
+        output.textContent += `Current version: ${currentVersion}\n`;
+
+        // Check if auto-updater is supported
+        const isSupported = await window.electronAPI.isAutoUpdaterSupported();
+        if (!isSupported) {
+            output.textContent += "\nAuto-updater is not supported on this platform.\n";
+            output.textContent += "Please download updates manually from GitHub releases.\n";
+            return;
+        }
+
         // Check app update
         const appUpdate = await window.electronAPI.checkAppUpdate();
-        output.textContent += `\nApp: ${appUpdate}`;
 
-        // Check yt-dlp version and update status
-        const ytDlpVersion = await window.electronAPI.checkYtDlp();
-        output.textContent += `\n${ytDlpVersion}`;
-        const ytDlpUpdate = await window.electronAPI.checkYtDlpUpdate();
-        output.textContent += `\n${ytDlpUpdate.message}`;
-
-        // Check ffmpeg version and update status
-        const ffmpegVersion = await window.electronAPI.checkFfmpeg();
-        output.textContent += `\n${ffmpegVersion}`;
-        const ffmpegUpdate = await window.electronAPI.checkFfmpegUpdate();
-        output.textContent += `\n${ffmpegUpdate.message}`;
-
-        // Only prompt for yt-dlp update if needed
-        if (ytDlpUpdate.needsUpdate) {
-            if (confirm('Would you like to update yt-dlp to the latest version?')) {
-                output.textContent += "\n\nUpdating yt-dlp...";
-                const updateResult = await window.electronAPI.updateYtDlp();
-                output.textContent += `\n${updateResult}`;
-            }
-        }
-
-        // Only prompt for ffmpeg update if needed
-        if (ffmpegUpdate.needsUpdate) {
-            if (confirm('Would you like to update ffmpeg to the latest version?')) {
-                output.textContent += "\n\nUpdating ffmpeg...";
-                const updateResult = await window.electronAPI.updateFfmpeg();
-                output.textContent += `\n${updateResult}`;
-            }
-        }
-
-        // If no updates are needed, show a message
-        if (!ytDlpUpdate.needsUpdate && !ffmpegUpdate.needsUpdate) {
-            output.textContent += "\n\nAll components are up to date!";
+        if (appUpdate.error) {
+            output.textContent += `\nError checking for updates: ${appUpdate.message}`;
+        } else if (appUpdate.hasUpdate) {
+            output.textContent += `\n✅ Update available!\n`;
+            output.textContent += `New version: ${appUpdate.version}\n`;
+            output.textContent += `Release notes: ${appUpdate.releaseNotes}\n`;
+            output.textContent += `\nThe app will automatically download and install the update.`;
+        } else {
+            output.textContent += `\n✅ App is up to date!`;
         }
     } catch (error) {
         output.textContent += `\nError: ${error.message}`;
