@@ -59,21 +59,14 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "${productName}-${version}-win.${ext}",
-      "publish": {
-        "provider": "github",
-        "updateProvider": "github"
-      }
+      "artifactName": "${productName}-${version}-win.${ext}"
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "category": "Utility",
-      "publish": {
-        "provider": "github"
-      }
+      "category": "Utility"
     },
     "nsis": {
       "oneClick": false,
