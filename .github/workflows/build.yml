@@ -58,7 +58,7 @@ jobs:
       - name: Convert SVG to PNG icon
         run: |
           mkdir -p build
-          $INKSCAPE_PATH build/icon.svg --export-type=png --export-filename=build/icon.png -w 1024 -h 1024
+          "$INKSCAPE_PATH" build/icon.svg --export-type=png --export-filename=build/icon.png -w 1024 -h 1024
         shell: bash
 
       - name: Build Electron app
