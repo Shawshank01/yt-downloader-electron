@@ -41,18 +41,28 @@ jobs:
           fi
         shell: bash
 
+      - name: Set INKSCAPE_PATH Environment Variable
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ] || [ "$RUNNER_OS" == "macOS" ]; then
+            echo "INKSCAPE_PATH=$(which inkscape)" >> $GITHUB_ENV
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            echo "INKSCAPE_PATH=C:\Program Files\Inkscape\bin\inkscape.exe" >> $GITHUB_ENV
+          fi
+
       - name: Install dependencies
         run: npm install
 
       - name: Build Electron app
         run: npm run ${{ matrix.build_script }}
+        env:
+          INKSCAPE_PATH: ${{ env.INKSCAPE_PATH }}
 
       - name: List build artifacts
         shell: bash
         run: |
           echo "=== Build artifacts for ${{ runner.os }} ==="
           ls -la dist/ || echo "dist/ directory not found"
-          find dist/ -type f -name "*.yml" -o -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" 2>/dev/null || echo "No matching files found"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -68,38 +78,32 @@ jobs:
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
-          path: dist
+          path: dist/
+          merge-multiple: true # Merges all artifacts into a single directory
 
       - name: List all downloaded artifacts
         shell: bash
         run: |
           echo "=== All downloaded artifacts ==="
-          find dist/ -type f 2>/dev/null | sort || echo "No files found in dist/"
-          echo "=== Looking for specific file types ==="
-          find dist/ -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.yml" 2>/dev/null | sort || echo "No matching files found"
+          find dist/ -type f -print
 
-      - name: Clean up unnecessary files
+      - name: Prepare release assets
         shell: bash
         run: |
-          echo "=== Cleaning up unnecessary files ==="
-          # Remove portable exe files (keep only installer)
-          find dist/ -name "yt-downloader-electron.exe" -delete
-          # Remove elevate.exe files
-          find dist/ -name "elevate.exe" -delete
-          # Remove any other unnecessary files
-          find dist/ -name "*.blockmap" -delete
-          echo "=== Files after cleanup ==="
-          find dist/ -type f 2>/dev/null | sort || echo "No files found in dist/"
+          mkdir release_assets
+          echo "Moving release assets..."
+          find dist -type f -name "*.dmg" -exec mv {} release_assets/ \;
+          find dist -type f -name "YT Downloader Setup*.exe" -exec mv {} release_assets/ \;
+          find dist -type f -name "*.AppImage" -exec mv {} release_assets/ \;
+          find dist -type f -name "*.deb" -exec mv {} release_assets/ \;
+          find dist -type f -name "latest*.yml" -exec mv {} release_assets/ \;
+          echo "Final assets to be released:"
+          ls -l release_assets
 
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: |
-            dist/**/*.dmg
-            dist/**/yt-downloader-electron-*-win.exe
-            dist/**/*.AppImage
-            dist/**/*.deb
-            dist/**/latest*.yml
+          files: release_assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
