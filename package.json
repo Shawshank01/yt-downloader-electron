@@ -1,6 +1,6 @@
 {
   "name": "yt-downloader-electron",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "description": "Video downloader using yt-dlp and ffmpeg",
   "main": "main.js",
   "type": "module",
@@ -59,7 +59,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "artifactName": "${productName}-${version}-win.${ext}",
