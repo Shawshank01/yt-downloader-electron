@@ -3,6 +3,25 @@ console.log("renderer.js loaded! window.electronAPI:", window.electronAPI);
 // Initialize progress handler
 let progressHandler = null;
 
+// Function to clean yt-dlp output by removing progress lines
+function cleanYtDlpResult(result) {
+    if (!result) return result;
+    
+    const lines = result.split('\n');
+    const cleanLines = [];
+    
+    for (const line of lines) {
+        // Skip progress lines that start with [download] and contain percentage
+        if (line.trim().startsWith('[download]') && line.includes('%')) {
+            continue;
+        }
+        // Keep all other lines
+        cleanLines.push(line);
+    }
+    
+    return cleanLines.join('\n').trim();
+}
+
 window.chooseFolder = async function () {
     console.log("chooseFolder called! electronAPI:", window.electronAPI);
     if (!window.electronAPI) {
@@ -83,15 +102,6 @@ window.runCommand = async function () {
         progressHandler();
     }
 
-    // Set up new progress handler
-    progressHandler = window.electronAPI.onProgress((progress) => {
-        const outputElement = document.getElementById('output');
-        const currentText = outputElement.textContent;
-        // Keep the command line but update the progress
-        const commandLine = currentText.split('\n')[0];
-        outputElement.textContent = commandLine + '\n' + progress;
-    });
-
     let cmd;
     switch (action) {
         case 'Download Video (Best Quality)':
@@ -119,12 +129,24 @@ window.runCommand = async function () {
             break;
     }
 
+    // Store the command line for progress updates
+    const commandLine = "Running: " + cmd;
+    
+    // Set up new progress handler
+    progressHandler = window.electronAPI.onProgress((progress) => {
+        const outputElement = document.getElementById('output');
+        // Only show command line + latest progress
+        outputElement.textContent = commandLine + '\n' + progress;
+    });
+
     document.getElementById('output').textContent = "Running: " + cmd + "\n";
     console.log("Running command:", cmd);
 
     try {
         const result = await window.electronAPI.runCommand(cmd);
-        document.getElementById('output').textContent += result;
+        // Clean the result by removing progress lines and keeping only the final message
+        const cleanResult = cleanYtDlpResult(result);
+        document.getElementById('output').textContent = commandLine + '\n' + cleanResult;
 
         // If this was a "Download & Re-encode as high quality MP4 (H.264/AAC)" action, ask for confirmation before re-encoding
         if (action === 'Download & Re-encode as high quality MP4 (H.264/AAC)' && downloadFolder) {
@@ -151,7 +173,8 @@ window.runCommand = async function () {
 
                     if (videoId) {
                         const reEncodeResult = await window.electronAPI.reEncodeToMp4(downloadFolder, videoId);
-                        document.getElementById('output').textContent += reEncodeResult;
+                        // Clear re-encoding progress and show only the final result
+                        document.getElementById('output').textContent = commandLine + '\n' + result + '\n' + reEncodeResult;
                     } else {
                         document.getElementById('output').textContent += "Could not extract video ID from URL.";
                     }
