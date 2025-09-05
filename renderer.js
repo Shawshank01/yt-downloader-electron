@@ -88,7 +88,7 @@ window.runCommand = async function () {
         document.getElementById('output').textContent = "Error: You must enter a video URL.";
         return;
     }
-    if (!["brave", "chrome", "firefox"].includes(browser)) {
+    if (!["", "brave", "chrome", "firefox", "safari"].includes(browser)) {
         document.getElementById('output').textContent = "Error: Invalid browser selection.";
         return;
     }
@@ -102,17 +102,20 @@ window.runCommand = async function () {
         progressHandler();
     }
 
+    // Build cookies parameter if browser is selected
+    const cookiesParam = browser ? `--cookies-from-browser ${browser}` : '';
+    
     let cmd;
     switch (action) {
         case 'Download Video (Best Quality)':
-            cmd = `yt-dlp -P "${downloadFolder}" --cookies-from-browser ${browser} "${url}"`;
+            cmd = `yt-dlp -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
             break;
         case 'List Formats':
-            cmd = `yt-dlp -F --cookies-from-browser ${browser} "${url}"`;
+            cmd = `yt-dlp -F ${cookiesParam} "${url}"`.trim();
             break;
         case 'Choose Format':
             if (formatCode) {
-                cmd = `yt-dlp -f ${formatCode} -P "${downloadFolder}" --cookies-from-browser ${browser} "${url}"`;
+                cmd = `yt-dlp -f ${formatCode} -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
             } else {
                 document.getElementById('output').textContent = "Error: Please enter a format code (e.g., 140, 356, or 140+356) for audio/video download.";
                 return;
@@ -122,10 +125,10 @@ window.runCommand = async function () {
             cmd = `yt-dlp --write-subs --all-subs --skip-download -P "${downloadFolder}" "${url}"`;
             break;
         case 'Download & Re-encode as high quality MP4 (H.264/AAC)':
-            cmd = `yt-dlp -P "${downloadFolder}" --cookies-from-browser ${browser} "${url}"`;
+            cmd = `yt-dlp -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
             break;
         default:
-            cmd = `yt-dlp -P "${downloadFolder}" --cookies-from-browser ${browser} "${url}"`;
+            cmd = `yt-dlp -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
             break;
     }
 
