@@ -18,11 +18,6 @@
             </div>
 
             <div class="input-group short-input">
-                <label for="formatCode">Format Code:</label>
-                <input type="text" id="formatCode" placeholder="e.g., 140, 356, or 140+356">
-            </div>
-
-            <div class="input-group short-input">
                 <label for="browser">Browser for Cookies:</label>
                 <select id="browser">
                     <option value="" selected>No cookies</option>
@@ -57,6 +52,13 @@
 
             <div class="input-group run-button-group">
                 <button class="run-button" onclick="window.runCommand()">Run</button>
+            </div>
+        </div>
+
+        <div class="input-row">
+            <div class="input-group short-input" id="formatCodeGroup" style="display: none;">
+                <label for="formatCode">Format Code:</label>
+                <input type="text" id="formatCode" placeholder="e.g., 140, 356, or 140+356">
             </div>
         </div>
 

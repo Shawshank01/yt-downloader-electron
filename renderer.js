@@ -122,7 +122,7 @@ window.runCommand = async function () {
             }
             break;
         case 'Download Subtitles':
-            cmd = `yt-dlp --write-subs --all-subs --skip-download -P "${downloadFolder}" "${url}"`;
+            cmd = `yt-dlp --write-subs --all-subs --skip-download -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
             break;
         case 'Download & Re-encode as high quality MP4 (H.264/AAC)':
             cmd = `yt-dlp -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
@@ -204,3 +204,20 @@ window.runCommand = async function () {
         document.getElementById('output').textContent += "\nError: " + e;
     }
 };
+
+// Show/hide Format Code field depending on action
+function updateFormatCodeVisibility() {
+    const action = document.getElementById('action').value;
+    const formatGroup = document.getElementById('formatCodeGroup');
+    if (!formatGroup) return;
+    formatGroup.style.display = action === 'Choose Format' ? '' : 'none';
+}
+
+// Initialize and bind change handler
+document.addEventListener('DOMContentLoaded', () => {
+    const actionSelect = document.getElementById('action');
+    if (actionSelect) {
+        actionSelect.addEventListener('change', updateFormatCodeVisibility);
+        updateFormatCodeVisibility();
+    }
+});
