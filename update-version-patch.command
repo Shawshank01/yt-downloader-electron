@@ -38,8 +38,12 @@ node update-version.js patch
 if [ $? -eq 0 ]; then
     echo ""
     echo "✅ Version update completed successfully!"
-    echo "The window will close automatically in 3 seconds..."
-    sleep 3
+    echo "The window will close automatically..."
+    # Short delay to ensure output flushes
+    sleep 1
+    # Get the Terminal window ID and close it without confirmation
+    WINDOW_ID=$(osascript -e 'tell application "Terminal" to id of window 1')
+    osascript -e "tell application \"Terminal\" to close window id $WINDOW_ID" &
     exit 0
 else
     echo ""
