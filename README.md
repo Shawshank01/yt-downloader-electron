@@ -10,8 +10,7 @@ A modern, user-friendly desktop application for downloading videos from YouTube 
 
 - 🎥 Download videos in various formats and qualities
 - 📝 Download subtitles
-- 🔄 Automatic updates for the app, yt-dlp, and ffmpeg
-- 🍪 Browser cookie support (Brave, Chrome, Firefox)
+- 🍪 Browser cookie support (Brave, Chrome, Firefox, Safari)
 - 📂 Custom download folder selection
 - 📊 Real-time download progress
 - 🎯 Format selection with detailed format list
@@ -121,7 +120,7 @@ The app includes a built-in update checker:
 2. If a new version is available, you will be prompted to open the [GitHub Releases](https://github.com/Shawshank01/yt-downloader-electron/releases/latest) page to download the latest installer for your platform (macOS, Windows, or Linux).
 3. If you are already on the latest version, the app will let you know that you are up to date.
 
-**Auto-update is only supported when running the packaged app** (from `.dmg`, `.exe`, or `.AppImage`/`.deb`). If you run the app in development mode (using `start.command` or `npm start`), auto-update is not available.
+**Update button is only supported when running the packaged app** (from `.dmg`, `.exe`, or `.AppImage`/`.deb`). If you run the app in development mode (using `start.command` or `npm start`), update may not be available.
 
 **Note:**
 - The app cannot update `yt-dlp` or `ffmpeg` automatically on Windows or Linux—you must update them yourself (see Troubleshooting below).
