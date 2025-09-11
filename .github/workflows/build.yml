@@ -105,6 +105,15 @@ jobs:
           find dist -type f -name "*.AppImage" -exec mv {} release_assets/ \;
           find dist -type f -name "*.deb" -exec mv {} release_assets/ \;
           find dist -type f -name "latest*.yml" -exec mv {} release_assets/ \;
+          # Try to collect release notes from the tag annotation if available
+          TAG_NAME=${{ github.ref_name }}
+          echo "Fetching annotated tag message for $TAG_NAME..."
+          (git fetch --tags >/dev/null 2>&1 || true)
+          git tag -l --format='%(contents)' "$TAG_NAME" > release_notes.txt || true
+          if [ ! -s release_notes.txt ]; then
+            echo "No annotated tag notes found; generating basic notes." > release_notes.txt
+            echo "Release $TAG_NAME" >> release_notes.txt
+          fi
           echo "Final assets to be released:"
           ls -l release_assets
 
@@ -112,7 +121,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          generate_release_notes: true
+          generate_release_notes: false
+          body_path: release_notes.txt
           files: release_assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}

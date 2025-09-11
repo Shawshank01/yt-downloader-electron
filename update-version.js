@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execSync } from 'child_process';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -218,23 +218,36 @@ try {
     writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
     success(`Updated package.json to version ${selectedVersion}`);
 
-    // Commit the version change
+    // Commit the version change (preserve multiline commit message)
     try {
         execSync('git add package.json');
-        execSync(`git commit -m "${commitMessage}"`);
+        const commitMessagePath = join(__dirname, '.git', 'COMMIT_MESSAGE.txt');
+        writeFileSync(commitMessagePath, commitMessage, 'utf8');
+        execSync(`git commit -F "${commitMessagePath}"`);
         success('Committed version change');
     } catch (err) {
         error('Failed to commit version change: ' + err.message);
     }
 
-    // Create and push git tag
+    // Create and push git tag (annotated with release notes if provided)
     try {
         const tagName = `v${selectedVersion}`;
-        execSync(`git tag ${tagName}`);
+        const tagBody = (releaseNotes && releaseNotes.trim().length > 0)
+            ? releaseNotes
+            : `Release ${selectedVersion}`;
+
+        // Write tag message to a temp file to preserve newlines safely
+        const tagMessagePath = join(__dirname, '.git', 'TAG_MESSAGE.txt');
+        writeFileSync(tagMessagePath, tagBody, 'utf8');
+
+        execSync(`git tag -a ${tagName} -F "${tagMessagePath}"`);
         success(`Created git tag: ${tagName}`);
 
         execSync(`git push origin ${tagName}`);
         success(`Pushed tag ${tagName} to GitHub`);
+
+        // Clean up temp file
+        try { unlinkSync(tagMessagePath); } catch {}
 
         // Push the commit as well
         execSync('git push origin main');
