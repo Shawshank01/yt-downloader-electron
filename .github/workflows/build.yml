@@ -111,10 +111,13 @@ jobs:
           # Try to collect release notes from the tag annotation if available
           TAG_NAME=${{ github.ref_name }}
           echo "Fetching annotated tag message for $TAG_NAME..."
-          # Fetch the specific tag with its annotation
-          git fetch origin tag "$TAG_NAME" --no-tags
-          # Extract the tag message
+          # Try to read tag annotation locally first
           git tag -l --format='%(contents)' "$TAG_NAME" > release_notes.txt 2>/dev/null || true
+          # If empty, fetch tags (ignore errors if tag already exists locally)
+          if [ ! -s release_notes.txt ]; then
+            git fetch --tags --force >/dev/null 2>&1 || true
+            git tag -l --format='%(contents)' "$TAG_NAME" > release_notes.txt 2>/dev/null || true
+          fi
           if [ ! -s release_notes.txt ] || [ "$(cat release_notes.txt | wc -l)" -lt 2 ]; then
             echo "No annotated tag notes found; generating basic notes." > release_notes.txt
             echo "Release $TAG_NAME" >> release_notes.txt
