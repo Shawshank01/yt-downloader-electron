@@ -62,12 +62,30 @@ window.checkUpdate = async function () {
             appUpdate.version &&
             appUpdate.version !== currentVersion
         ) {
+            const stripHtml = (v) => (v || '').replace(/<[^>]*>/g, '').trim();
+            const cleanedNotes = stripHtml(appUpdate.releaseNotes);
+
+            // Show details inside the confirmation prompt first
+            const promptMsg = `A new version is available.\n\n` +
+                `New version: ${appUpdate.version}\n` +
+                (cleanedNotes ? `Release notes:\n${cleanedNotes}\n\n` : '\n') +
+                `Do you want to open the GitHub releases page to download the latest version?`;
+
+            const openNow = confirm(promptMsg);
+
+            // Then print to output (also using cleaned notes)
             output.textContent += `\n✅ Update available!\n`;
             output.textContent += `New version: ${appUpdate.version}\n`;
-            output.textContent += `Release notes: ${appUpdate.releaseNotes}\n`;
+            if (cleanedNotes) {
+                output.textContent += `Release notes: ${cleanedNotes}\n`;
+            }
 
-            if (confirm('A new version is available. Do you want to open the GitHub releases page to download the latest version?')) {
-                window.open('https://github.com/Shawshank01/yt-downloader-electron/releases/latest', '_blank');
+            if (openNow) {
+                if (window.electronAPI && window.electronAPI.openExternal) {
+                    window.electronAPI.openExternal('https://github.com/Shawshank01/yt-downloader-electron/releases/latest');
+                } else {
+                    window.open('https://github.com/Shawshank01/yt-downloader-electron/releases/latest', '_blank');
+                }
             }
         } else {
             output.textContent += `\n✅ App is up to date!`;
