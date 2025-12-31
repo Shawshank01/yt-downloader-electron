@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import { exec } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -161,6 +161,21 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
 
     } catch (error) {
         return `Error during re-encoding: ${error.message}`;
+    }
+});
+
+// IPC handler for opening external links
+ipcMain.handle('open-external', async (_event, url) => {
+    if (typeof url !== 'string' || url.trim() === '') {
+        return false;
+    }
+
+    try {
+        await shell.openExternal(url);
+        return true;
+    } catch (error) {
+        console.error('Failed to open external URL:', error);
+        return false;
     }
 });
 

@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer, shell } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 console.log("preload.js running!");
 
@@ -15,5 +15,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCurrentVersion: () => ipcRenderer.invoke('get-current-version'),
     isAutoUpdaterSupported: () => ipcRenderer.invoke('is-auto-updater-supported'),
     reEncodeToMp4: (downloadFolder, videoId) => ipcRenderer.invoke('re-encode-to-mp4', downloadFolder, videoId),
-    openExternal: (url) => shell.openExternal(url)
+    openExternal: (url) => ipcRenderer.invoke('open-external', url)
 });

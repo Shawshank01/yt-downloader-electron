@@ -6,10 +6,10 @@ let progressHandler = null;
 // Function to clean yt-dlp output by removing progress lines
 function cleanYtDlpResult(result) {
     if (!result) return result;
-    
+
     const lines = result.split('\n');
     const cleanLines = [];
-    
+
     for (const line of lines) {
         // Skip progress lines that start with [download] and contain percentage
         if (line.trim().startsWith('[download]') && line.includes('%')) {
@@ -18,7 +18,7 @@ function cleanYtDlpResult(result) {
         // Keep all other lines
         cleanLines.push(line);
     }
-    
+
     return cleanLines.join('\n').trim();
 }
 
@@ -81,10 +81,19 @@ window.checkUpdate = async function () {
             }
 
             if (openNow) {
-                if (window.electronAPI && window.electronAPI.openExternal) {
-                    window.electronAPI.openExternal('https://github.com/Shawshank01/yt-downloader-electron/releases/latest');
+                const releaseUrl = 'https://github.com/Shawshank01/yt-downloader-electron/releases/latest';
+
+                if (window.electronAPI?.openExternal) {
+                    try {
+                        const opened = await window.electronAPI.openExternal(releaseUrl);
+                        if (!opened) {
+                            window.open(releaseUrl, '_blank');
+                        }
+                    } catch (error) {
+                        window.open(releaseUrl, '_blank');
+                    }
                 } else {
-                    window.open('https://github.com/Shawshank01/yt-downloader-electron/releases/latest', '_blank');
+                    window.open(releaseUrl, '_blank');
                 }
             }
         } else {
@@ -122,7 +131,7 @@ window.runCommand = async function () {
 
     // Build cookies parameter if browser is selected
     const cookiesParam = browser ? `--cookies-from-browser ${browser}` : '';
-    
+
     let cmd;
     switch (action) {
         case 'Download Video (Best Quality)':
@@ -152,7 +161,7 @@ window.runCommand = async function () {
 
     // Store the command line for progress updates
     const commandLine = "Running: " + cmd;
-    
+
     // Set up new progress handler
     progressHandler = window.electronAPI.onProgress((progress) => {
         const outputElement = document.getElementById('output');
