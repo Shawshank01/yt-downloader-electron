@@ -1,7 +1,8 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, extname, basename } from 'path';
+import { promises as fs } from 'fs';
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
 
 // ESM-compatible __dirname
@@ -19,13 +20,36 @@ const extraPaths = [
 ];
 process.env.PATH = [...new Set([...(process.env.PATH || '').split(':'), ...extraPaths])].join(':');
 
+// Global state for re-encoding process
+let activeReEncodeProcess = null;
+let reEncodeCancelled = false;
+
+// IPC handler for cancelling re-encoding
+ipcMain.handle('cancel-re-encode', async () => {
+    if (activeReEncodeProcess) {
+        reEncodeCancelled = true;
+        const pid = activeReEncodeProcess.pid;
+        console.log(`Cancelling re-encode process with PID: ${pid}`);
+
+        try {
+            process.kill(pid, 'SIGKILL');
+        } catch (e) {
+            console.error("Error killing process:", e);
+        }
+
+        console.log("Re-encoding process kill signal sent.");
+        return true;
+    }
+    return false;
+});
+
 function createWindow() {
     const win = new BrowserWindow({
         fullscreenable: true,
         webPreferences: {
-            preload: join(__dirname, 'preload.js'), // Preload script with explicit .js extension
-            nodeIntegration: false, // Do NOT use node integration
-            contextIsolation: true // Isolate context for security
+            preload: join(__dirname, 'preload.js'),
+            nodeIntegration: false,
+            contextIsolation: true
         }
     });
     win.loadFile(join(__dirname, 'index.html'));
@@ -55,7 +79,6 @@ ipcMain.handle('run-command', async (event, args) => {
 
         process.stdout.on('data', (data) => {
             output += data;
-            // Check if the line contains download progress
             if (data.includes('[download]')) {
                 event.sender.send('download-progress', data.trim());
             }
@@ -63,7 +86,6 @@ ipcMain.handle('run-command', async (event, args) => {
 
         process.stderr.on('data', (data) => {
             output += '\n' + data;
-            // Check if the line contains download progress
             if (data.includes('[download]')) {
                 event.sender.send('download-progress', data.trim());
             }
@@ -80,89 +102,109 @@ ipcMain.handle('run-command', async (event, args) => {
 
 // IPC handler for re-encoding videos to MP4 with H.264 and AAC
 ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
-    console.log('Re-encoding video in folder:', downloadFolder, 'for video ID:', videoId);
+    console.log("Re-encoding video in folder:", downloadFolder, "for video ID:", videoId);
 
     try {
-        const fs = await import('fs');
-        const path = await import('path');
-
-        // Find the specific downloaded file by looking for video files containing the video ID
         const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
-        const files = fs.default.readdirSync(downloadFolder).filter((file) => {
+        const allFiles = await fs.readdir(downloadFolder);
+        const files = allFiles.filter(file => {
             const lowerFile = file.toLowerCase();
-            return videoExtensions.some((ext) => lowerFile.endsWith(ext)) && file.includes(videoId);
+            return videoExtensions.some(ext => lowerFile.endsWith(ext)) && file.includes(videoId);
         });
 
         if (files.length === 0) {
-            return 'No matching video file found to re-encode.';
+            return "No matching video file found to re-encode.";
         }
 
-        // Only process the first matching file (should be the one just downloaded)
         const file = files[0];
-        const filePath = path.default.join(downloadFolder, file);
-        const fileExt = path.default.extname(file);
-        const filename = path.default.basename(file, fileExt);
-        const outputPath = path.default.join(downloadFolder, `${filename}_reencoded.mp4`);
+        const filePath = join(downloadFolder, file);
+
+        const fileExt = extname(file);
+        const filename = basename(file, fileExt);
+        const outputPath = join(downloadFolder, `${filename}_reencoded.mp4`);
+        reEncodeCancelled = false;
 
         console.log(`Re-encoding file: ${file}`);
         event.sender.send('download-progress', `Re-encoding ${file}...`);
 
         return new Promise((resolve) => {
-            // Try with libfdk_aac first, fallback to aac if it fails
             const tryReEncode = (audioCodec) => {
-                const ffmpegCmd = `ffmpeg -i "${filePath}" -c:v libx264 -crf 18 -preset veryslow -c:a ${audioCodec} -tag:v avc1 "${outputPath}"`;
-                const process = exec(ffmpegCmd);
+                const args = [
+                    '-i', filePath,
+                    '-c:v', 'libx264',
+                    '-crf', '18',
+                    '-preset', 'veryslow',
+                    '-c:a', audioCodec,
+                    '-tag:v', 'avc1',
+                    outputPath
+                ];
 
-                process.stdout.on('data', (data) => {
-                    // Send progress updates for ffmpeg
-                    if (data.includes('time=')) {
-                        event.sender.send(
-                            'download-progress',
-                            `Re-encoding ${file} (${audioCodec}): ${data.trim()}`
-                        );
+                activeReEncodeProcess = spawn('ffmpeg', args);
+
+                activeReEncodeProcess.stdout.on('data', (data) => {
+                    if (reEncodeCancelled) return;
+                    const str = data.toString();
+                    if (str.includes('time=')) {
+                        event.sender.send('download-progress', `Re-encoding ${file} (${audioCodec}): ${str.trim()}`);
                     }
                 });
 
-                process.stderr.on('data', (data) => {
-                    // ffmpeg sends progress to stderr
-                    if (data.includes('time=')) {
-                        event.sender.send(
-                            'download-progress',
-                            `Re-encoding ${file} (${audioCodec}): ${data.trim()}`
-                        );
+                activeReEncodeProcess.stderr.on('data', (data) => {
+                    if (reEncodeCancelled) return;
+                    const str = data.toString();
+                    if (str.includes('time=')) {
+                        event.sender.send('download-progress', `Re-encoding ${file} (${audioCodec}): ${str.trim()}`);
                     }
                 });
 
-                process.on('close', (code) => {
+                activeReEncodeProcess.on('close', async (code) => {
+                    activeReEncodeProcess = null;
+
+                    if (reEncodeCancelled) {
+                        console.log("Re-encoding was cancelled. Cleaning up...");
+                        try {
+                            await fs.unlink(outputPath);
+                        } catch (e) { /* ignore if output file doesn't exist */ }
+                        try {
+                            await fs.unlink(filePath);
+                            console.log(`Deleted original file: ${filePath}`);
+                        } catch (e) { /* ignore if input file doesn't exist */ }
+
+                        resolve("Re-encoding cancelled by user. Files cleaned up.");
+                        return;
+                    }
+
                     if (code === 0) {
-                        // Success - replace original file with re-encoded version
-                        fs.default.unlinkSync(filePath);
-                        fs.default.renameSync(outputPath, filePath);
-                        console.log(`Successfully re-encoded: ${file} with ${audioCodec}`);
-                        resolve(`Re-encoding completed successfully for ${file}`);
+                        try {
+                            await fs.unlink(filePath);
+                            const finalPath = join(downloadFolder, `${filename}.mp4`);
+                            await fs.rename(outputPath, finalPath);
+
+                            console.log(`Successfully re-encoded: ${file} to ${finalPath}`);
+                            resolve(`Re-encoding completed successfully. Saved as: ${filename}.mp4`);
+                        } catch (err) {
+                            console.error("Error replacing file:", err);
+                            resolve(`Re-encoding finished but failed to replace file: ${err.message}`);
+                        }
                     } else if (code !== 0 && audioCodec === 'libfdk_aac') {
-                        // libfdk_aac failed, try with aac
+                        // Fallback to built-in aac codec
                         console.log(`libfdk_aac failed for ${file}, trying with aac...`);
-                        event.sender.send(
-                            'download-progress',
-                            `libfdk_aac not available, trying with aac...`
-                        );
+                        event.sender.send('download-progress', `libfdk_aac not available, trying with aac...`);
                         tryReEncode('aac');
                     } else {
-                        // Both codecs failed
                         console.log(`Failed to re-encode: ${file}`);
-                        // Clean up temporary file if it exists
-                        if (fs.default.existsSync(outputPath)) {
-                            fs.default.unlinkSync(outputPath);
-                        }
+                        try {
+                            await fs.unlink(outputPath);
+                        } catch (e) { /* ignore */ }
+
                         resolve(`Failed to re-encode ${file}`);
                     }
                 });
             };
 
-            // Start with libfdk_aac
             tryReEncode('libfdk_aac');
         });
+
     } catch (error) {
         return `Error during re-encoding: ${error.message}`;
     }

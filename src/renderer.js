@@ -7,18 +7,23 @@ let progressHandler = null;
 function cleanYtDlpResult(result) {
     if (!result) return result;
 
-    const lines = result.split('\n');
+    const lines = result.split(/[\r\n]+/);
     const cleanLines = [];
 
     for (const line of lines) {
-        // Skip progress lines that start with [download] and contain percentage
-        if (line.trim().startsWith('[download]') && line.includes('%')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        // Skip progress lines
+        if (trimmed.startsWith('[download]') && (trimmed.includes('%') || trimmed.includes('ETA'))) {
             continue;
         }
-        // Keep all other lines
-        cleanLines.push(line);
+
+        // Skip some other noisy lines if needed, but mainly progress
+        cleanLines.push(trimmed);
     }
 
+    // Join with newlines
     return cleanLines.join('\n').trim();
 }
 
@@ -213,13 +218,30 @@ window.runCommand = async function () {
                     }
 
                     if (videoId) {
-                        const reEncodeResult = await window.electronAPI.reEncodeToMp4(
-                            downloadFolder,
-                            videoId
-                        );
-                        // Clear re-encoding progress and show only the final result
-                        document.getElementById('output').textContent =
-                            commandLine + '\n' + result + '\n' + reEncodeResult;
+                        try {
+                            // Show cancel button
+                            const reEncodeControls = document.getElementById('reEncodeControls');
+                            if (reEncodeControls) reEncodeControls.style.display = 'block';
+
+                            // Reset button state
+                            const cancelBtn = document.getElementById('cancelReEncodeBtn');
+                            if (cancelBtn) {
+                                cancelBtn.disabled = false;
+                                cancelBtn.textContent = "Cancel Re-encoding";
+                            }
+
+                            const reEncodeResult = await window.electronAPI.reEncodeToMp4(
+                                downloadFolder,
+                                videoId
+                            );
+
+                            document.getElementById('output').textContent =
+                                commandLine + '\n' + cleanResult + '\n' + reEncodeResult;
+                        } finally {
+                            // Hide cancel button
+                            const reEncodeControls = document.getElementById('reEncodeControls');
+                            if (reEncodeControls) reEncodeControls.style.display = 'none';
+                        }
                     } else {
                         document.getElementById('output').textContent +=
                             'Could not extract video ID from URL.';
@@ -264,5 +286,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (actionSelect) {
         actionSelect.addEventListener('change', updateFormatCodeVisibility);
         updateFormatCodeVisibility();
+    }
+
+    const cancelBtn = document.getElementById('cancelReEncodeBtn');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', async () => {
+            cancelBtn.disabled = true;
+            cancelBtn.textContent = "Cancelling...";
+            await window.electronAPI.cancelReEncode();
+        });
     }
 });

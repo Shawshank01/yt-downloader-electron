@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isAutoUpdaterSupported: () => ipcRenderer.invoke('is-auto-updater-supported'),
     reEncodeToMp4: (downloadFolder, videoId) =>
         ipcRenderer.invoke('re-encode-to-mp4', downloadFolder, videoId),
-    openExternal: (url) => ipcRenderer.invoke('open-external', url)
+    openExternal: (url) => ipcRenderer.invoke('open-external', url),
+    cancelReEncode: () => ipcRenderer.invoke('cancel-re-encode')
 });
