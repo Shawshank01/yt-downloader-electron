@@ -2,17 +2,13 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import { exec } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import {
-    checkAppUpdate,
-    getCurrentVersion,
-    isAutoUpdaterSupported
-} from './update.js';
+import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
 
 // ESM-compatible __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// === Fix PATH so yt-dlp is found ===
+// Fix PATH so yt-dlp is found
 const extraPaths = [
     '/usr/local/bin',
     '/opt/homebrew/bin',
@@ -28,11 +24,11 @@ function createWindow() {
         fullscreenable: true,
         webPreferences: {
             preload: join(__dirname, 'preload.js'), // Preload script with explicit .js extension
-            nodeIntegration: false,                 // Do NOT use node integration!
-            contextIsolation: true,                 // Isolate context for security
+            nodeIntegration: false, // Do NOT use node integration
+            contextIsolation: true // Isolate context for security
         }
     });
-    win.loadFile('index.html');
+    win.loadFile(join(__dirname, 'index.html'));
 
     // Maximize the window instead of fullscreen to keep it in current desktop
     win.maximize();
@@ -45,13 +41,13 @@ ipcMain.handle('choose-folder', async () => {
     const result = await dialog.showOpenDialog({
         properties: ['openDirectory']
     });
-    return (result.canceled || result.filePaths.length === 0) ? '' : result.filePaths[0];
+    return result.canceled || result.filePaths.length === 0 ? '' : result.filePaths[0];
 });
 
 // IPC handler for running yt-dlp commands
 ipcMain.handle('run-command', async (event, args) => {
-    console.log("Executing:", args);
-    console.log("process.env.PATH:", process.env.PATH);
+    console.log('Executing:', args);
+    console.log('process.env.PATH:', process.env.PATH);
 
     return new Promise((resolve) => {
         const process = exec(args);
@@ -84,7 +80,7 @@ ipcMain.handle('run-command', async (event, args) => {
 
 // IPC handler for re-encoding videos to MP4 with H.264 and AAC
 ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
-    console.log("Re-encoding video in folder:", downloadFolder, "for video ID:", videoId);
+    console.log('Re-encoding video in folder:', downloadFolder, 'for video ID:', videoId);
 
     try {
         const fs = await import('fs');
@@ -92,13 +88,13 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
 
         // Find the specific downloaded file by looking for video files containing the video ID
         const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
-        const files = fs.default.readdirSync(downloadFolder).filter(file => {
+        const files = fs.default.readdirSync(downloadFolder).filter((file) => {
             const lowerFile = file.toLowerCase();
-            return videoExtensions.some(ext => lowerFile.endsWith(ext)) && file.includes(videoId);
+            return videoExtensions.some((ext) => lowerFile.endsWith(ext)) && file.includes(videoId);
         });
 
         if (files.length === 0) {
-            return "No matching video file found to re-encode.";
+            return 'No matching video file found to re-encode.';
         }
 
         // Only process the first matching file (should be the one just downloaded)
@@ -120,14 +116,20 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
                 process.stdout.on('data', (data) => {
                     // Send progress updates for ffmpeg
                     if (data.includes('time=')) {
-                        event.sender.send('download-progress', `Re-encoding ${file} (${audioCodec}): ${data.trim()}`);
+                        event.sender.send(
+                            'download-progress',
+                            `Re-encoding ${file} (${audioCodec}): ${data.trim()}`
+                        );
                     }
                 });
 
                 process.stderr.on('data', (data) => {
                     // ffmpeg sends progress to stderr
                     if (data.includes('time=')) {
-                        event.sender.send('download-progress', `Re-encoding ${file} (${audioCodec}): ${data.trim()}`);
+                        event.sender.send(
+                            'download-progress',
+                            `Re-encoding ${file} (${audioCodec}): ${data.trim()}`
+                        );
                     }
                 });
 
@@ -141,7 +143,10 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
                     } else if (code !== 0 && audioCodec === 'libfdk_aac') {
                         // libfdk_aac failed, try with aac
                         console.log(`libfdk_aac failed for ${file}, trying with aac...`);
-                        event.sender.send('download-progress', `libfdk_aac not available, trying with aac...`);
+                        event.sender.send(
+                            'download-progress',
+                            `libfdk_aac not available, trying with aac...`
+                        );
                         tryReEncode('aac');
                     } else {
                         // Both codecs failed
@@ -158,7 +163,6 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
             // Start with libfdk_aac
             tryReEncode('libfdk_aac');
         });
-
     } catch (error) {
         return `Error during re-encoding: ${error.message}`;
     }

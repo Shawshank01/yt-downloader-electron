@@ -15,12 +15,14 @@ async function checkCommand(command) {
 
 async function checkDependencies() {
     console.log('Checking required dependencies...');
-    
+
     // Check for Homebrew
     const hasHomebrew = await checkCommand('which brew');
     if (!hasHomebrew) {
         console.error('\n❌ Homebrew is not installed. Please install it first:');
-        console.error('/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"');
+        console.error(
+            '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+        );
         exit(1);
     }
     console.log('✅ Homebrew is installed');
@@ -58,7 +60,7 @@ async function checkDependencies() {
     console.log('\nAll dependencies are satisfied! Starting the app...\n');
 }
 
-checkDependencies().catch(error => {
+checkDependencies().catch((error) => {
     console.error('Error checking dependencies:', error);
     exit(1);
-}); 
+});
