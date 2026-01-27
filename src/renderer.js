@@ -164,6 +164,10 @@ window.runCommand = async function () {
         case 'Download & Re-encode as high quality MP4 (H.264/AAC)':
             cmd = `yt-dlp -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
             break;
+        case 'Download with Hardsub (macOS)':
+            // Handle hardsub workflow separately
+            await handleHardsubAction(url, browser, downloadFolder);
+            return;
         default:
             cmd = `yt-dlp -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
             break;
@@ -276,8 +280,136 @@ window.runCommand = async function () {
 function updateFormatCodeVisibility() {
     const action = document.getElementById('action').value;
     const formatGroup = document.getElementById('formatCodeGroup');
-    if (!formatGroup) return;
-    formatGroup.style.display = action === 'Choose Format' ? '' : 'none';
+    const codecGroup = document.getElementById('codecGroup');
+
+    if (formatGroup) {
+        formatGroup.style.display = action === 'Choose Format' ? '' : 'none';
+    }
+    if (codecGroup) {
+        codecGroup.style.display = action === 'Download with Hardsub (macOS)' ? '' : 'none';
+    }
+}
+
+// Handle hardsub action workflow
+async function handleHardsubAction(url, browser, downloadFolder) {
+    const output = document.getElementById('output');
+    const codec = document.getElementById('codec').value;
+
+    if (!downloadFolder) {
+        output.textContent = 'Error: Please select a download folder.';
+        return;
+    }
+
+    // Clear previous progress handler
+    if (progressHandler) {
+        progressHandler();
+    }
+
+    // Set up progress handler
+    progressHandler = window.electronAPI.onProgress((progress) => {
+        output.textContent = progress;
+    });
+
+    output.textContent = 'Fetching available subtitles...';
+
+    try {
+        // Step 1: List available subtitles
+        const result = await window.electronAPI.listSubtitles(url, browser);
+
+        if (result.error) {
+            output.textContent = `Error listing subtitles: ${result.message}`;
+            return;
+        }
+
+        if (!result.subtitles || result.subtitles.length === 0) {
+            output.textContent = 'No subtitles available for this video.';
+            return;
+        }
+
+        // Step 2: Show subtitle selection modal
+        const selectedSubtitle = await showSubtitleModal(result.subtitles);
+
+        if (!selectedSubtitle) {
+            output.textContent = 'Subtitle selection cancelled.';
+            return;
+        }
+
+        output.textContent = `Selected subtitle: ${selectedSubtitle.name} (${selectedSubtitle.code})\nStarting download...`;
+
+        // Show hardsub controls
+        const hardsubControls = document.getElementById('hardsubControls');
+        const cancelBtn = document.getElementById('cancelHardsubBtn');
+        if (hardsubControls) hardsubControls.style.display = 'block';
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.textContent = "Cancel Hardsub";
+        }
+
+        try {
+            // Step 3: Download and hardsub
+            const hardsubResult = await window.electronAPI.downloadWithHardsub({
+                url,
+                browser,
+                downloadFolder,
+                subtitleLang: selectedSubtitle.code,
+                codec
+            });
+
+            output.textContent = hardsubResult;
+
+            // Add completion hint
+            if (hardsubResult.includes('completed') || hardsubResult.includes('Saved as')) {
+                const completionHint = document.createElement('div');
+                completionHint.style.marginTop = '10px';
+                completionHint.style.padding = '10px';
+                completionHint.style.backgroundColor = '#e8f5e9';
+                completionHint.style.borderRadius = '4px';
+                completionHint.style.color = '#2e7d32';
+                completionHint.innerHTML = '✅ Hardsub completed!';
+                output.appendChild(completionHint);
+            }
+        } finally {
+            // Hide hardsub controls
+            if (hardsubControls) hardsubControls.style.display = 'none';
+        }
+    } catch (error) {
+        output.textContent = `Error: ${error.message}`;
+    }
+}
+
+// Show subtitle selection modal and return selected subtitle
+function showSubtitleModal(subtitles) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('subtitleModal');
+        const subtitleList = document.getElementById('subtitleList');
+        const cancelBtn = document.getElementById('cancelSubtitleBtn');
+
+        // Clear previous list
+        subtitleList.innerHTML = '';
+
+        // Populate subtitle list
+        subtitles.forEach((sub) => {
+            const item = document.createElement('div');
+            item.className = 'subtitle-item';
+            item.textContent = `${sub.name} (${sub.code})`;
+            item.addEventListener('click', () => {
+                modal.style.display = 'none';
+                resolve(sub);
+            });
+            subtitleList.appendChild(item);
+        });
+
+        // Handle cancel
+        const handleCancel = () => {
+            modal.style.display = 'none';
+            resolve(null);
+        };
+
+        cancelBtn.onclick = handleCancel;
+
+        // Show modal
+        modal.style.display = 'flex';
+    });
 }
 
 // Initialize and bind change handler
@@ -288,12 +420,23 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFormatCodeVisibility();
     }
 
-    const cancelBtn = document.getElementById('cancelReEncodeBtn');
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', async () => {
-            cancelBtn.disabled = true;
-            cancelBtn.textContent = "Cancelling...";
+    // Re-encode cancel button
+    const cancelReEncodeBtn = document.getElementById('cancelReEncodeBtn');
+    if (cancelReEncodeBtn) {
+        cancelReEncodeBtn.addEventListener('click', async () => {
+            cancelReEncodeBtn.disabled = true;
+            cancelReEncodeBtn.textContent = "Cancelling...";
             await window.electronAPI.cancelReEncode();
+        });
+    }
+
+    // Hardsub cancel button
+    const cancelHardsubBtn = document.getElementById('cancelHardsubBtn');
+    if (cancelHardsubBtn) {
+        cancelHardsubBtn.addEventListener('click', async () => {
+            cancelHardsubBtn.disabled = true;
+            cancelHardsubBtn.textContent = "Cancelling...";
+            await window.electronAPI.cancelHardsub();
         });
     }
 });

@@ -1,6 +1,6 @@
 {
   "name": "yt-downloader-electron",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "Video downloader using yt-dlp and ffmpeg",
   "main": "src/main.js",
   "type": "module",
@@ -43,13 +43,19 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "electron": "^36.2.1",
-    "electron-builder": "^24.13.3",
+    "electron-builder": "^26.5.0",
     "eslint": "^9.39.2",
     "globals": "^17.0.0",
     "prettier": "^3.7.4"
   },
   "optionalDependencies": {
     "dmg-license": "^1.0.10"
+  },
+  "overrides": {
+    "@electron/rebuild": "4.0.3",
+    "app-builder-lib": {
+      "tar": "7.5.7"
+    }
   },
   "build": {
     "appId": "com.ytdownloader.app",

@@ -42,6 +42,9 @@
                     <option value="Download & Re-encode as high quality MP4 (H.264/AAC)">
                         Download & Re-encode as high quality MP4 (H.264/AAC)
                     </option>
+                    <option value="Download with Hardsub (macOS)">
+                        Download with Hardsub (macOS)
+                    </option>
                 </select>
             </div>
 
@@ -63,6 +66,20 @@
                 <label for="formatCode">Format Code:</label>
                 <input type="text" id="formatCode" placeholder="e.g., 140, 356, or 140+356" />
             </div>
+
+            <div class="input-group short-input" id="codecGroup" style="display: none">
+                <label for="codec">Video Codec:</label>
+                <select id="codec">
+                    <option value="h264">H.264 (Better Compatibility)</option>
+                    <option value="hevc">HEVC (Better Quality)</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="hardsubControls" style="display: none; margin-bottom: 10px;">
+            <button id="cancelHardsubBtn"
+                style="background-color: #d32f2f; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">Cancel
+                Hardsub</button>
         </div>
 
         <div id="reEncodeControls" style="display: none; margin-bottom: 10px;">
@@ -71,6 +88,17 @@
                 Re-encoding</button>
         </div>
         <div id="output"></div>
+
+        <!-- Subtitle Selection Modal -->
+        <div id="subtitleModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>Select Subtitle Language</h2>
+                <div id="subtitleList" class="subtitle-list"></div>
+                <div class="modal-buttons">
+                    <button id="cancelSubtitleBtn" class="cancel-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
 
         <div class="update-button-container">
             <button class="update-button" onclick="checkUpdate()">Check for Updates</button>

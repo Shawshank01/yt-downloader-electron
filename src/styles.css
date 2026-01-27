@@ -157,3 +157,70 @@ button.run-button:hover {
     background-color: rgba(33, 150, 243, 0.1);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
+
+/* Modal styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.modal-content {
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.subtitle-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.subtitle-item {
+    padding: 10px 15px;
+    background-color: var(--button-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.subtitle-item:hover {
+    background-color: var(--run-button-bg);
+    border-color: var(--run-button-bg);
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.modal-buttons .cancel-btn {
+    background-color: #d32f2f;
+    padding: 10px 20px;
+}
+
+.modal-buttons .cancel-btn:hover {
+    background-color: #b71c1c;
+}

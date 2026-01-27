@@ -24,6 +24,10 @@ process.env.PATH = [...new Set([...(process.env.PATH || '').split(':'), ...extra
 let activeReEncodeProcess = null;
 let reEncodeCancelled = false;
 
+// Global state for hardsub process
+let activeHardsubProcess = null;
+let hardsubCancelled = false;
+
 // IPC handler for cancelling re-encoding
 ipcMain.handle('cancel-re-encode', async () => {
     if (activeReEncodeProcess) {
@@ -229,3 +233,288 @@ ipcMain.handle('open-external', async (_event, url) => {
 ipcMain.handle('check-app-update', checkAppUpdate);
 ipcMain.handle('get-current-version', getCurrentVersion);
 ipcMain.handle('is-auto-updater-supported', isAutoUpdaterSupported);
+
+// IPC handler for cancelling hardsub process
+ipcMain.handle('cancel-hardsub', async () => {
+    if (activeHardsubProcess) {
+        hardsubCancelled = true;
+        const pid = activeHardsubProcess.pid;
+        console.log(`Cancelling hardsub process with PID: ${pid}`);
+
+        try {
+            process.kill(pid, 'SIGKILL');
+        } catch (e) {
+            console.error("Error killing hardsub process:", e);
+        }
+
+        console.log("Hardsub process kill signal sent.");
+        return true;
+    }
+    return false;
+});
+
+// IPC handler for listing available subtitles
+ipcMain.handle('list-subtitles', async (_event, url, browser) => {
+    console.log('Listing subtitles for:', url);
+
+    return new Promise((resolve) => {
+        const cookiesParam = browser ? `--cookies-from-browser ${browser}` : '';
+        const cmd = `yt-dlp --list-subs --skip-download ${cookiesParam} "${url}"`;
+
+        exec(cmd, (error, stdout, stderr) => {
+            if (error) {
+                console.error('Error listing subtitles:', error);
+                resolve({ error: true, message: error.message, subtitles: [] });
+                return;
+            }
+
+            const output = stdout + '\n' + stderr;
+            const subtitles = [];
+
+            // Parse subtitle languages from yt-dlp output
+            // Look for lines like: "en       vtt, ttml, srv3, srv2, srv1, json3" or "en    English"
+            const lines = output.split('\n');
+            let inSubtitleSection = false;
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+
+                // Detect subtitle section headers
+                if (trimmed.includes('Available subtitles') || trimmed.includes('Available automatic captions')) {
+                    inSubtitleSection = true;
+                    continue;
+                }
+
+                if (inSubtitleSection && trimmed) {
+                    // Skip header lines
+                    if (trimmed.startsWith('Language') || trimmed.startsWith('---')) {
+                        continue;
+                    }
+
+                    // Parse subtitle line: "en       vtt, ttml..." or "en-US    English (United States)"
+                    const match = trimmed.match(/^([a-zA-Z]{2,3}(?:-[a-zA-Z0-9]+)?)\s+(.+)$/);
+                    if (match) {
+                        const code = match[1];
+                        let name = match[2];
+
+                        // Clean up the name - if it's format list, use code as name
+                        if (name.includes('vtt') || name.includes('ttml') || name.includes('json3')) {
+                            name = code.toUpperCase();
+                        }
+
+                        // Avoid duplicates
+                        if (!subtitles.some(s => s.code === code)) {
+                            subtitles.push({ code, name: name.trim() });
+                        }
+                    }
+                }
+            }
+
+            console.log('Found subtitles:', subtitles);
+            resolve({ error: false, subtitles });
+        });
+    });
+});
+
+// IPC handler for downloading video with hardcoded subtitles
+ipcMain.handle('download-with-hardsub', async (event, options) => {
+    const { url, browser, downloadFolder, subtitleLang, codec } = options;
+    console.log('Download with hardsub:', { url, subtitleLang, codec, downloadFolder });
+
+    try {
+        // Step 1: Download video with subtitle
+        const cookiesParam = browser ? `--cookies-from-browser ${browser}` : '';
+        const downloadCmd = `yt-dlp -f "bestvideo+bestaudio/best" --write-subs --sub-langs "${subtitleLang}" --convert-subs vtt -P "${downloadFolder}" ${cookiesParam} "${url}"`;
+
+        event.sender.send('download-progress', 'Downloading video and subtitles...');
+        console.log('Download command:', downloadCmd);
+
+        // Execute download
+        await new Promise((resolve, reject) => {
+            const proc = exec(downloadCmd);
+
+            proc.stdout.on('data', (data) => {
+                if (data.includes('[download]')) {
+                    event.sender.send('download-progress', data.trim());
+                }
+            });
+
+            proc.stderr.on('data', (data) => {
+                if (data.includes('[download]')) {
+                    event.sender.send('download-progress', data.trim());
+                }
+            });
+
+            proc.on('close', (code) => {
+                if (code === 0) {
+                    resolve();
+                } else {
+                    reject(new Error(`Download failed with code ${code}`));
+                }
+            });
+        });
+
+        // Step 2: Find downloaded files
+        const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
+        const allFiles = await fs.readdir(downloadFolder);
+
+        // Sort by modification time descending to get most recent files
+        const filesWithStats = await Promise.all(
+            allFiles.map(async (file) => {
+                const filePath = join(downloadFolder, file);
+                const stat = await fs.stat(filePath);
+                return { file, mtime: stat.mtime };
+            })
+        );
+        filesWithStats.sort((a, b) => b.mtime - a.mtime);
+
+        // Find the most recently downloaded video file
+        let videoFile = null;
+        for (const { file } of filesWithStats) {
+            const lowerFile = file.toLowerCase();
+            if (videoExtensions.some(ext => lowerFile.endsWith(ext)) && !file.includes('_hardsub')) {
+                videoFile = file;
+                break;
+            }
+        }
+
+        if (!videoFile) {
+            return 'Error: No video file found after download.';
+        }
+
+        // Find matching subtitle file
+        const videoBasename = basename(videoFile, extname(videoFile));
+        let subtitleFile = null;
+
+        for (const { file } of filesWithStats) {
+            if (file.endsWith('.vtt') && file.includes(videoBasename.substring(0, 20))) {
+                subtitleFile = file;
+                break;
+            }
+        }
+
+        // Also check for subtitle files that match the language
+        if (!subtitleFile) {
+            for (const { file } of filesWithStats) {
+                if (file.endsWith('.vtt') && file.includes(subtitleLang)) {
+                    subtitleFile = file;
+                    break;
+                }
+            }
+        }
+
+        if (!subtitleFile) {
+            return 'Error: No subtitle file found after download. The video may not have subtitles in the selected language.';
+        }
+
+        const videoPath = join(downloadFolder, videoFile);
+        const subtitlePath = join(downloadFolder, subtitleFile);
+        const videoExt = extname(videoFile);
+        const videoName = basename(videoFile, videoExt);
+        const outputPath = join(downloadFolder, `${videoName}_hardsub.mp4`);
+
+        console.log('Video file:', videoPath);
+        console.log('Subtitle file:', subtitlePath);
+        console.log('Output path:', outputPath);
+
+        // Step 3: Run ffmpeg with hardsub
+        event.sender.send('download-progress', `Hardcoding subtitles using ${codec.toUpperCase()}...`);
+        hardsubCancelled = false;
+
+        return new Promise((resolve) => {
+            const tryHardsub = (audioCodec) => {
+                let args;
+
+                // Escape the subtitle path for ffmpeg filter
+                const escapedSubPath = subtitlePath.replace(/'/g, "'\\''").replace(/:/g, '\\:');
+
+                if (codec === 'hevc') {
+                    args = [
+                        '-i', videoPath,
+                        '-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`,
+                        '-c:v', 'hevc_videotoolbox',
+                        '-pix_fmt', 'p010le',
+                        '-b:v', '4000k',
+                        '-c:a', audioCodec,
+                        '-tag:v', 'hev1',
+                        outputPath
+                    ];
+                } else {
+                    // Default to H.264
+                    args = [
+                        '-i', videoPath,
+                        '-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`,
+                        '-c:v', 'h264_videotoolbox',
+                        '-b:v', '4000k',
+                        '-c:a', audioCodec,
+                        '-tag:v', 'avc1',
+                        outputPath
+                    ];
+                }
+
+                console.log('FFmpeg args:', args);
+                activeHardsubProcess = spawn('ffmpeg', args);
+
+                activeHardsubProcess.stdout.on('data', (data) => {
+                    if (hardsubCancelled) return;
+                    const str = data.toString();
+                    if (str.includes('time=') || str.includes('frame=')) {
+                        event.sender.send('download-progress', `Hardcoding (${audioCodec}): ${str.trim()}`);
+                    }
+                });
+
+                activeHardsubProcess.stderr.on('data', (data) => {
+                    if (hardsubCancelled) return;
+                    const str = data.toString();
+                    if (str.includes('time=') || str.includes('frame=')) {
+                        event.sender.send('download-progress', `Hardcoding (${audioCodec}): ${str.trim()}`);
+                    }
+                });
+
+                activeHardsubProcess.on('close', async (code) => {
+                    activeHardsubProcess = null;
+
+                    if (hardsubCancelled) {
+                        console.log("Hardsub was cancelled. Cleaning up...");
+                        try { await fs.unlink(outputPath); } catch (e) { /* ignore */ }
+                        resolve("Hardsub cancelled by user.");
+                        return;
+                    }
+
+                    if (code === 0) {
+                        try {
+                            // Clean up original video and subtitle files
+                            await fs.unlink(videoPath);
+                            await fs.unlink(subtitlePath);
+
+                            // Rename output to final name
+                            const finalPath = join(downloadFolder, `${videoName}.mp4`);
+                            await fs.rename(outputPath, finalPath);
+
+                            console.log(`Successfully created hardsub video: ${finalPath}`);
+                            resolve(`Hardsub completed! Saved as: ${videoName}.mp4`);
+                        } catch (err) {
+                            console.error("Error cleaning up files:", err);
+                            resolve(`Hardsub finished but failed to clean up: ${err.message}`);
+                        }
+                    } else if (code !== 0 && audioCodec === 'libfdk_aac') {
+                        // Fallback to built-in aac codec
+                        console.log('libfdk_aac failed, trying with aac...');
+                        event.sender.send('download-progress', 'libfdk_aac not available, trying with aac...');
+                        tryHardsub('aac');
+                    } else {
+                        console.log(`Failed to create hardsub video, exit code: ${code}`);
+                        try { await fs.unlink(outputPath); } catch (e) { /* ignore */ }
+                        resolve(`Failed to create hardsub video. FFmpeg exit code: ${code}`);
+                    }
+                });
+            };
+
+            tryHardsub('libfdk_aac');
+        });
+
+    } catch (error) {
+        console.error('Hardsub error:', error);
+        return `Error during hardsub: ${error.message}`;
+    }
+});
