@@ -1,6 +1,6 @@
 console.log('renderer.js loaded! window.electronAPI:', window.electronAPI);
 
-// Initialize progress handler
+// Initialise progress handler
 let progressHandler = null;
 
 // Function to clean yt-dlp output by removing progress lines
@@ -164,7 +164,7 @@ window.runCommand = async function () {
         case 'Download & Re-encode as high quality MP4 (H.264/AAC)':
             cmd = `yt-dlp -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
             break;
-        case 'Download with Hardsub (macOS)':
+        case 'Download & Add Hardsub (Only Support on macOS)':
             // Handle hardsub workflow separately
             await handleHardsubAction(url, browser, downloadFolder);
             return;
@@ -286,7 +286,7 @@ function updateFormatCodeVisibility() {
         formatGroup.style.display = action === 'Choose Format' ? '' : 'none';
     }
     if (codecGroup) {
-        codecGroup.style.display = action === 'Download with Hardsub (macOS)' ? '' : 'none';
+        codecGroup.style.display = action === 'Download & Add Hardsub (Only Support on macOS)' ? '' : 'none';
     }
 }
 
@@ -327,7 +327,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
         }
 
         // Step 2: Show subtitle selection modal
-        const selectedSubtitle = await showSubtitleModal(result.subtitles);
+        const selectedSubtitle = await showSubtitleModal(result.subtitles, result.isAutoTranslated);
 
         if (!selectedSubtitle) {
             output.textContent = 'Subtitle selection cancelled.';
@@ -378,7 +378,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
 }
 
 // Show subtitle selection modal and return selected subtitle
-function showSubtitleModal(subtitles) {
+function showSubtitleModal(subtitles, isAutoTranslated = false) {
     return new Promise((resolve) => {
         const modal = document.getElementById('subtitleModal');
         const subtitleList = document.getElementById('subtitleList');
@@ -386,6 +386,19 @@ function showSubtitleModal(subtitles) {
 
         // Clear previous list
         subtitleList.innerHTML = '';
+
+        // Add warning banner if auto-translated
+        if (isAutoTranslated) {
+            const warning = document.createElement('div');
+            warning.style.padding = '10px';
+            warning.style.marginBottom = '10px';
+            warning.style.backgroundColor = '#fff3cd';
+            warning.style.border = '1px solid #ffc107';
+            warning.style.borderRadius = '4px';
+            warning.style.color = '#856404';
+            warning.innerHTML = '⚠️ <strong>Auto-Translated Subtitles</strong><br>No original subtitles available. Showing machine-translated options.';
+            subtitleList.appendChild(warning);
+        }
 
         // Populate subtitle list
         subtitles.forEach((sub) => {
@@ -412,7 +425,7 @@ function showSubtitleModal(subtitles) {
     });
 }
 
-// Initialize and bind change handler
+// Initialise and bind change handler
 document.addEventListener('DOMContentLoaded', () => {
     const actionSelect = document.getElementById('action');
     if (actionSelect) {

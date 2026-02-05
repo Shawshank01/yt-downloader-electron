@@ -136,7 +136,7 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
                 const args = [
                     '-i', filePath,
                     '-c:v', 'libx264',
-                    '-crf', '18',
+                    '-crf', '22',
                     '-preset', 'veryslow',
                     '-c:a', audioCodec,
                     '-tag:v', 'avc1',
@@ -190,6 +190,11 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
                             console.error("Error replacing file:", err);
                             resolve(`Re-encoding finished but failed to replace file: ${err.message}`);
                         }
+                    } else if (code !== 0 && audioCodec === 'aac_at') {
+                        // Fallback to libfdk_aac
+                        console.log(`aac_at failed for ${file}, trying with libfdk_aac...`);
+                        event.sender.send('download-progress', `aac_at not available, trying with libfdk_aac...`);
+                        tryReEncode('libfdk_aac');
                     } else if (code !== 0 && audioCodec === 'libfdk_aac') {
                         // Fallback to built-in aac codec
                         console.log(`libfdk_aac failed for ${file}, trying with aac...`);
@@ -206,7 +211,7 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
                 });
             };
 
-            tryReEncode('libfdk_aac');
+            tryReEncode('aac_at');
         });
 
     } catch (error) {
@@ -264,28 +269,31 @@ ipcMain.handle('list-subtitles', async (_event, url, browser) => {
         exec(cmd, (error, stdout, stderr) => {
             if (error) {
                 console.error('Error listing subtitles:', error);
-                resolve({ error: true, message: error.message, subtitles: [] });
+                resolve({ error: true, message: error.message, subtitles: [], isAutoTranslated: false });
                 return;
             }
 
             const output = stdout + '\n' + stderr;
-            const subtitles = [];
+            const realSubtitles = [];
+            const allSubtitles = [];
 
             // Parse subtitle languages from yt-dlp output
-            // Look for lines like: "en       vtt, ttml, srv3, srv2, srv1, json3" or "en    English"
             const lines = output.split('\n');
-            let inSubtitleSection = false;
+            let currentSection = null;
 
             for (const line of lines) {
                 const trimmed = line.trim();
 
                 // Detect subtitle section headers
-                if (trimmed.includes('Available subtitles') || trimmed.includes('Available automatic captions')) {
-                    inSubtitleSection = true;
+                if (trimmed.includes('Available subtitles') && !trimmed.includes('automatic')) {
+                    currentSection = 'manual';
+                    continue;
+                } else if (trimmed.includes('Available automatic captions')) {
+                    currentSection = 'automatic';
                     continue;
                 }
 
-                if (inSubtitleSection && trimmed) {
+                if (currentSection && trimmed) {
                     // Skip header lines
                     if (trimmed.startsWith('Language') || trimmed.startsWith('---')) {
                         continue;
@@ -297,21 +305,43 @@ ipcMain.handle('list-subtitles', async (_event, url, browser) => {
                         const code = match[1];
                         let name = match[2];
 
-                        // Clean up the name - if it's format list, use code as name
+                        // Clean up the name if it's format list, use code as name
                         if (name.includes('vtt') || name.includes('ttml') || name.includes('json3')) {
                             name = code.toUpperCase();
                         }
 
-                        // Avoid duplicates
-                        if (!subtitles.some(s => s.code === code)) {
-                            subtitles.push({ code, name: name.trim() });
+                        const subtitle = { code, name: name.trim() };
+
+                        // Add to all subtitles
+                        if (!allSubtitles.some(s => s.code === code)) {
+                            allSubtitles.push(subtitle);
+                        }
+
+                        // Only manual and automatic captions are "real" subtitles
+                        // Auto-translated ones (the long list) appear in automatic section with just format codes
+                        if (currentSection === 'manual' || (currentSection === 'automatic' && !name.match(/^[A-Z]{2,3}$/))) {
+                            if (!realSubtitles.some(s => s.code === code)) {
+                                realSubtitles.push(subtitle);
+                            }
                         }
                     }
                 }
             }
 
-            console.log('Found subtitles:', subtitles);
-            resolve({ error: false, subtitles });
+            // If there are real subtitles, use those. Otherwise, use auto-translated subtitles
+            let subtitlesToReturn;
+            let isAutoTranslated = false;
+
+            if (realSubtitles.length > 0) {
+                subtitlesToReturn = realSubtitles;
+                console.log('Found real subtitles:', subtitlesToReturn);
+            } else {
+                subtitlesToReturn = allSubtitles;
+                isAutoTranslated = true;
+                console.log('No real subtitles found, showing auto-translated options:', subtitlesToReturn);
+            }
+
+            resolve({ error: false, subtitles: subtitlesToReturn, isAutoTranslated });
         });
     });
 });
@@ -322,9 +352,9 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
     console.log('Download with hardsub:', { url, subtitleLang, codec, downloadFolder });
 
     try {
-        // Step 1: Download video with subtitle
+        // Step 1: Download video with subtitle (limit to avc1/H.264)
         const cookiesParam = browser ? `--cookies-from-browser ${browser}` : '';
-        const downloadCmd = `yt-dlp -f "bestvideo+bestaudio/best" --write-subs --sub-langs "${subtitleLang}" --convert-subs vtt -P "${downloadFolder}" ${cookiesParam} "${url}"`;
+        const downloadCmd = `yt-dlp -f "bestvideo[vcodec^=avc1]+bestaudio/best[vcodec^=avc1]" --write-subs --sub-langs "${subtitleLang}" --convert-subs vtt -P "${downloadFolder}" ${cookiesParam} "${url}"`;
 
         event.sender.send('download-progress', 'Downloading video and subtitles...');
         console.log('Download command:', downloadCmd);
@@ -430,6 +460,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
 
                 if (codec === 'hevc') {
                     args = [
+                        '-hwaccel', 'videotoolbox',
                         '-i', videoPath,
                         '-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`,
                         '-c:v', 'hevc_videotoolbox',
@@ -442,6 +473,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                 } else {
                     // Default to H.264
                     args = [
+                        '-hwaccel', 'videotoolbox',
                         '-i', videoPath,
                         '-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`,
                         '-c:v', 'h264_videotoolbox',
@@ -497,6 +529,11 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                             console.error("Error cleaning up files:", err);
                             resolve(`Hardsub finished but failed to clean up: ${err.message}`);
                         }
+                    } else if (code !== 0 && audioCodec === 'aac_at') {
+                        // Fallback to libfdk_aac
+                        console.log('aac_at failed, trying with libfdk_aac...');
+                        event.sender.send('download-progress', 'aac_at not available, trying with libfdk_aac...');
+                        tryHardsub('libfdk_aac');
                     } else if (code !== 0 && audioCodec === 'libfdk_aac') {
                         // Fallback to built-in aac codec
                         console.log('libfdk_aac failed, trying with aac...');
@@ -510,7 +547,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                 });
             };
 
-            tryHardsub('libfdk_aac');
+            tryHardsub('aac_at');
         });
 
     } catch (error) {
