@@ -441,7 +441,8 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         const subtitlePath = join(downloadFolder, subtitleFile);
         const videoExt = extname(videoFile);
         const videoName = basename(videoFile, videoExt);
-        const outputPath = join(downloadFolder, `${videoName}_hardsub.mp4`);
+        const codecSuffix = codec === 'hevc' ? '_HEVC' : '_H264';
+        const outputPath = join(downloadFolder, `${videoName}${codecSuffix}_temp.mp4`);
 
         console.log('Video file:', videoPath);
         console.log('Subtitle file:', subtitlePath);
@@ -465,7 +466,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                         '-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`,
                         '-c:v', 'hevc_videotoolbox',
                         '-pix_fmt', 'p010le',
-                        '-b:v', '4000k',
+                        '-b:v', '2500k',
                         '-c:a', audioCodec,
                         '-tag:v', 'hev1',
                         outputPath
@@ -520,11 +521,11 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                             await fs.unlink(subtitlePath);
 
                             // Rename output to final name
-                            const finalPath = join(downloadFolder, `${videoName}.mp4`);
+                            const finalPath = join(downloadFolder, `${videoName}${codecSuffix}.mp4`);
                             await fs.rename(outputPath, finalPath);
 
                             console.log(`Successfully created hardsub video: ${finalPath}`);
-                            resolve(`Hardsub completed! Saved as: ${videoName}.mp4`);
+                            resolve(`Hardsub completed! Saved as: ${videoName}${codecSuffix}.mp4`);
                         } catch (err) {
                             console.error("Error cleaning up files:", err);
                             resolve(`Hardsub finished but failed to clean up: ${err.message}`);
