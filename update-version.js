@@ -97,7 +97,7 @@ try {
 
     while (!confirmed) {
         const [major, minor, patch] = currentVersion.split('.').map(Number);
-        
+
         log('\n📋 Available version options:', 'cyan');
         log(`1. Patch: ${major}.${minor}.${patch + 1} (bug fixes)`, 'yellow');
         log(`2. Minor: ${major}.${minor + 1}.0 (new features)`, 'yellow');
@@ -144,7 +144,7 @@ try {
         }
 
         log(`\nSelected version: ${selectedVersion}`, 'green');
-        
+
         const confirm = await new Promise((resolve) => {
             rl.question(`Confirm update from ${currentVersion} to ${selectedVersion}? (y/N): `, resolve);
         });
@@ -174,30 +174,30 @@ try {
     if (customNotes.toLowerCase() === 'y' || customNotes.toLowerCase() === 'yes') {
         log('\n📝 Please enter your custom release notes (press Enter twice to finish):', 'cyan');
         log('(You can use markdown formatting)', 'yellow');
-        
+
         const notes = [];
         let lineCount = 0;
-        
+
         while (true) {
             const line = await new Promise((resolve) => {
                 rl2.question(lineCount === 0 ? 'Release notes: ' : '> ', resolve);
             });
-            
+
             if (line === '' && lineCount > 0) {
                 break; // Empty line after content means done
             }
-            
+
             notes.push(line);
             lineCount++;
         }
-        
+
         releaseNotes = notes.join('\n');
         commitMessage = `Bump version to ${selectedVersion}\n\n${releaseNotes}`;
-        
+
         log('\n📋 Your release notes:', 'cyan');
         console.log(releaseNotes);
     }
-    
+
     rl2.close();
 
     // Check if git is clean
@@ -218,9 +218,26 @@ try {
     writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
     success(`Updated package.json to version ${selectedVersion}`);
 
+    // Update package-lock.json
+    const packageLockPath = join(__dirname, 'package-lock.json');
+    try {
+        const packageLockJson = JSON.parse(readFileSync(packageLockPath, 'utf8'));
+        packageLockJson.version = selectedVersion;
+
+        // Also update the version in the packages[""] object if it exists
+        if (packageLockJson.packages && packageLockJson.packages[""]) {
+            packageLockJson.packages[""].version = selectedVersion;
+        }
+
+        writeFileSync(packageLockPath, JSON.stringify(packageLockJson, null, 2) + '\n');
+        success(`Updated package-lock.json to version ${selectedVersion}`);
+    } catch (err) {
+        warning(`Failed to update package-lock.json: ${err.message}`);
+    }
+
     // Commit the version change (preserve multiline commit message)
     try {
-        execSync('git add package.json');
+        execSync('git add package.json package-lock.json');
         const commitMessagePath = join(__dirname, '.git', 'COMMIT_MESSAGE.txt');
         writeFileSync(commitMessagePath, commitMessage, 'utf8');
         execSync(`git commit -F "${commitMessagePath}"`);
@@ -247,7 +264,7 @@ try {
         success(`Pushed tag ${tagName} to GitHub`);
 
         // Clean up temp file
-        try { unlinkSync(tagMessagePath); } catch {}
+        try { unlinkSync(tagMessagePath); } catch { }
 
         // Push the commit as well
         execSync('git push origin main');

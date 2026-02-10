@@ -41,9 +41,20 @@ if [ $? -eq 0 ]; then
     echo "The window will close automatically..."
     # Short delay to ensure output flushes
     sleep 1
-    # Get the Terminal window ID and close it without confirmation
-    WINDOW_ID=$(osascript -e 'tell application "Terminal" to id of window 1')
-    osascript -e "tell application \"Terminal\" to close window id $WINDOW_ID" &
+    # Get the current TTY and find the corresponding Terminal window/tab
+    CURRENT_TTY=$(tty)
+    osascript -e "
+    tell application \"Terminal\"
+        repeat with w in windows
+            repeat with t in tabs of w
+                if tty of t is \"$CURRENT_TTY\" then
+                    close t
+                    return
+                end if
+            end repeat
+        end repeat
+    end tell
+    " &
     exit 0
 else
     echo ""
