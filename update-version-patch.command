@@ -39,10 +39,11 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "✅ Version update completed successfully!"
     echo "The window will close automatically..."
-    # Short delay to ensure output flushes
-    sleep 1
+    # Wait 2 seconds to let user see the completion message
+    sleep 2
     # Get the current TTY and find the corresponding Terminal window/tab
     CURRENT_TTY=$(tty)
+    # Close only this specific terminal window/tab using AppleScript
     osascript -e "
     tell application \"Terminal\"
         repeat with w in windows
@@ -54,7 +55,7 @@ if [ $? -eq 0 ]; then
             end repeat
         end repeat
     end tell
-    " &
+    "
     exit 0
 else
     echo ""
