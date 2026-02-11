@@ -146,13 +146,13 @@ try {
         log(`\nSelected version: ${selectedVersion}`, 'green');
 
         const confirm = await new Promise((resolve) => {
-            rl.question(`Confirm update from ${currentVersion} to ${selectedVersion}? (y/N): `, resolve);
+            rl.question(`Confirm update from ${currentVersion} to ${selectedVersion}? (Y/n): `, resolve);
         });
 
-        if (confirm.toLowerCase() === 'y' || confirm.toLowerCase() === 'yes') {
-            confirmed = true;
-        } else {
+        if (confirm.toLowerCase() === 'n' || confirm.toLowerCase() === 'no') {
             log('Let\'s try a different version...', 'blue');
+        } else {
+            confirmed = true;
         }
     }
 
@@ -165,13 +165,13 @@ try {
     });
 
     const customNotes = await new Promise((resolve) => {
-        rl2.question(`\nDo you want to write custom release notes? (y/N): `, resolve);
+        rl2.question(`\nDo you want to write custom release notes? (Y/n): `, resolve);
     });
 
     let commitMessage = `Bump version to ${selectedVersion}`;
     let releaseNotes = '';
 
-    if (customNotes.toLowerCase() === 'y' || customNotes.toLowerCase() === 'yes') {
+    if (customNotes.toLowerCase() !== 'n' && customNotes.toLowerCase() !== 'no') {
         log('\n📝 Please enter your custom release notes (press Enter twice to finish):', 'cyan');
         log('(You can use markdown formatting)', 'yellow');
 
@@ -281,4 +281,4 @@ try {
 
 } catch (err) {
     error('Script failed: ' + err.message);
-} 
+}
