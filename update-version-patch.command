@@ -43,19 +43,20 @@ if [ $? -eq 0 ]; then
     sleep 2
     # Get the current TTY and find the corresponding Terminal window/tab
     CURRENT_TTY=$(tty)
-    # Close only this specific terminal window/tab using AppleScript
+    # Launch AppleScript in background with a delay, then exit the script.
     osascript -e "
+    delay 1
     tell application \"Terminal\"
         repeat with w in windows
             repeat with t in tabs of w
                 if tty of t is \"$CURRENT_TTY\" then
-                    close t
+                    close w
                     return
                 end if
             end repeat
         end repeat
     end tell
-    "
+    " &
     exit 0
 else
     echo ""
