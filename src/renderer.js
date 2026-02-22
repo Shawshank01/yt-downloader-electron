@@ -96,7 +96,7 @@ window.checkUpdate = async function () {
                         if (!opened) {
                             window.open(releaseUrl, '_blank');
                         }
-                    } catch (error) {
+                    } catch {
                         window.open(releaseUrl, '_blank');
                     }
                 } else {
@@ -186,6 +186,26 @@ window.runCommand = async function () {
     document.getElementById('output').textContent = 'Running: ' + cmd + '\n';
     console.log('Running command:', cmd);
 
+    // Show generic cancel button
+    const cancelActionControls = document.getElementById('cancelActionControls');
+    const cancelActionBtn = document.getElementById('cancelActionBtn');
+
+    if (cancelActionControls) cancelActionControls.style.display = 'block';
+    if (cancelActionBtn) {
+        cancelActionBtn.disabled = false;
+        cancelActionBtn.textContent = 'Cancel Action';
+
+        // Remove old listeners to prevent duplicates
+        const newCancelBtn = cancelActionBtn.cloneNode(true);
+        cancelActionBtn.parentNode.replaceChild(newCancelBtn, cancelActionBtn);
+
+        newCancelBtn.addEventListener('click', async () => {
+            newCancelBtn.disabled = true;
+            newCancelBtn.textContent = 'Cancelling...';
+            await window.electronAPI.cancelCommand();
+        });
+    }
+
     try {
         const result = await window.electronAPI.runCommand(cmd);
         // Clean the result by removing progress lines and keeping only the final message
@@ -225,14 +245,12 @@ window.runCommand = async function () {
                     if (videoId) {
                         try {
                             // Show cancel button
-                            const reEncodeControls = document.getElementById('reEncodeControls');
-                            if (reEncodeControls) reEncodeControls.style.display = 'block';
-
-                            // Reset button state
-                            const cancelBtn = document.getElementById('cancelReEncodeBtn');
-                            if (cancelBtn) {
-                                cancelBtn.disabled = false;
-                                cancelBtn.textContent = "Cancel Re-encoding";
+                            const cancelActionControls = document.getElementById('cancelActionControls');
+                            const cancelActionBtn = document.getElementById('cancelActionBtn');
+                            if (cancelActionControls) cancelActionControls.style.display = 'block';
+                            if (cancelActionBtn) {
+                                cancelActionBtn.disabled = false;
+                                cancelActionBtn.textContent = 'Cancel Action';
                             }
 
                             const reEncodeResult = await window.electronAPI.reEncodeToMp4(
@@ -244,8 +262,8 @@ window.runCommand = async function () {
                                 commandLine + '\n' + cleanResult + '\n' + reEncodeResult;
                         } finally {
                             // Hide cancel button
-                            const reEncodeControls = document.getElementById('reEncodeControls');
-                            if (reEncodeControls) reEncodeControls.style.display = 'none';
+                            const cancelActionControls = document.getElementById('cancelActionControls');
+                            if (cancelActionControls) cancelActionControls.style.display = 'none';
                         }
                     } else {
                         document.getElementById('output').textContent +=
@@ -261,19 +279,31 @@ window.runCommand = async function () {
             }
         }
 
+        // Hide generic cancel button
+        if (cancelActionControls) cancelActionControls.style.display = 'none';
+
         // Add completion hint if it's a download action
         if (action !== 'List Formats') {
+            const isCancelled = document.getElementById('output').textContent.includes('cancelled by user');
             const completionHint = document.createElement('div');
             completionHint.style.marginTop = '10px';
             completionHint.style.padding = '10px';
-            completionHint.style.backgroundColor = '#e8f5e9';
             completionHint.style.borderRadius = '4px';
-            completionHint.style.color = '#2e7d32';
-            completionHint.innerHTML = '✅ Download completed!';
+
+            if (isCancelled) {
+                completionHint.style.backgroundColor = '#ffebee';
+                completionHint.style.color = '#c62828';
+                completionHint.innerHTML = '❌ Download canceled!';
+            } else {
+                completionHint.style.backgroundColor = '#e8f5e9';
+                completionHint.style.color = '#2e7d32';
+                completionHint.innerHTML = '✅ Download completed!';
+            }
             document.getElementById('output').appendChild(completionHint);
         }
     } catch (e) {
         document.getElementById('output').textContent += '\nError: ' + e;
+        if (cancelActionControls) cancelActionControls.style.display = 'none';
     }
 };
 
@@ -330,7 +360,17 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
 
         const cmdResult = await window.electronAPI.runCommand(cmd);
 
-        if (cmdResult.includes('There are no subtitles for the requested languages')) {
+        if (cmdResult.includes('cancelled by user')) {
+            output.textContent = 'Subtitle download cancelled.';
+            const completionHint = document.createElement('div');
+            completionHint.style.marginTop = '10px';
+            completionHint.style.padding = '10px';
+            completionHint.style.backgroundColor = '#ffebee';
+            completionHint.style.borderRadius = '4px';
+            completionHint.style.color = '#c62828';
+            completionHint.innerHTML = '❌ Download canceled!';
+            output.appendChild(completionHint);
+        } else if (cmdResult.includes('There are no subtitles for the requested languages')) {
             output.textContent = 'No subtitles available for this video.';
         } else {
             output.textContent = `✅ Subtitle downloaded: ${selectedSubtitle.name} (${selectedSubtitle.code})`;
@@ -387,12 +427,22 @@ async function handleHardsubAction(url, browser, downloadFolder) {
         output.textContent = `Selected subtitle: ${selectedSubtitle.name} (${selectedSubtitle.code})\nStarting download...`;
 
         // Show hardsub controls
-        const hardsubControls = document.getElementById('hardsubControls');
-        const cancelBtn = document.getElementById('cancelHardsubBtn');
-        if (hardsubControls) hardsubControls.style.display = 'block';
-        if (cancelBtn) {
-            cancelBtn.disabled = false;
-            cancelBtn.textContent = "Cancel Hardsub";
+        const cancelActionControls = document.getElementById('cancelActionControls');
+        const cancelActionBtn = document.getElementById('cancelActionBtn');
+        if (cancelActionControls) cancelActionControls.style.display = 'block';
+        if (cancelActionBtn) {
+            cancelActionBtn.disabled = false;
+            cancelActionBtn.textContent = 'Cancel Action';
+
+            // Make sure listener is attached
+            const newCancelBtn = cancelActionBtn.cloneNode(true);
+            cancelActionBtn.parentNode.replaceChild(newCancelBtn, cancelActionBtn);
+
+            newCancelBtn.addEventListener('click', async () => {
+                newCancelBtn.disabled = true;
+                newCancelBtn.textContent = 'Cancelling...';
+                await window.electronAPI.cancelCommand();
+            });
         }
 
         try {
@@ -409,7 +459,16 @@ async function handleHardsubAction(url, browser, downloadFolder) {
             output.textContent = hardsubResult;
 
             // Add completion hint
-            if (hardsubResult.includes('completed') || hardsubResult.includes('Saved as')) {
+            if (hardsubResult.includes('cancelled by user')) {
+                const completionHint = document.createElement('div');
+                completionHint.style.marginTop = '10px';
+                completionHint.style.padding = '10px';
+                completionHint.style.backgroundColor = '#ffebee';
+                completionHint.style.borderRadius = '4px';
+                completionHint.style.color = '#c62828';
+                completionHint.innerHTML = '❌ Hardsub canceled!';
+                output.appendChild(completionHint);
+            } else if (hardsubResult.includes('completed') || hardsubResult.includes('Saved as')) {
                 const completionHint = document.createElement('div');
                 completionHint.style.marginTop = '10px';
                 completionHint.style.padding = '10px';
@@ -421,10 +480,23 @@ async function handleHardsubAction(url, browser, downloadFolder) {
             }
         } finally {
             // Hide hardsub controls
-            if (hardsubControls) hardsubControls.style.display = 'none';
+            const cancelActionControls = document.getElementById('cancelActionControls');
+            if (cancelActionControls) cancelActionControls.style.display = 'none';
         }
     } catch (error) {
-        output.textContent = `Error: ${error.message}`;
+        if (error.message.includes('cancelled by user')) {
+            output.textContent = 'Action cancelled by user.';
+            const completionHint = document.createElement('div');
+            completionHint.style.marginTop = '10px';
+            completionHint.style.padding = '10px';
+            completionHint.style.backgroundColor = '#ffebee';
+            completionHint.style.borderRadius = '4px';
+            completionHint.style.color = '#c62828';
+            completionHint.innerHTML = '❌ Hardsub canceled!';
+            output.appendChild(completionHint);
+        } else {
+            output.textContent = `Error: ${error.message}`;
+        }
     }
 }
 

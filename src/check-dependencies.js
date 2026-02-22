@@ -8,7 +8,7 @@ async function checkCommand(command) {
     try {
         await execAsync(command);
         return true;
-    } catch (error) {
+    } catch {
         return false;
     }
 }

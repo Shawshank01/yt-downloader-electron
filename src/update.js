@@ -32,7 +32,7 @@ export async function checkAppUpdate() {
 export function getCurrentVersion() {
     try {
         return app.getVersion();
-    } catch (error) {
+    } catch {
         return 'Unknown';
     }
 }
@@ -41,7 +41,7 @@ export function getCurrentVersion() {
 export function isAutoUpdaterSupported() {
     try {
         return autoUpdater.isUpdaterActive();
-    } catch (error) {
+    } catch {
         return false;
     }
 }

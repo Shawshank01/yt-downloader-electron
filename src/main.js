@@ -20,20 +20,16 @@ const extraPaths = [
 ];
 process.env.PATH = [...new Set([...(process.env.PATH || '').split(':'), ...extraPaths])].join(':');
 
-// Global state for re-encoding process
-let activeReEncodeProcess = null;
-let reEncodeCancelled = false;
+// Global state for any active long-running process (yt-dlp or ffmpeg)
+let activeProcess = null;
+let isActionCancelled = false;
 
-// Global state for hardsub process
-let activeHardsubProcess = null;
-let hardsubCancelled = false;
-
-// IPC handler for cancelling re-encoding
-ipcMain.handle('cancel-re-encode', async () => {
-    if (activeReEncodeProcess) {
-        reEncodeCancelled = true;
-        const pid = activeReEncodeProcess.pid;
-        console.log(`Cancelling re-encode process with PID: ${pid}`);
+// Unified IPC handler for cancelling the current action
+ipcMain.handle('cancel-command', async () => {
+    if (activeProcess) {
+        isActionCancelled = true;
+        const pid = activeProcess.pid;
+        console.log(`Cancelling current process with PID: ${pid}`);
 
         try {
             process.kill(pid, 'SIGKILL');
@@ -41,7 +37,7 @@ ipcMain.handle('cancel-re-encode', async () => {
             console.error("Error killing process:", e);
         }
 
-        console.log("Re-encoding process kill signal sent.");
+        console.log("Process kill signal sent.");
         return true;
     }
     return false;
@@ -77,29 +73,36 @@ ipcMain.handle('run-command', async (event, args) => {
     console.log('Executing:', args);
     console.log('process.env.PATH:', process.env.PATH);
 
+    isActionCancelled = false;
+
     return new Promise((resolve) => {
-        const process = exec(args);
+        activeProcess = exec(args);
         let output = '';
 
-        process.stdout.on('data', (data) => {
+        activeProcess.stdout.on('data', (data) => {
             output += data;
             if (data.includes('[download]')) {
                 event.sender.send('download-progress', data.trim());
             }
         });
 
-        process.stderr.on('data', (data) => {
+        activeProcess.stderr.on('data', (data) => {
             output += '\n' + data;
             if (data.includes('[download]')) {
                 event.sender.send('download-progress', data.trim());
             }
         });
 
-        process.on('close', (code) => {
-            if (code !== 0) {
-                output += `\nProcess exited with code ${code}`;
+        activeProcess.on('close', (code) => {
+            activeProcess = null;
+            if (isActionCancelled) {
+                resolve('Action cancelled by user.');
+            } else {
+                if (code !== 0) {
+                    output += `\nProcess exited with code ${code}`;
+                }
+                resolve(output.trim());
             }
-            resolve(output.trim());
         });
     });
 });
@@ -126,7 +129,7 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
         const fileExt = extname(file);
         const filename = basename(file, fileExt);
         const outputPath = join(downloadFolder, `${filename}_reencoded.mp4`);
-        reEncodeCancelled = false;
+        isActionCancelled = false;
 
         console.log(`Re-encoding file: ${file}`);
         event.sender.send('download-progress', `Re-encoding ${file}...`);
@@ -143,36 +146,36 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
                     outputPath
                 ];
 
-                activeReEncodeProcess = spawn('ffmpeg', args);
+                activeProcess = spawn('ffmpeg', args);
 
-                activeReEncodeProcess.stdout.on('data', (data) => {
-                    if (reEncodeCancelled) return;
+                activeProcess.stdout.on('data', (data) => {
+                    if (isActionCancelled) return;
                     const str = data.toString();
                     if (str.includes('time=')) {
                         event.sender.send('download-progress', `Re-encoding ${file} (${audioCodec}): ${str.trim()}`);
                     }
                 });
 
-                activeReEncodeProcess.stderr.on('data', (data) => {
-                    if (reEncodeCancelled) return;
+                activeProcess.stderr.on('data', (data) => {
+                    if (isActionCancelled) return;
                     const str = data.toString();
                     if (str.includes('time=')) {
                         event.sender.send('download-progress', `Re-encoding ${file} (${audioCodec}): ${str.trim()}`);
                     }
                 });
 
-                activeReEncodeProcess.on('close', async (code) => {
-                    activeReEncodeProcess = null;
+                activeProcess.on('close', async (code) => {
+                    activeProcess = null;
 
-                    if (reEncodeCancelled) {
+                    if (isActionCancelled) {
                         console.log("Re-encoding was cancelled. Cleaning up...");
                         try {
                             await fs.unlink(outputPath);
-                        } catch (e) { /* ignore if output file doesn't exist */ }
+                        } catch { /* ignore if output file doesn't exist */ }
                         try {
                             await fs.unlink(filePath);
                             console.log(`Deleted original file: ${filePath}`);
-                        } catch (e) { /* ignore if input file doesn't exist */ }
+                        } catch { /* ignore if input file doesn't exist */ }
 
                         resolve("Re-encoding cancelled by user. Files cleaned up.");
                         return;
@@ -204,7 +207,7 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
                         console.log(`Failed to re-encode: ${file}`);
                         try {
                             await fs.unlink(outputPath);
-                        } catch (e) { /* ignore */ }
+                        } catch { /* ignore */ }
 
                         resolve(`Failed to re-encode ${file}`);
                     }
@@ -238,25 +241,6 @@ ipcMain.handle('open-external', async (_event, url) => {
 ipcMain.handle('check-app-update', checkAppUpdate);
 ipcMain.handle('get-current-version', getCurrentVersion);
 ipcMain.handle('is-auto-updater-supported', isAutoUpdaterSupported);
-
-// IPC handler for cancelling hardsub process
-ipcMain.handle('cancel-hardsub', async () => {
-    if (activeHardsubProcess) {
-        hardsubCancelled = true;
-        const pid = activeHardsubProcess.pid;
-        console.log(`Cancelling hardsub process with PID: ${pid}`);
-
-        try {
-            process.kill(pid, 'SIGKILL');
-        } catch (e) {
-            console.error("Error killing hardsub process:", e);
-        }
-
-        console.log("Hardsub process kill signal sent.");
-        return true;
-    }
-    return false;
-});
 
 // IPC handler for listing available subtitles
 ipcMain.handle('list-subtitles', async (_event, url, browser) => {
@@ -344,22 +328,26 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
 
         // Execute download
         await new Promise((resolve, reject) => {
-            const proc = exec(downloadCmd);
+            isActionCancelled = false;
+            activeProcess = exec(downloadCmd);
 
-            proc.stdout.on('data', (data) => {
+            activeProcess.stdout.on('data', (data) => {
                 if (data.includes('[download]')) {
                     event.sender.send('download-progress', data.trim());
                 }
             });
 
-            proc.stderr.on('data', (data) => {
+            activeProcess.stderr.on('data', (data) => {
                 if (data.includes('[download]')) {
                     event.sender.send('download-progress', data.trim());
                 }
             });
 
-            proc.on('close', (code) => {
-                if (code === 0) {
+            activeProcess.on('close', (code) => {
+                activeProcess = null;
+                if (isActionCancelled) {
+                    reject(new Error('Action cancelled by user.'));
+                } else if (code === 0) {
                     resolve();
                 } else {
                     reject(new Error(`Download failed with code ${code}`));
@@ -433,7 +421,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
 
         // Step 3: Run ffmpeg with hardsub
         event.sender.send('download-progress', `Hardcoding subtitles using ${codec.toUpperCase()}...`);
-        hardsubCancelled = false;
+        isActionCancelled = false;
 
         return new Promise((resolve) => {
             const tryHardsub = (audioCodec) => {
@@ -469,30 +457,30 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                 }
 
                 console.log('FFmpeg args:', args);
-                activeHardsubProcess = spawn('ffmpeg', args);
+                activeProcess = spawn('ffmpeg', args);
 
-                activeHardsubProcess.stdout.on('data', (data) => {
-                    if (hardsubCancelled) return;
+                activeProcess.stdout.on('data', (data) => {
+                    if (isActionCancelled) return;
                     const str = data.toString();
                     if (str.includes('time=') || str.includes('frame=')) {
                         event.sender.send('download-progress', `Hardcoding (${audioCodec}): ${str.trim()}`);
                     }
                 });
 
-                activeHardsubProcess.stderr.on('data', (data) => {
-                    if (hardsubCancelled) return;
+                activeProcess.stderr.on('data', (data) => {
+                    if (isActionCancelled) return;
                     const str = data.toString();
                     if (str.includes('time=') || str.includes('frame=')) {
                         event.sender.send('download-progress', `Hardcoding (${audioCodec}): ${str.trim()}`);
                     }
                 });
 
-                activeHardsubProcess.on('close', async (code) => {
-                    activeHardsubProcess = null;
+                activeProcess.on('close', async (code) => {
+                    activeProcess = null;
 
-                    if (hardsubCancelled) {
+                    if (isActionCancelled) {
                         console.log("Hardsub was cancelled. Cleaning up...");
-                        try { await fs.unlink(outputPath); } catch (e) { /* ignore */ }
+                        try { await fs.unlink(outputPath); } catch { /* ignore */ }
                         resolve("Hardsub cancelled by user.");
                         return;
                     }
@@ -525,7 +513,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                         tryHardsub('aac');
                     } else {
                         console.log(`Failed to create hardsub video, exit code: ${code}`);
-                        try { await fs.unlink(outputPath); } catch (e) { /* ignore */ }
+                        try { await fs.unlink(outputPath); } catch { /* ignore */ }
                         resolve(`Failed to create hardsub video. FFmpeg exit code: ${code}`);
                     }
                 });

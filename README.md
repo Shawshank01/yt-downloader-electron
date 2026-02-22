@@ -9,7 +9,9 @@ A modern, user-friendly desktop application for downloading videos from YouTube 
 ## Features
 
 - 🎥 Download videos in various formats and qualities
-- 📝 Download subtitles
+- 📝 Smart subtitle downloading with language selection
+- 🎬 Hardcode subtitles into video using macOS hardware acceleration (H.264 / HEVC)
+- 🛑 Safely cancel any ongoing downloads or encoding processes
 - 🍪 Browser cookie support (Brave, Chrome, Firefox, Safari)
 - 📂 Custom download folder selection
 - 📊 Real-time download progress
@@ -22,7 +24,7 @@ A modern, user-friendly desktop application for downloading videos from YouTube 
 You must have both `yt-dlp` and `ffmpeg` installed on your system for the app to work.
 
 - **On macOS:**  
-  The app will check for Homebrew and prompt to install it if not present. It will then attempt to install `yt-dlp` and `ffmpeg` automatically via Homebrew if they're missing.
+  The app will check for Homebrew and provide instructions to install it if not present. It will then attempt to install `yt-dlp` and `ffmpeg` automatically via Homebrew if they're missing.
 - **On Linux:**  
   Please install `yt-dlp` and `ffmpeg` using your package manager before use (see below).
 - **On Windows:**  
@@ -100,6 +102,8 @@ This will create a distributable package in the `dist` directory.
    - Enter the video URL
    - Select "Download Subtitles"
    - Click "Run"
+   - A dialog will appear listing available subtitle languages (auto-generated translated subtitles are filtered out to prevent rate-limiting)
+   - Select your preferred language to download
 
 4. **MP4 Re-encoding (H.264/AAC)**
    - Enter the video URL
@@ -109,6 +113,18 @@ This will create a distributable package in the `dist` directory.
      - Video: H.264 (libx264) with CRF 18 and veryslow preset for maximum quality
      - Audio: AAC (libfdk_aac preferred, falls back to aac if not available)
      - Container: MP4 with proper AVC1 tag
+
+5. **Download with Hardsub (macOS Only)**
+   - Enter the video URL
+   - Select "Download with Hardsub (macOS)"
+   - Choose your preferred codec (H.264 or HEVC)
+   - Click "Run"
+   - Select the subtitle language from the popup dialog
+   - The app will securely download the best video quality and automatically hardcode the subtitles using macOS hardware acceleration (`videotoolbox`).
+   - *Note: Requires `Songti SC` font to be available on your system.*
+
+**Cancelling Actions:**  
+During any long-running download or encoding action, a "Cancel Action" button will appear. Clicking it will cleanly abort the current process (`yt-dlp` or `ffmpeg`) and clean up any partial files.
 
 ## Updating
 
