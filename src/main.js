@@ -439,7 +439,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                         '-pix_fmt', 'p010le',
                         '-b:v', '2500k',
                         '-c:a', audioCodec,
-                        '-tag:v', 'hev1',
+                        '-tag:v', 'hvc1',
                         outputPath
                     ];
                 } else {
