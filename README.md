@@ -24,21 +24,11 @@ This is a modern, user-friendly desktop application for downloading videos from 
 You must have both `yt-dlp` and `ffmpeg` installed on your system for the app to work.
 
 - **On macOS:**  
-  The app will check for Homebrew and provide instructions to install it if not present. It will then attempt to install `yt-dlp` and `ffmpeg` automatically via Homebrew if they're missing.
+  The app does not bundle `yt-dlp` or `ffmpeg`. Use the app's **"Check for Dependencies"** button. If dependencies are missing, the app can ask for confirmation and install Homebrew, `yt-dlp`, and `ffmpeg` for you.
 - **On Linux:**  
   Please install `yt-dlp` and `ffmpeg` using your package manager before use (see below).
 - **On Windows:**  
   Please install [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) and [ffmpeg](https://ffmpeg.org/download.html) manually and make sure they are available in your PATH.
-
-## Prerequisites
-
-- **macOS:** (tested on macOS 14+)
-  - [Homebrew](https://brew.sh/) will be installed automatically if missing
-  - `yt-dlp` and `ffmpeg` (will be installed automatically via Homebrew if missing)
-- **Linux:**  
-  - `yt-dlp` and `ffmpeg` (install via `apt`, `dnf`, or other package manager)
-- **Windows:**  
-  - `yt-dlp` and `ffmpeg` (must be installed manually and available in PATH)
 
 ## Installation
 
@@ -46,11 +36,11 @@ You must have both `yt-dlp` and `ffmpeg` installed on your system for the app to
 
 1. Download the latest release from the [Releases](https://github.com/Shawshank01/yt-downloader-electron/releases) page.
 2. Extract the downloaded file and run the installer for your OS:
-    - **macOS:** `.dmg` (or `.zip`)
+    - **macOS:** `.dmg`
     - **Linux:** `.AppImage` or `.deb`
     - **Windows:** `.exe` installer
 3. **First Run:**
-    - On **macOS**, the app will try to install dependencies with Homebrew if missing.
+    - On **macOS**, click **"Check for Dependencies"** (bottom-right corner). If dependencies are missing, the app can install Homebrew first and then install `yt-dlp` and `ffmpeg` via Homebrew after you confirm.
     - On **Linux/Windows**, you must install `yt-dlp` and `ffmpeg` yourself if not already present (see troubleshooting below).
 
 ### Method 2: From Source (For Developers)
@@ -70,10 +60,6 @@ You must have both `yt-dlp` and `ffmpeg` installed on your system for the app to
    ```bash
    npm start
    ```
-
-4. **Developer note:**  
-   - The app expects `yt-dlp` and `ffmpeg` to be available in your system’s PATH.
-   - On macOS, you can use Homebrew; on Linux use your package manager; on Windows install them manually.
 
 ### Building Distributables (Developers)
 
@@ -145,7 +131,9 @@ The app includes a built-in update checker:
 ## Troubleshooting
 
 1. **Missing Dependencies**
-   - The app will try to help you install dependencies if possible.
+   - Click **"Check for Dependencies"** to view install status, binary path (`which`/`where`), and version.
+   - On **macOS**, you can choose one-click install when prompted.
+   - On **Linux/Windows**, install manually (no one-click installer in app).
    - If manual installation is needed:
      - **macOS:**  
        ```bash
@@ -188,5 +176,5 @@ MIT License - see LICENSE file for details
 ## Acknowledgments
 
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) - The core download engine
-- [ffmpeg](https://ffmpeg.org/) - For video processing
+- [FFmpeg](https://ffmpeg.org/) - For video processing
 - [Electron](https://www.electronjs.org/) - For the desktop application framework

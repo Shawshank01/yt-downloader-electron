@@ -9,6 +9,7 @@
 
 <body>
     <div class="container">
+        <div class="app-header">
         <h1>YT-DLP Downloader</h1>
 
         <div class="input-row">
@@ -81,7 +82,9 @@
                 style="background-color: #d32f2f; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">Cancel
                 Action</button>
         </div>
-        <div id="output"></div>
+        </div>
+
+        <div id="output" role="log" aria-label="Command output"></div>
 
         <!-- Subtitle Selection Modal -->
         <div id="subtitleModal" class="modal" style="display: none;">
@@ -94,9 +97,10 @@
             </div>
         </div>
 
-        <div class="update-button-container">
-            <button class="update-button" onclick="checkUpdate()">Check for Updates</button>
-        </div>
+        <footer class="app-footer">
+            <button type="button" class="update-button" onclick="checkUpdate()">Check for Updates</button>
+            <button type="button" class="dependency-button" onclick="checkDependencies()">Check for Dependencies</button>
+        </footer>
     </div>
     <script src="renderer.js"></script>
 </body>

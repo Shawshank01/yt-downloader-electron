@@ -111,6 +111,127 @@ window.checkUpdate = async function () {
     }
 };
 
+window.checkDependencies = async function () {
+    const output = document.getElementById('output');
+    output.textContent = 'Checking dependencies...\n';
+
+    try {
+        const result = await window.electronAPI.checkDependencies();
+        if (!result.success) {
+            output.textContent += `\nError checking dependencies: ${result.message || 'Unknown error'}`;
+            return;
+        }
+
+        const formatReport = (report) => {
+            const lines = [];
+            lines.push(
+                report.allInstalled
+                    ? '✅ All required dependencies are installed.'
+                    : '⚠️ Some dependencies are missing.'
+            );
+            lines.push('');
+
+            for (const dep of report.dependencies) {
+                if (dep.installed) {
+                    lines.push(`- ${dep.name}: installed`);
+                    lines.push(`  path: ${dep.path}`);
+                    lines.push(`  version: ${dep.version}`);
+                } else {
+                    lines.push(`- ${dep.name}: missing`);
+                }
+                lines.push('');
+            }
+
+            if (!report.allInstalled) {
+                lines.push(`Missing: ${report.missing.join(', ')}`);
+            }
+
+            return lines.join('\n').trim();
+        };
+
+        if (result.allInstalled) {
+            output.textContent = formatReport(result);
+            return;
+        }
+
+        const isMac = result.platform === 'darwin';
+
+        if (isMac) {
+            output.textContent = formatReport(result);
+
+            const installableMissing = result.missing.filter((d) => d !== 'brew');
+            const missingBrew = result.missing.includes('brew');
+            const installList = missingBrew ? result.missing : installableMissing;
+
+            const shouldInstall = confirm(
+                `Missing dependencies:\n${result.missing.join(', ')}\n\n` +
+                    `Would you like to install missing ones now?\n` +
+                    (missingBrew
+                        ? `This will run Homebrew installer:\n/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"\nThen run:\nbrew install ${installList.filter((d) => d !== 'brew').join(' ')}`
+                        : `This will run: brew install ${installList.join(' ')}`) +
+                    `\n\nYou can cancel and install later.`
+            );
+
+            if (!shouldInstall) {
+                output.textContent +=
+                    '\n\nInstall manually later with:\nbrew install yt-dlp ffmpeg';
+                return;
+            }
+
+            output.textContent = missingBrew
+                ? 'Installing Homebrew and missing dependencies...\n'
+                : 'Installing missing dependencies with Homebrew...\n';
+            const installResult = await window.electronAPI.installMissingDependencies({
+                installHomebrew: missingBrew
+            });
+
+            if (!installResult.success) {
+                output.textContent = `Installation finished with issues: ${
+                    installResult.message || 'Unknown error'
+                }\n`;
+                if (!installResult.dependencies) {
+                    return;
+                }
+            }
+
+            const recomputedMissing = (installResult.dependencies || [])
+                .filter((d) => !d.installed)
+                .map((d) => d.name);
+
+            const depsResult = {
+                success: true,
+                allInstalled: recomputedMissing.length === 0,
+                dependencies: installResult.dependencies,
+                missing: recomputedMissing
+            };
+
+            output.textContent = formatReport(depsResult);
+            if (installResult.failed?.length) {
+                output.textContent += `\nFailed: ${installResult.failed.join(', ')}`;
+            }
+            return;
+        }
+
+        // Linux/Windows: check-only
+        const lines = [];
+        lines.push(formatReport(result));
+        lines.push('');
+        lines.push(
+            'Please install the missing dependencies manually before using the downloader.'
+        );
+        if (result.missing.includes('yt-dlp') || result.missing.includes('ffmpeg')) {
+            lines.push('Hints: Install yt-dlp and ffmpeg using your system package manager.');
+        }
+        if (result.missing.includes('brew')) {
+            lines.push('Note: Homebrew is not available on this platform; use your OS package manager.');
+        }
+
+        output.textContent = lines.join('\n').trim();
+    } catch (error) {
+        output.textContent += `\nError: ${error.message}`;
+    }
+};
+
 window.runCommand = async function () {
     const url = document.getElementById('url').value.trim();
     const action = document.getElementById('action').value;

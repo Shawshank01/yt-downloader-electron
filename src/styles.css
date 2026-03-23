@@ -11,19 +11,43 @@
     --run-button-hover: #1976d2;
 }
 
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    height: 100%;
+}
+
 body {
+    height: 100%;
+    margin: 0;
+    padding: 16px;
+    overflow: hidden;
     background-color: var(--bg-color);
     color: var(--text-color);
     font-family:
         -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
         'Open Sans', 'Helvetica Neue', sans-serif;
-    margin: 0;
-    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .container {
+    flex: 1 1 auto;
+    min-height: 0;
     max-width: 100%;
     margin: 0 auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.app-header {
+    flex: 0 0 auto;
 }
 
 h1 {
@@ -111,18 +135,21 @@ button.run-button:hover {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* Fills all space between form and footer; scrolls inside — never overlaps buttons */
 #output {
-    margin-top: 20px;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-top: 12px;
     padding: 15px;
     border: 1px solid var(--output-border);
     border-radius: 4px;
     background-color: var(--output-bg);
     white-space: pre-wrap;
+    word-break: break-word;
     font-family: monospace;
-    min-height: 100px;
-    max-height: calc(100vh - 300px);
+    overflow-x: auto;
     overflow-y: auto;
-    margin-bottom: 60px;
+    -webkit-overflow-scrolling: touch;
 }
 
 .completion-hint {
@@ -133,12 +160,15 @@ button.run-button:hover {
     color: #81c784;
 }
 
-/* Add styles for the update button container */
-.update-button-container {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    z-index: 1000;
+.app-footer {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding-top: 16px;
+    margin-top: 4px;
 }
 
 .update-button {
@@ -155,6 +185,23 @@ button.run-button:hover {
 
 .update-button:hover {
     background-color: rgba(33, 150, 243, 0.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dependency-button {
+    background-color: transparent;
+    color: #81c784;
+    padding: 10px 15px;
+    border: 1px solid #81c784;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.dependency-button:hover {
+    background-color: rgba(129, 199, 132, 0.12);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 

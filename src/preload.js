@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reEncodeToMp4: (downloadFolder, videoId) =>
         ipcRenderer.invoke('re-encode-to-mp4', downloadFolder, videoId),
     openExternal: (url) => ipcRenderer.invoke('open-external', url),
+    checkDependencies: () => ipcRenderer.invoke('check-dependencies'),
+    installMissingDependencies: (options) =>
+        ipcRenderer.invoke('install-missing-dependencies', options),
     // Hardsub feature APIs
     listSubtitles: (url, browser) => ipcRenderer.invoke('list-subtitles', url, browser),
     downloadWithHardsub: (options) => ipcRenderer.invoke('download-with-hardsub', options),

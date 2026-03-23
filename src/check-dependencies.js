@@ -16,8 +16,10 @@ async function checkCommand(command) {
 async function checkDependencies() {
     console.log('Checking required dependencies...');
 
+    const finder = process.platform === 'win32' ? 'where' : 'which';
+
     // Check for Homebrew
-    const hasHomebrew = await checkCommand('which brew');
+    const hasHomebrew = await checkCommand(`${finder} brew`);
     if (!hasHomebrew) {
         console.error('\n❌ Homebrew is not installed. Please install it first:');
         console.error(
@@ -28,7 +30,7 @@ async function checkDependencies() {
     console.log('✅ Homebrew is installed');
 
     // Check for yt-dlp
-    const hasYtDlp = await checkCommand('which yt-dlp');
+    const hasYtDlp = await checkCommand(`${finder} yt-dlp`);
     if (!hasYtDlp) {
         console.error('\n❌ yt-dlp is not installed. Installing via Homebrew...');
         try {
@@ -43,7 +45,7 @@ async function checkDependencies() {
     }
 
     // Check for ffmpeg
-    const hasFfmpeg = await checkCommand('which ffmpeg');
+    const hasFfmpeg = await checkCommand(`${finder} ffmpeg`);
     if (!hasFfmpeg) {
         console.error('\n❌ ffmpeg is not installed. Installing via Homebrew...');
         try {
