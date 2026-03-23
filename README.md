@@ -2,9 +2,9 @@
   <img src="build/icon.svg" alt="Video Downloader Icon" width="128">
 </p>
 
-# Video Downloader (Electron)
+# YT-DLP Downloader
 
-A modern, user-friendly desktop application for downloading videos from YouTube and other supported platforms using yt-dlp and ffmpeg.
+This is a modern, user-friendly desktop application for downloading videos from YouTube and other supported platforms. It uses yt-dlp for download, and FFmpeg to change the format or add subtitles.
 
 ## Features
 
