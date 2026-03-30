@@ -17,27 +17,35 @@ async function checkDependencies() {
     console.log('Checking required dependencies...');
 
     const finder = process.platform === 'win32' ? 'where' : 'which';
+    const isMac = process.platform === 'darwin';
 
     // Check for Homebrew
-    const hasHomebrew = await checkCommand(`${finder} brew`);
-    if (!hasHomebrew) {
-        console.error('\n❌ Homebrew is not installed. Please install it first:');
-        console.error(
-            '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-        );
-        exit(1);
+    if (isMac) {
+        const hasHomebrew = await checkCommand(`${finder} brew`);
+        if (!hasHomebrew) {
+            console.error('\n❌ Homebrew is not installed. Please install it first:');
+            console.error(
+                '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+            );
+            exit(1);
+        }
+        console.log('✅ Homebrew is installed');
     }
-    console.log('✅ Homebrew is installed');
 
     // Check for yt-dlp
     const hasYtDlp = await checkCommand(`${finder} yt-dlp`);
     if (!hasYtDlp) {
-        console.error('\n❌ yt-dlp is not installed. Installing via Homebrew...');
-        try {
-            await execAsync('brew install yt-dlp');
-            console.log('✅ yt-dlp has been installed');
-        } catch (error) {
-            console.error('Failed to install yt-dlp:', error.message);
+        if (isMac) {
+            console.error('\n❌ yt-dlp is not installed. Installing via Homebrew...');
+            try {
+                await execAsync('brew install yt-dlp');
+                console.log('✅ yt-dlp has been installed');
+            } catch (error) {
+                console.error('Failed to install yt-dlp:', error.message);
+                exit(1);
+            }
+        } else {
+            console.error('\n❌ yt-dlp is not installed. Please install it manually via your OS package manager.');
             exit(1);
         }
     } else {
@@ -47,12 +55,17 @@ async function checkDependencies() {
     // Check for ffmpeg
     const hasFfmpeg = await checkCommand(`${finder} ffmpeg`);
     if (!hasFfmpeg) {
-        console.error('\n❌ ffmpeg is not installed. Installing via Homebrew...');
-        try {
-            await execAsync('brew install ffmpeg');
-            console.log('✅ ffmpeg has been installed');
-        } catch (error) {
-            console.error('Failed to install ffmpeg:', error.message);
+        if (isMac) {
+            console.error('\n❌ ffmpeg is not installed. Installing via Homebrew...');
+            try {
+                await execAsync('brew install ffmpeg');
+                console.log('✅ ffmpeg has been installed');
+            } catch (error) {
+                console.error('Failed to install ffmpeg:', error.message);
+                exit(1);
+            }
+        } else {
+            console.error('\n❌ ffmpeg is not installed. Please install it manually via your OS package manager.');
             exit(1);
         }
     } else {

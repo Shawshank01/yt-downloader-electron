@@ -24,5 +24,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     listSubtitles: (url, browser) => ipcRenderer.invoke('list-subtitles', url, browser),
     downloadWithHardsub: (options) => ipcRenderer.invoke('download-with-hardsub', options),
     // Generic command API
-    cancelCommand: () => ipcRenderer.invoke('cancel-command')
+    cancelCommand: () => ipcRenderer.invoke('cancel-command'),
+    deleteTemporaryFiles: (paths) => ipcRenderer.invoke('delete-temporary-files', paths)
 });

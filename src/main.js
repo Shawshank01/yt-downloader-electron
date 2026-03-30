@@ -5,7 +5,7 @@ import { dirname, join, extname, basename } from 'path';
 import { promises as fs } from 'fs';
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
 
-// ESM-compatible __dirname
+// ESM-compatible dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -249,23 +249,29 @@ ipcMain.handle('run-command', async (event, args) => {
     console.log('Executing:', args);
     console.log('process.env.PATH:', process.env.PATH);
 
+    if (activeProcess) {
+        return 'Error: Another task is already running. Please await completion or cancel it.';
+    }
+
     isActionCancelled = false;
 
     return new Promise((resolve) => {
-        activeProcess = exec(args);
+        activeProcess = spawn('yt-dlp', args);
         let output = '';
 
         activeProcess.stdout.on('data', (data) => {
-            output += data;
-            if (data.includes('[download]')) {
-                event.sender.send('download-progress', data.trim());
+            const str = data.toString();
+            output += str;
+            if (str.includes('[download]')) {
+                event.sender.send('download-progress', str.trim());
             }
         });
 
         activeProcess.stderr.on('data', (data) => {
-            output += '\n' + data;
-            if (data.includes('[download]')) {
-                event.sender.send('download-progress', data.trim());
+            const str = data.toString();
+            output += '\n' + str;
+            if (str.includes('[download]')) {
+                event.sender.send('download-progress', str.trim());
             }
         });
 
@@ -287,6 +293,10 @@ ipcMain.handle('run-command', async (event, args) => {
 ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
     console.log("Re-encoding video in folder:", downloadFolder, "for video ID:", videoId);
 
+    if (activeProcess) {
+        return 'Error: Another task is already running. Please await completion or cancel it.';
+    }
+
     try {
         const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
         const allFiles = await fs.readdir(downloadFolder);
@@ -307,20 +317,34 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
         const outputPath = join(downloadFolder, `${filename}_reencoded.mp4`);
         isActionCancelled = false;
 
+        // Find matching thumbnail file
+        let thumbnailFile = null;
+        for (const f of allFiles) {
+            if (f.endsWith('.jpg') && f.includes(filename.substring(0, 20))) {
+                thumbnailFile = f;
+                break;
+            }
+        }
+        const thumbnailPath = thumbnailFile ? join(downloadFolder, thumbnailFile) : null;
+
         console.log(`Re-encoding file: ${file}`);
         event.sender.send('download-progress', `Re-encoding ${file}...`);
 
         return new Promise((resolve) => {
             const tryReEncode = (audioCodec) => {
-                const args = [
-                    '-i', filePath,
-                    '-c:v', 'libx264',
-                    '-crf', '22',
-                    '-preset', 'veryslow',
-                    '-c:a', audioCodec,
-                    '-tag:v', 'avc1',
-                    outputPath
-                ];
+                const args = [];
+                args.push('-i', filePath);
+
+                if (thumbnailPath) {
+                    args.push('-i', thumbnailPath);
+                    args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
+                    args.push('-c:v:0', 'libx264', '-crf:0', '22', '-preset', 'veryslow', '-c:a:0', audioCodec, '-tag:v:0', 'avc1');
+                    args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
+                } else {
+                    args.push('-c:v', 'libx264', '-crf', '22', '-preset', 'veryslow', '-c:a', audioCodec, '-tag:v', 'avc1');
+                }
+
+                args.push(outputPath);
 
                 activeProcess = spawn('ffmpeg', args);
 
@@ -353,21 +377,30 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
                             console.log(`Deleted original file: ${filePath}`);
                         } catch { /* ignore if input file doesn't exist */ }
 
+                        if (thumbnailPath) {
+                            try { await fs.unlink(thumbnailPath); } catch (e) { if (e.code !== 'ENOENT') console.error('Cleanup error:', e); }
+                        }
+
                         resolve("Re-encoding cancelled by user. Files cleaned up.");
                         return;
                     }
 
                     if (code === 0) {
                         try {
-                            await fs.unlink(filePath);
                             const finalPath = join(downloadFolder, `${filename}.mp4`);
                             await fs.rename(outputPath, finalPath);
 
                             console.log(`Successfully re-encoded: ${file} to ${finalPath}`);
-                            resolve(`Re-encoding completed successfully. Saved as: ${filename}.mp4`);
+                            const tmpFiles = [filePath];
+                            if (thumbnailPath) tmpFiles.push(thumbnailPath);
+
+                            resolve(JSON.stringify({
+                                text: `Re-encoding completed successfully. Saved as: ${filename}.mp4`,
+                                tmpFiles: tmpFiles
+                            }));
                         } catch (err) {
                             console.error("Error replacing file:", err);
-                            resolve(`Re-encoding finished but failed to replace file: ${err.message}`);
+                            resolve(JSON.stringify({ text: `Re-encoding finished but failed to replace file: ${err.message}` }));
                         }
                     } else if (code !== 0 && audioCodec === 'aac_at') {
                         // Fallback to libfdk_aac
@@ -423,13 +456,21 @@ ipcMain.handle('list-subtitles', async (_event, url, browser) => {
     console.log('Listing subtitles for:', url);
 
     return new Promise((resolve) => {
-        const cookiesParam = browser ? `--cookies-from-browser ${browser}` : '';
-        const cmd = `yt-dlp -j --skip-download ${cookiesParam} "${url}"`;
+        let args = ['-j', '--skip-download'];
+        if (browser) args.push('--cookies-from-browser', browser);
+        args.push(url);
 
-        exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout) => {
-            if (error) {
-                console.error('Error getting video info:', error);
-                resolve({ error: true, message: error.message, subtitles: [], isAutoGenerated: false });
+        const child = spawn('yt-dlp', args);
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (data) => stdout += data);
+        child.stderr.on('data', (data) => stderr += data);
+
+        child.on('close', (code) => {
+            if (code !== 0) {
+                console.error('Error getting video info:', stderr);
+                resolve({ error: true, message: stderr || 'Unknown error', subtitles: [], isAutoGenerated: false });
                 return;
             }
 
@@ -492,30 +533,43 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
     const { url, browser, downloadFolder, subtitleLang, subtitleType, codec } = options;
     console.log('Download with hardsub:', { url, subtitleLang, subtitleType, codec, downloadFolder });
 
+    if (activeProcess) {
+        return 'Error: Another task is already running. Please await completion or cancel it.';
+    }
+
     try {
         // Step 1: Download video with subtitle (limit to avc1/H.264)
-        const cookiesParam = browser ? `--cookies-from-browser ${browser}` : '';
         // Use --write-auto-subs for auto-generated captions, --write-subs for manual subtitles
         const subsFlag = subtitleType === 'manual' ? '--write-subs' : '--write-auto-subs';
-        const downloadCmd = `yt-dlp -f "bestvideo[vcodec^=avc1]+bestaudio/best[vcodec^=avc1]" ${subsFlag} --sub-langs "${subtitleLang}" --convert-subs vtt -P "${downloadFolder}" ${cookiesParam} "${url}"`;
+        let args = [
+            '-f', 'bestvideo[vcodec^=avc1]+bestaudio/best[vcodec^=avc1]',
+            subsFlag, '--sub-langs', subtitleLang,
+            '--convert-subs', 'vtt',
+            '--write-thumbnail', '--convert-thumbnails', 'jpg',
+            '-P', downloadFolder
+        ];
+        if (browser) args.push('--cookies-from-browser', browser);
+        args.push(url);
 
         event.sender.send('download-progress', 'Downloading video and subtitles...');
-        console.log('Download command:', downloadCmd);
+        console.log('Download command:', args);
 
         // Execute download
         await new Promise((resolve, reject) => {
             isActionCancelled = false;
-            activeProcess = exec(downloadCmd);
+            activeProcess = spawn('yt-dlp', args);
 
             activeProcess.stdout.on('data', (data) => {
-                if (data.includes('[download]')) {
-                    event.sender.send('download-progress', data.trim());
+                const str = data.toString();
+                if (str.includes('[download]')) {
+                    event.sender.send('download-progress', str.trim());
                 }
             });
 
             activeProcess.stderr.on('data', (data) => {
-                if (data.includes('[download]')) {
-                    event.sender.send('download-progress', data.trim());
+                const str = data.toString();
+                if (str.includes('[download]')) {
+                    event.sender.send('download-progress', str.trim());
                 }
             });
 
@@ -584,8 +638,18 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             return 'Error: No subtitle file found after download. The video may not have subtitles in the selected language.';
         }
 
+        // Find matching thumbnail file
+        let thumbnailFile = null;
+        for (const { file } of filesWithStats) {
+            if (file.endsWith('.jpg') && file.includes(videoBasename.substring(0, 20))) {
+                thumbnailFile = file;
+                break;
+            }
+        }
+
         const videoPath = join(downloadFolder, videoFile);
         const subtitlePath = join(downloadFolder, subtitleFile);
+        const thumbnailPath = thumbnailFile ? join(downloadFolder, thumbnailFile) : null;
         const videoExt = extname(videoFile);
         const videoName = basename(videoFile, videoExt);
         const codecSuffix = codec === 'hevc' ? '_HEVC' : '_H264';
@@ -601,36 +665,45 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
 
         return new Promise((resolve) => {
             const tryHardsub = (audioCodec) => {
-                let args;
+                let args = [];
 
                 // Escape the subtitle path for ffmpeg filter
                 const escapedSubPath = subtitlePath.replace(/'/g, "'\\''").replace(/:/g, '\\:');
 
+                args.push('-hwaccel', 'videotoolbox');
+                args.push('-i', videoPath);
+
+                if (thumbnailPath) {
+                    args.push('-i', thumbnailPath);
+                    args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
+                    args.push('-filter:v:0', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
+                } else {
+                    args.push('-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
+                }
+
                 if (codec === 'hevc') {
-                    args = [
-                        '-hwaccel', 'videotoolbox',
-                        '-i', videoPath,
-                        '-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`,
-                        '-c:v', 'hevc_videotoolbox',
+                    args.push(
+                        thumbnailPath ? '-c:v:0' : '-c:v', 'hevc_videotoolbox',
                         '-pix_fmt', 'p010le',
-                        '-b:v', '2500k',
-                        '-c:a', audioCodec,
-                        '-tag:v', 'hvc1',
-                        outputPath
-                    ];
+                        thumbnailPath ? '-b:v:0' : '-b:v', '2500k',
+                        thumbnailPath ? '-tag:v:0' : '-tag:v', 'hvc1'
+                    );
                 } else {
                     // Default to H.264
-                    args = [
-                        '-hwaccel', 'videotoolbox',
-                        '-i', videoPath,
-                        '-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`,
-                        '-c:v', 'h264_videotoolbox',
-                        '-b:v', '4000k',
-                        '-c:a', audioCodec,
-                        '-tag:v', 'avc1',
-                        outputPath
-                    ];
+                    args.push(
+                        thumbnailPath ? '-c:v:0' : '-c:v', 'h264_videotoolbox',
+                        thumbnailPath ? '-b:v:0' : '-b:v', '4000k',
+                        thumbnailPath ? '-tag:v:0' : '-tag:v', 'avc1'
+                    );
                 }
+
+                args.push(thumbnailPath ? '-c:a:0' : '-c:a', audioCodec);
+
+                if (thumbnailPath) {
+                    args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
+                }
+
+                args.push(outputPath);
 
                 console.log('FFmpeg args:', args);
                 activeProcess = spawn('ffmpeg', args);
@@ -663,19 +736,21 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
 
                     if (code === 0) {
                         try {
-                            // Clean up original video and subtitle files
-                            await fs.unlink(videoPath);
-                            await fs.unlink(subtitlePath);
-
                             // Rename output to final name
                             const finalPath = join(downloadFolder, `${videoName}${codecSuffix}.mp4`);
                             await fs.rename(outputPath, finalPath);
 
                             console.log(`Successfully created hardsub video: ${finalPath}`);
-                            resolve(`Hardsub completed! Saved as: ${videoName}${codecSuffix}.mp4`);
+                            const tmpFiles = [videoPath, subtitlePath];
+                            if (thumbnailPath) tmpFiles.push(thumbnailPath);
+
+                            resolve(JSON.stringify({
+                                text: `Hardsub completed! Saved as: ${videoName}${codecSuffix}.mp4`,
+                                tmpFiles: tmpFiles
+                            }));
                         } catch (err) {
-                            console.error("Error cleaning up files:", err);
-                            resolve(`Hardsub finished but failed to clean up: ${err.message}`);
+                            console.error("Error handling hardsub wrap up:", err);
+                            resolve(JSON.stringify({ text: `Hardsub finished but failed to clean up: ${err.message}` }));
                         }
                     } else if (code !== 0 && audioCodec === 'aac_at') {
                         // Fallback to libfdk_aac
@@ -701,5 +776,14 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
     } catch (error) {
         console.error('Hardsub error:', error);
         return `Error during hardsub: ${error.message}`;
+    }
+});
+
+ipcMain.handle('delete-temporary-files', async (_event, paths) => {
+    for (const p of paths) {
+        if (p) {
+            try { await fs.unlink(p); }
+            catch (e) { if (e.code !== 'ENOENT') console.error('Error cleaning up temp file:', p, e.message); }
+        }
     }
 });

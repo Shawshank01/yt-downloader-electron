@@ -165,11 +165,11 @@ window.checkDependencies = async function () {
 
             const shouldInstall = confirm(
                 `Missing dependencies:\n${result.missing.join(', ')}\n\n` +
-                    `Would you like to install missing ones now?\n` +
-                    (missingBrew
-                        ? `This will run Homebrew installer:\n/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"\nThen run:\nbrew install ${installList.filter((d) => d !== 'brew').join(' ')}`
-                        : `This will run: brew install ${installList.join(' ')}`) +
-                    `\n\nYou can cancel and install later.`
+                `Would you like to install missing ones now?\n` +
+                (missingBrew
+                    ? `This will run Homebrew installer:\n/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"\nThen run:\nbrew install ${installList.filter((d) => d !== 'brew').join(' ')}`
+                    : `This will run: brew install ${installList.join(' ')}`) +
+                `\n\nYou can cancel and install later.`
             );
 
             if (!shouldInstall) {
@@ -186,9 +186,8 @@ window.checkDependencies = async function () {
             });
 
             if (!installResult.success) {
-                output.textContent = `Installation finished with issues: ${
-                    installResult.message || 'Unknown error'
-                }\n`;
+                output.textContent = `Installation finished with issues: ${installResult.message || 'Unknown error'
+                    }\n`;
                 if (!installResult.dependencies) {
                     return;
                 }
@@ -257,21 +256,21 @@ window.runCommand = async function () {
         progressHandler();
     }
 
-    // Build cookies parameter if browser is selected
-    const cookiesParam = browser ? `--cookies-from-browser ${browser}` : '';
+    let args = [];
+    if (browser) {
+        args.push('--cookies-from-browser', browser);
+    }
 
-    let cmd;
     switch (action) {
         case 'Download Video (Best Quality)':
-            cmd = `yt-dlp -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
+            args.push('--embed-thumbnail', '-P', downloadFolder, url);
             break;
         case 'List Formats':
-            cmd = `yt-dlp -F ${cookiesParam} "${url}"`.trim();
+            args.push('-F', url);
             break;
         case 'Choose Format':
             if (formatCode) {
-                cmd =
-                    `yt-dlp -f ${formatCode} -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
+                args.push('-f', formatCode, '--embed-thumbnail', '-P', downloadFolder, url);
             } else {
                 document.getElementById('output').textContent =
                     'Error: Please enter a format code (e.g., 140, 356, or 140+356) for audio/video download.';
@@ -283,19 +282,19 @@ window.runCommand = async function () {
             await handleSubtitleDownload(url, browser, downloadFolder);
             return;
         case 'Download & Re-encode as high quality MP4 (H.264/AAC)':
-            cmd = `yt-dlp -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
+            args.push('--write-thumbnail', '--convert-thumbnails', 'jpg', '-P', downloadFolder, url);
             break;
         case 'Download & Add Hardsub (Only Support on macOS)':
             // Handle hardsub workflow separately
             await handleHardsubAction(url, browser, downloadFolder);
             return;
         default:
-            cmd = `yt-dlp -P "${downloadFolder}" ${cookiesParam} "${url}"`.trim();
+            args.push('--embed-thumbnail', '-P', downloadFolder, url);
             break;
     }
 
     // Store the command line for progress updates
-    const commandLine = 'Running: ' + cmd;
+    const commandLine = 'Running: yt-dlp ' + args.join(' ');
 
     // Set up new progress handler
     progressHandler = window.electronAPI.onProgress((progress) => {
@@ -304,8 +303,8 @@ window.runCommand = async function () {
         outputElement.textContent = commandLine + '\n' + progress;
     });
 
-    document.getElementById('output').textContent = 'Running: ' + cmd + '\n';
-    console.log('Running command:', cmd);
+    document.getElementById('output').textContent = commandLine + '\n';
+    console.log('Running command:', args);
 
     // Show generic cancel button
     const cancelActionControls = document.getElementById('cancelActionControls');
@@ -328,7 +327,7 @@ window.runCommand = async function () {
     }
 
     try {
-        const result = await window.electronAPI.runCommand(cmd);
+        const result = await window.electronAPI.runCommand(args);
         // Clean the result by removing progress lines and keeping only the final message
         const cleanResult = cleanYtDlpResult(result);
 
@@ -379,8 +378,22 @@ window.runCommand = async function () {
                                 videoId
                             );
 
+                            let parsedResult;
+                            try {
+                                parsedResult = JSON.parse(reEncodeResult);
+                            } catch {
+                                parsedResult = { text: reEncodeResult, tmpFiles: [] };
+                            }
+
                             document.getElementById('output').textContent =
-                                commandLine + '\n' + cleanResult + '\n' + reEncodeResult;
+                                commandLine + '\n' + cleanResult + '\n' + parsedResult.text;
+
+                            if (parsedResult.tmpFiles && parsedResult.tmpFiles.length > 0) {
+                                const shouldDelete = await showCleanupModal('Re-encoding completed successfully. Do you want to delete the temporary downloaded files (original video and thumbnail)?');
+                                if (shouldDelete) {
+                                    await window.electronAPI.deleteTemporaryFiles(parsedResult.tmpFiles);
+                                }
+                            }
                         } finally {
                             // Hide cancel button
                             const cancelActionControls = document.getElementById('cancelActionControls');
@@ -475,11 +488,14 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
 
         output.textContent = `Downloading ${selectedSubtitle.name} (${selectedSubtitle.code}) subtitle...`;
 
-        const cookiesParam = browser ? `--cookies-from-browser ${browser}` : '';
+        let args = [];
+        if (browser) {
+            args.push('--cookies-from-browser', browser);
+        }
         const subsFlag = selectedSubtitle.type === 'manual' ? '--write-subs' : '--write-auto-subs';
-        const cmd = `yt-dlp ${subsFlag} --sub-langs "${selectedSubtitle.code}" --skip-download --convert-subs vtt -P "${downloadFolder}" ${cookiesParam} "${url}"`;
+        args.push(subsFlag, '--sub-langs', selectedSubtitle.code, '--skip-download', '--convert-subs', 'vtt', '-P', downloadFolder, url);
 
-        const cmdResult = await window.electronAPI.runCommand(cmd);
+        const cmdResult = await window.electronAPI.runCommand(args);
 
         if (cmdResult.includes('cancelled by user')) {
             output.textContent = 'Subtitle download cancelled.';
@@ -577,10 +593,24 @@ async function handleHardsubAction(url, browser, downloadFolder) {
                 codec
             });
 
-            output.textContent = hardsubResult;
+            let parsedResult;
+            try {
+                parsedResult = JSON.parse(hardsubResult);
+            } catch {
+                parsedResult = { text: hardsubResult, tmpFiles: [] };
+            }
+
+            output.textContent = parsedResult.text;
+
+            if (parsedResult.tmpFiles && parsedResult.tmpFiles.length > 0) {
+                const shouldDelete = await showCleanupModal('Hardsub completed successfully. Do you want to delete the temporary downloaded files (original video, thumbnail, and subtitles)?');
+                if (shouldDelete) {
+                    await window.electronAPI.deleteTemporaryFiles(parsedResult.tmpFiles);
+                }
+            }
 
             // Add completion hint
-            if (hardsubResult.includes('cancelled by user')) {
+            if (parsedResult.text.includes('cancelled by user')) {
                 const completionHint = document.createElement('div');
                 completionHint.style.marginTop = '10px';
                 completionHint.style.padding = '10px';
@@ -697,3 +727,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// Show cleanup modal and return boolean for delete files
+function showCleanupModal(message) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('cleanupModal');
+        const messageEl = document.getElementById('cleanupMessage');
+        const keepBtn = document.getElementById('keepFilesBtn');
+        const deleteBtn = document.getElementById('deleteFilesBtn');
+
+        if (message) {
+            messageEl.textContent = message;
+        }
+
+        const handleKeep = () => {
+            modal.style.display = 'none';
+            cleanupListeners();
+            resolve(false);
+        };
+
+        const handleDelete = () => {
+            modal.style.display = 'none';
+            cleanupListeners();
+            resolve(true);
+        };
+
+        const cleanupListeners = () => {
+            keepBtn.removeEventListener('click', handleKeep);
+            deleteBtn.removeEventListener('click', handleDelete);
+        };
+
+        keepBtn.addEventListener('click', handleKeep);
+        deleteBtn.addEventListener('click', handleDelete);
+
+        modal.style.display = 'flex';
+    });
+}
