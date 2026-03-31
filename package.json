@@ -58,6 +58,7 @@
   "build": {
     "appId": "com.ytdownloader.app",
     "productName": "YT Downloader",
+    "artifactName": "YT-Downloader-${os}-${arch}-${version}.${ext}",
     "publish": {
       "provider": "github"
     },
@@ -78,7 +79,6 @@
           ]
         }
       ],
-      "artifactName": "${productName} Setup ${version}.${ext}",
       "signAndEditExecutable": false
     },
     "linux": {
