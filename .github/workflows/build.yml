@@ -131,6 +131,7 @@ jobs:
             echo "No annotated tag notes found; generating basic notes." > release_notes.txt
             echo "Release $TAG_NAME" >> release_notes.txt
           fi
+          sed -i '/^Bump version to /d' release_notes.txt
           echo "Release notes content:"
           cat release_notes.txt
           echo "Final assets to be released:"
