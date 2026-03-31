@@ -94,12 +94,17 @@ ipcMain.handle('cancel-command', async () => {
 
 ipcMain.handle('check-dependencies', async () => {
     try {
-        const dependencies = await Promise.all([
-            getDependencyInfo('brew', 'brew --version'),
+        const isMac = process.platform === 'darwin';
+        const checkList = [
             getDependencyInfo('yt-dlp', 'yt-dlp --version'),
             getDependencyInfo('ffmpeg', 'ffmpeg -version')
-        ]);
+        ];
 
+        if (isMac) {
+            checkList.unshift(getDependencyInfo('brew', 'brew --version'));
+        }
+
+        const dependencies = await Promise.all(checkList);
         const missing = dependencies.filter((dep) => !dep.installed).map((dep) => dep.name);
 
         return {
