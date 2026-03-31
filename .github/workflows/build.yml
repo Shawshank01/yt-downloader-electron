@@ -11,9 +11,6 @@ permissions:
   contents: write
   actions: write
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   release:
     runs-on: ${{ matrix.os }}
@@ -30,10 +27,10 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 18
 
@@ -80,7 +77,7 @@ jobs:
           ls -la dist/ || echo "dist/ directory not found"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ runner.os }}-build
           path: dist/
@@ -94,12 +91,12 @@ jobs:
       actions: read
     steps:
       - name: Check out Git repository (for tag annotations)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: dist/
           merge-multiple: true
