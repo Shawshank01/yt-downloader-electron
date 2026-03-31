@@ -240,7 +240,7 @@ try {
         execSync('git add package.json package-lock.json');
         const commitMessagePath = join(__dirname, '.git', 'COMMIT_MESSAGE.txt');
         writeFileSync(commitMessagePath, commitMessage, 'utf8');
-        execSync(`git commit -F "${commitMessagePath}"`);
+        execSync(`git commit -F "${commitMessagePath}" --cleanup=verbatim`);
         success('Committed version change');
     } catch (err) {
         error('Failed to commit version change: ' + err.message);
@@ -257,7 +257,7 @@ try {
         const tagMessagePath = join(__dirname, '.git', 'TAG_MESSAGE.txt');
         writeFileSync(tagMessagePath, tagBody, 'utf8');
 
-        execSync(`git tag -a ${tagName} -F "${tagMessagePath}"`);
+        execSync(`git tag -a ${tagName} -F "${tagMessagePath}" --cleanup=verbatim`);
         success(`Created git tag: ${tagName}`);
 
         execSync(`git push origin ${tagName}`);
