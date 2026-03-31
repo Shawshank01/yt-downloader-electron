@@ -97,7 +97,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist/
-          merge-multiple: true # Merges all artifacts into a single directory
+          merge-multiple: true
 
       - name: List all downloaded artifacts
         shell: bash
@@ -111,7 +111,7 @@ jobs:
           mkdir release_assets
           echo "Moving release assets..."
           find dist -type f -name "*.dmg" -exec mv {} release_assets/ \;
-          find dist -type f -name "YT Downloader Setup*.exe" -exec mv {} release_assets/ \;
+          find dist -type f -name "*.exe" -exec mv {} release_assets/ \;
           find dist -type f -name "*.AppImage" -exec mv {} release_assets/ \;
           find dist -type f -name "*.deb" -exec mv {} release_assets/ \;
           find dist -type f -name "latest*.yml" -exec mv {} release_assets/ \;
