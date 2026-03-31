@@ -141,16 +141,10 @@ jobs:
           echo "Fetching annotated tag message for $TAG_NAME..."
           # Try to read tag annotation locally first
           git tag -l --format='%(contents)' "$TAG_NAME" > release_notes.txt 2>/dev/null || true
-          # If empty, fetch tags (ignore errors if tag already exists locally)
-          if [ ! -s release_notes.txt ]; then
-            git fetch --tags --force >/dev/null 2>&1 || true
-            git tag -l --format='%(contents)' "$TAG_NAME" > release_notes.txt 2>/dev/null || true
-          fi
-          if [ ! -s release_notes.txt ] || [ "$(cat release_notes.txt | wc -l)" -lt 2 ]; then
-            echo "No annotated tag notes found; generating basic notes." > release_notes.txt
-            echo "Release $TAG_NAME" >> release_notes.txt
-          fi
-          sed -i '/^Bump version to /d' release_notes.txt
+          # Remove PGP signature block if present
+          sed -i '/-----BEGIN PGP SIGNATURE-----/,$d' release_notes.txt
+          # Trim leading/trailing whitespace/newlines
+          sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' release_notes.txt
           echo "Release notes content:"
           cat release_notes.txt
           echo "Final assets to be released:"
