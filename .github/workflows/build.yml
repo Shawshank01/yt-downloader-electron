@@ -92,6 +92,8 @@ jobs:
     steps:
       - name: Check out Git repository (for tag annotations)
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
@@ -111,7 +113,7 @@ jobs:
           mkdir release_assets
           echo "Moving release assets..."
           find dist -type f -name "*.dmg" -exec mv {} release_assets/ \;
-          find dist -type f -name "*.exe" -exec mv {} release_assets/ \;
+          find dist -type f -name "YT-Downloader-*.exe" -exec mv {} release_assets/ \;
           find dist -type f -name "*.AppImage" -exec mv {} release_assets/ \;
           find dist -type f -name "*.deb" -exec mv {} release_assets/ \;
           find dist -type f -name "latest*.yml" -exec mv {} release_assets/ \;
@@ -138,6 +140,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           generate_release_notes: false
           body_path: release_notes.txt
           files: release_assets/*
