@@ -239,7 +239,7 @@ try {
     try {
         execSync('git add package.json package-lock.json');
         const commitMessagePath = join(__dirname, '.git', 'COMMIT_MESSAGE.txt');
-        writeFileSync(commitMessagePath, commitMessage, 'utf8');
+        writeFileSync(commitMessagePath, commitMessage + '\n', 'utf8');
         execSync(`git commit -F "${commitMessagePath}" --cleanup=verbatim`);
         success('Committed version change');
     } catch (err) {
@@ -255,7 +255,7 @@ try {
 
         // Write tag message to a temp file to preserve newlines safely
         const tagMessagePath = join(__dirname, '.git', 'TAG_MESSAGE.txt');
-        writeFileSync(tagMessagePath, tagBody, 'utf8');
+        writeFileSync(tagMessagePath, tagBody + '\n', 'utf8');
 
         execSync(`git tag -a ${tagName} -F "${tagMessagePath}" --cleanup=verbatim`);
         success(`Created git tag: ${tagName}`);
