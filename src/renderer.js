@@ -1,7 +1,30 @@
 console.log('renderer.js loaded! window.electronAPI:', window.electronAPI);
 
-// Initialise progress handler
 let progressHandler = null;
+
+// Cache the format list output from "List Formats" to detect audio-only formats
+let cachedFormatList = '';
+
+// Detect audio-only webm formats and return the correct extraction format.
+// Returns 'opus' for opus codec, 'vorbis' for vorbis codec, or null otherwise.
+function getAudioOnlyWebmFormat(formatCode) {
+    if (!cachedFormatList || !formatCode) return null;
+    // Only check single format codes
+    if (formatCode.includes('+')) return null;
+
+    const lines = cachedFormatList.split(/[\r\n]+/);
+    for (const line of lines) {
+        const trimmed = line.trim();
+        // Match: ID webm audio only ... | audio only CODEC
+        const match = trimmed.match(/^(\S+)\s+webm\s+audio only.*\|\s*audio only\s+(\S+)/i);
+        if (match && match[1] === formatCode) {
+            const codec = match[2].toLowerCase();
+            if (codec.startsWith('opus')) return 'opus';
+            if (codec.startsWith('vorbis')) return 'vorbis';
+        }
+    }
+    return null;
+}
 
 // Function to clean yt-dlp output by removing progress lines
 function cleanYtDlpResult(result) {
@@ -270,7 +293,13 @@ window.runCommand = async function () {
             break;
         case 'Choose Format':
             if (formatCode) {
-                args.push('-f', formatCode, '--embed-thumbnail', '-P', downloadFolder, url);
+                args.push('-f', formatCode);
+                const audioFmt = getAudioOnlyWebmFormat(formatCode);
+                if (audioFmt) {
+                    // Extract audio so --embed-thumbnail works
+                    args.push('-x', '--audio-format', audioFmt);
+                }
+                args.push('--embed-thumbnail', '-P', downloadFolder, url);
             } else {
                 document.getElementById('output').textContent =
                     'Error: Please enter a format code (e.g., 140, 356, or 140+356) for audio/video download.';
@@ -328,12 +357,18 @@ window.runCommand = async function () {
 
     try {
         const result = await window.electronAPI.runCommand(args);
+
+        // Cache the format list output for audio-only detection
+        if (action === 'List Formats') {
+            cachedFormatList = result || '';
+        }
+
         // Clean the result by removing progress lines and keeping only the final message
         const cleanResult = cleanYtDlpResult(result);
 
         document.getElementById('output').textContent = commandLine + '\n' + cleanResult;
 
-        // If this was a "Download & Re-encode as high quality MP4 (H.264/AAC)" action, ask for confirmation before re-encoding
+        // Ask for confirmation before re-encoding
         if (action === 'Download & Re-encode as high quality MP4 (H.264/AAC)' && downloadFolder) {
             const shouldReEncode = confirm(
                 'Video download completed! Would you like to re-encode it to high quality MP4 (H.264/AAC)?\n\nThis will:\n• Use H.264 video codec with maximum quality (CRF 18)\n• Use AAC audio codec for maximum compatibility\n• Replace the original file with the re-encoded version\n\nNote: Re-encoding may take some time depending on the video length.\n\nIf you skip re-encoding, the original video format will be preserved.'
