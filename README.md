@@ -5,7 +5,7 @@
 # YT Downloader Electron
 
 This is a modern, user-friendly desktop application for downloading videos from YouTube and other supported platforms. It uses yt-dlp for download, and FFmpeg to change the format or add subtitles.
-![YT Downloader Electron UI](public/YT-Downloader-UI.jpeg)
+![YT Downloader Electron UI](public/YT-Downloader-UI.png)
 
 ## Features
 
