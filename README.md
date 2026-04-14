@@ -5,7 +5,7 @@
 # YT Downloader Electron
 
 This is a modern, user-friendly desktop application for downloading videos from YouTube and other supported platforms. It uses yt-dlp for download, and FFmpeg to change the format or add subtitles.
-![YT Downloader Electron](public/YT-Downloader-UI.png)
+![YT Downloader Electron UI](public/YT-Downloader-UI.jpeg)
 
 ## Features
 
@@ -64,7 +64,7 @@ You must have both `yt-dlp` and `ffmpeg` installed on your system for the app to
    npm start
    ```
 
-### Building Distributables (Developers)
+### Building Distributables
 
 To build the application for your platform:
 ```bash
@@ -163,10 +163,6 @@ The app includes a built-in update checker:
      ```bash
      chmod +x start.command
      ```
-
-## License
-
-MIT License - see LICENSE file for details
 
 ## Contributing
 
