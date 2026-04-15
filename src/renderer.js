@@ -26,6 +26,23 @@ function getAudioOnlyWebmFormat(formatCode) {
     return null;
 }
 
+// Detect image/storyboard formats (mhtml, vcodec=images) that don't support thumbnail embedding
+function isImageFormat(formatCode) {
+    if (!cachedFormatList || !formatCode) return false;
+    if (formatCode.includes('+')) return false;
+
+    const lines = cachedFormatList.split(/[\r\n]+/);
+    for (const line of lines) {
+        const trimmed = line.trim();
+        // Match: ID mhtml ... (storyboard formats like sb0-sb3)
+        const match = trimmed.match(/^(\S+)\s+(\S+)\s+/);
+        if (match && match[1] === formatCode && match[2] === 'mhtml') {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Function to clean yt-dlp output by removing progress lines
 function cleanYtDlpResult(result) {
     if (!result) return result;
@@ -291,15 +308,18 @@ window.runCommand = async function () {
         case 'List Formats':
             args.push('-F', url);
             break;
-        case 'Choose Format':
+        case 'Download (Custom Format)':
             if (formatCode) {
                 args.push('-f', formatCode);
-                const audioFmt = getAudioOnlyWebmFormat(formatCode);
-                if (audioFmt) {
-                    // Extract audio so --embed-thumbnail works
-                    args.push('-x', '--audio-format', audioFmt);
+                if (!isImageFormat(formatCode)) {
+                    const audioFmt = getAudioOnlyWebmFormat(formatCode);
+                    if (audioFmt) {
+                        // Extract audio so --embed-thumbnail works
+                        args.push('-x', '--audio-format', audioFmt);
+                    }
+                    args.push('--embed-thumbnail');
                 }
-                args.push('--embed-thumbnail', '-P', downloadFolder, url);
+                args.push('-P', downloadFolder, url);
             } else {
                 document.getElementById('output').textContent =
                     'Error: Please enter a format code (e.g., 140, 356, or 140+356) for audio/video download.';
@@ -310,6 +330,10 @@ window.runCommand = async function () {
             // Handle subtitle download workflow separately
             await handleSubtitleDownload(url, browser, downloadFolder);
             return;
+        case 'Download Thumbnail':
+            // Download only the video thumbnail in its original format, no video/audio
+            args.push('--write-thumbnail', '--skip-download', '-P', downloadFolder, url);
+            break;
         case 'Download & Re-encode as high quality MP4 (H.264/AAC)':
             args.push('--write-thumbnail', '--convert-thumbnails', 'jpg', '-P', downloadFolder, url);
             break;
@@ -483,7 +507,7 @@ function updateFormatCodeVisibility() {
     const codecGroup = document.getElementById('codecGroup');
 
     if (formatGroup) {
-        formatGroup.style.display = action === 'Choose Format' ? '' : 'none';
+        formatGroup.style.display = action === 'Download (Custom Format)' ? '' : 'none';
     }
     if (codecGroup) {
         codecGroup.style.display = action === 'Download & Add Hardsub (Only Support on macOS)' ? '' : 'none';
