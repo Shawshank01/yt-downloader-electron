@@ -228,14 +228,14 @@ function createWindow() {
     const win = new BrowserWindow({
         fullscreenable: true,
         webPreferences: {
-            preload: join(__dirname, 'preload.js'),
+            preload: join(__dirname, 'preload.cjs'),
             nodeIntegration: false,
             contextIsolation: true
         }
     });
     win.loadFile(join(__dirname, 'index.html'));
 
-    // Maximize the window instead of fullscreen to keep it in current desktop
+    // Maximise the window
     win.maximize();
 }
 
@@ -247,6 +247,20 @@ ipcMain.handle('choose-folder', async () => {
         properties: ['openDirectory']
     });
     return result.canceled || result.filePaths.length === 0 ? '' : result.filePaths[0];
+});
+
+// IPC handler to fetch format metadata for a specific format code
+ipcMain.handle('get-format-info', async (_event, args) => {
+    return new Promise((resolve) => {
+        const child = spawn('yt-dlp', args);
+        let stdout = '';
+        let stderr = '';
+        child.stdout.on('data', (d) => stdout += d);
+        child.stderr.on('data', (d) => stderr += d);
+        child.on('close', (code) => {
+            resolve({ ok: code === 0, output: stdout.trim(), error: stderr.trim() });
+        });
+    });
 });
 
 // IPC handler for running yt-dlp commands

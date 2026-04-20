@@ -5,42 +5,54 @@ let progressHandler = null;
 // Cache the format list output from "List Formats" to detect audio-only formats
 let cachedFormatList = '';
 
-// Detect audio-only webm formats and return the correct extraction format.
-// Returns 'opus' for opus codec, 'vorbis' for vorbis codec, or null otherwise.
-function getAudioOnlyWebmFormat(formatCode) {
-    if (!cachedFormatList || !formatCode) return null;
-    // Only check single format codes
-    if (formatCode.includes('+')) return null;
-
-    const lines = cachedFormatList.split(/[\r\n]+/);
-    for (const line of lines) {
-        const trimmed = line.trim();
-        // Match: ID webm audio only ... | audio only CODEC
-        const match = trimmed.match(/^(\S+)\s+webm\s+audio only.*\|\s*audio only\s+(\S+)/i);
-        if (match && match[1] === formatCode) {
-            const codec = match[2].toLowerCase();
-            if (codec.startsWith('opus')) return 'opus';
-            if (codec.startsWith('vorbis')) return 'vorbis';
+// Fetch format metadata for a single format code using yt-dlp --print
+// Falls back to the cached format list if available to avoid an extra network call
+async function fetchFormatMeta(formatCode, browser, url) {
+    // Try cache first
+    if (cachedFormatList) {
+        const lines = cachedFormatList.split(/[\r\n]+/);
+        for (const line of lines) {
+            const trimmed = line.trim();
+            const m = trimmed.match(/^(\S+)\s+(\S+)\s+(.+)/);
+            if (m && m[1] === formatCode) {
+                // Parse from cached -F table: ext is column 2, rest is the line
+                const ext = m[2];
+                const audioMatch = trimmed.match(/\|\s*audio only\s+(\S+)/i);
+                const acodec = audioMatch ? audioMatch[1] : 'none';
+                const vcodec = trimmed.includes('audio only') ? 'none' : 'video';
+                return { ext, acodec, vcodec };
+            }
         }
     }
+
+    // Cache miss — use yt-dlp --print for a fast single-format lookup
+    const args = ['-f', formatCode, '--print', '%(ext)s %(acodec)s %(vcodec)s', '--no-download'];
+    if (browser) args.push('--cookies-from-browser', browser);
+    args.push(url);
+
+    const result = await window.electronAPI.getFormatInfo(args);
+    if (!result.ok || !result.output) return null;
+
+    const [ext, acodec, vcodec] = result.output.split(' ');
+    return { ext, acodec: acodec || 'none', vcodec: vcodec || 'none' };
+}
+
+// Detect audio-only webm formats and return the correct extraction format
+async function getAudioOnlyWebmFormat(formatCode, browser, url) {
+    if (!formatCode || formatCode.includes('+')) return null;
+    const meta = await fetchFormatMeta(formatCode, browser, url);
+    if (!meta) return null;
+    if (meta.ext !== 'webm') return null;
+    if (meta.acodec.startsWith('opus')) return 'opus';
+    if (meta.acodec.startsWith('vorbis')) return 'vorbis';
     return null;
 }
 
-// Detect image/storyboard formats (mhtml, vcodec=images) that don't support thumbnail embedding
-function isImageFormat(formatCode) {
-    if (!cachedFormatList || !formatCode) return false;
-    if (formatCode.includes('+')) return false;
-
-    const lines = cachedFormatList.split(/[\r\n]+/);
-    for (const line of lines) {
-        const trimmed = line.trim();
-        // Match: ID mhtml ... (storyboard formats like sb0-sb3)
-        const match = trimmed.match(/^(\S+)\s+(\S+)\s+/);
-        if (match && match[1] === formatCode && match[2] === 'mhtml') {
-            return true;
-        }
-    }
-    return false;
+// Detect image/storyboard formats (mhtml) that don't support thumbnail embedding
+async function isImageFormat(formatCode, browser, url) {
+    if (!formatCode || formatCode.includes('+')) return false;
+    const meta = await fetchFormatMeta(formatCode, browser, url);
+    return meta?.ext === 'mhtml';
 }
 
 // Function to clean yt-dlp output by removing progress lines
@@ -54,16 +66,13 @@ function cleanYtDlpResult(result) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 
-        // Skip progress lines
         if (trimmed.startsWith('[download]') && (trimmed.includes('%') || trimmed.includes('ETA'))) {
             continue;
         }
 
-        // Skip some other noisy lines if needed, but mainly progress
         cleanLines.push(trimmed);
     }
 
-    // Join with newlines
     return cleanLines.join('\n').trim();
 }
 
@@ -311,8 +320,12 @@ window.runCommand = async function () {
         case 'Download (Custom Format)':
             if (formatCode) {
                 args.push('-f', formatCode);
-                if (!isImageFormat(formatCode)) {
-                    const audioFmt = getAudioOnlyWebmFormat(formatCode);
+                if (!cachedFormatList) {
+                    document.getElementById('output').textContent =
+                        'Detecting format metadata... (run "List Formats" first to skip this step)';
+                }
+                if (!await isImageFormat(formatCode, browser, url)) {
+                    const audioFmt = await getAudioOnlyWebmFormat(formatCode, browser, url);
                     if (audioFmt) {
                         // Extract audio so --embed-thumbnail works
                         args.push('-x', '--audio-format', audioFmt);

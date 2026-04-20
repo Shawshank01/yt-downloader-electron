@@ -8,6 +8,7 @@ interface ElectronAPI {
     reEncodeToMp4: (downloadFolder: string, videoId: string) => Promise<string>;
     openExternal: (url: string) => Promise<boolean>;
     cancelReEncode: () => Promise<boolean>;
+    getFormatInfo: (args: string[]) => Promise<{ ok: boolean; output: string; error: string }>;
 }
 
 interface Window {

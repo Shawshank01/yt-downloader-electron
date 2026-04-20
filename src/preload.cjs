@@ -25,5 +25,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     downloadWithHardsub: (options) => ipcRenderer.invoke('download-with-hardsub', options),
     // Generic command API
     cancelCommand: () => ipcRenderer.invoke('cancel-command'),
-    deleteTemporaryFiles: (paths) => ipcRenderer.invoke('delete-temporary-files', paths)
+    deleteTemporaryFiles: (paths) => ipcRenderer.invoke('delete-temporary-files', paths),
+    getFormatInfo: (args) => ipcRenderer.invoke('get-format-info', args)
 });
