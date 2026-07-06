@@ -26,7 +26,7 @@ async function fetchFormatMeta(formatCode, browser, url) {
     }
 
     // Cache miss — use yt-dlp --print for a fast single-format lookup
-    const args = ['-f', formatCode, '--print', '%(ext)s %(acodec)s %(vcodec)s', '--no-download'];
+    const args = [...getProxyArgs(), '-f', formatCode, '--print', '%(ext)s %(acodec)s %(vcodec)s', '--no-download'];
     if (browser) args.push('--cookies-from-browser', browser);
     args.push(url);
 
@@ -74,6 +74,19 @@ function cleanYtDlpResult(result) {
     }
 
     return cleanLines.join('\n').trim();
+}
+
+// Build proxy args for yt-dlp if proxy is enabled
+function getProxyArgs() {
+    const proxyEnabled = document.getElementById('proxyEnabled');
+    const proxyAddress = document.getElementById('proxyAddress');
+    if (proxyEnabled && proxyEnabled.checked && proxyAddress) {
+        const addr = proxyAddress.value.trim();
+        if (addr) {
+            return ['--proxy', `socks5://${addr}/`];
+        }
+    }
+    return [];
 }
 
 window.chooseFolder = async function () {
@@ -305,7 +318,7 @@ window.runCommand = async function () {
         progressHandler();
     }
 
-    let args = [];
+    let args = [...getProxyArgs()];
     if (browser) {
         args.push('--cookies-from-browser', browser);
     }
@@ -539,7 +552,8 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
     output.textContent = 'Fetching available subtitles...';
 
     try {
-        const result = await window.electronAPI.listSubtitles(url, browser);
+        const proxyUrl = getProxyArgs().length ? `socks5://${document.getElementById('proxyAddress').value.trim()}/` : '';
+        const result = await window.electronAPI.listSubtitles(url, browser, proxyUrl);
 
         if (result.error) {
             output.textContent = `Error listing subtitles: ${result.message}`;
@@ -560,7 +574,7 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
 
         output.textContent = `Downloading ${selectedSubtitle.name} (${selectedSubtitle.code}) subtitle...`;
 
-        let args = [];
+        let args = [...getProxyArgs()];
         if (browser) {
             args.push('--cookies-from-browser', browser);
         }
@@ -613,7 +627,8 @@ async function handleHardsubAction(url, browser, downloadFolder) {
 
     try {
         // Step 1: List available subtitles
-        const result = await window.electronAPI.listSubtitles(url, browser);
+        const proxyUrl = getProxyArgs().length ? `socks5://${document.getElementById('proxyAddress').value.trim()}/` : '';
+        const result = await window.electronAPI.listSubtitles(url, browser, proxyUrl);
 
         if (result.error) {
             output.textContent = `Error listing subtitles: ${result.message}`;
@@ -662,7 +677,8 @@ async function handleHardsubAction(url, browser, downloadFolder) {
                 downloadFolder,
                 subtitleLang: selectedSubtitle.code,
                 subtitleType: selectedSubtitle.type,
-                codec
+                codec,
+                proxy: proxyUrl
             });
 
             let parsedResult;
@@ -777,6 +793,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (actionSelect) {
         actionSelect.addEventListener('change', updateFormatCodeVisibility);
         updateFormatCodeVisibility();
+    }
+
+    // Proxy toggle wiring
+    const proxyToggle = document.getElementById('proxyEnabled');
+    const proxyInput = document.getElementById('proxyAddress');
+    if (proxyToggle && proxyInput) {
+        proxyToggle.addEventListener('change', () => {
+            proxyInput.disabled = !proxyToggle.checked;
+        });
     }
 
     // Re-encode cancel button

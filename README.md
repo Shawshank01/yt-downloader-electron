@@ -20,6 +20,7 @@ This is a modern, user-friendly desktop application for downloading videos from 
 - 📊 Real-time download progress
 - 🎯 Format selection with detailed format list
 - 🔄 MP4 re-encoding with H.264/AAC codecs for maximum compatibility
+- 🔒 **SOCKS5 Proxy support** (default listening address `127.0.0.1:1080`, with manual custom override)
 
 ## 🚩 Important: yt-dlp and ffmpeg Are Not Bundled
 
@@ -111,6 +112,11 @@ This will create a distributable package in the `dist` directory.
    - Select the subtitle language from the popup dialog
    - The app will securely download the best video quality and automatically hardcode the subtitles using macOS hardware acceleration (`videotoolbox`).
    - *Note: Requires `Songti SC` font to be available on your system.*
+
+6. **SOCKS5 Proxy Mode**
+   - Toggle the **SOCKS5 Proxy** switch to route all `yt-dlp` requests (including subtitle metadata fetching and media downloads) through a proxy server.
+   - The default address is set to `127.0.0.1:1080` (e.g. for SSH tunnels or local proxy applications).
+   - If your proxy is running on a different port or host, you can edit the address manually before running the action.
 
 **Cancelling Actions:**  
 During any long-running download or encoding action, a "Cancel Action" button will appear. Clicking it will cleanly abort the current process (`yt-dlp` or `ffmpeg`) and clean up any partial files.

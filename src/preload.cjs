@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     installMissingDependencies: (options) =>
         ipcRenderer.invoke('install-missing-dependencies', options),
     // Hardsub feature APIs
-    listSubtitles: (url, browser) => ipcRenderer.invoke('list-subtitles', url, browser),
+    listSubtitles: (url, browser, proxy) => ipcRenderer.invoke('list-subtitles', url, browser, proxy),
     downloadWithHardsub: (options) => ipcRenderer.invoke('download-with-hardsub', options),
     // Generic command API
     cancelCommand: () => ipcRenderer.invoke('cancel-command'),

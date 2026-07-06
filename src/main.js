@@ -471,11 +471,12 @@ ipcMain.handle('get-current-version', getCurrentVersion);
 ipcMain.handle('is-auto-updater-supported', isAutoUpdaterSupported);
 
 // IPC handler for listing available subtitles
-ipcMain.handle('list-subtitles', async (_event, url, browser) => {
+ipcMain.handle('list-subtitles', async (_event, url, browser, proxy) => {
     console.log('Listing subtitles for:', url);
 
     return new Promise((resolve) => {
         let args = ['-j', '--skip-download'];
+        if (proxy) args.push('--proxy', proxy);
         if (browser) args.push('--cookies-from-browser', browser);
         args.push(url);
 
@@ -549,7 +550,7 @@ ipcMain.handle('list-subtitles', async (_event, url, browser) => {
 
 // IPC handler for downloading video with hardcoded subtitles
 ipcMain.handle('download-with-hardsub', async (event, options) => {
-    const { url, browser, downloadFolder, subtitleLang, subtitleType, codec } = options;
+    const { url, browser, downloadFolder, subtitleLang, subtitleType, codec, proxy } = options;
     console.log('Download with hardsub:', { url, subtitleLang, subtitleType, codec, downloadFolder });
 
     if (activeProcess) {
@@ -567,6 +568,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             '--write-thumbnail', '--convert-thumbnails', 'jpg',
             '-P', downloadFolder
         ];
+        if (proxy) args.push('--proxy', proxy);
         if (browser) args.push('--cookies-from-browser', browser);
         args.push(url);
 

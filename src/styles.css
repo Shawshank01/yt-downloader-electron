@@ -271,3 +271,81 @@ button.run-button:hover {
 .modal-buttons .cancel-btn:hover {
     background-color: #b71c1c;
 }
+
+/* Proxy controls */
+.proxy-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 1 auto !important;
+}
+
+.proxy-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.proxy-label {
+    font-size: 14px;
+    cursor: pointer;
+    margin-bottom: 0 !important;
+}
+
+.proxy-group > input[type='text'] {
+    width: 160px;
+    flex: 0 0 auto;
+}
+
+.proxy-group > input[type='text']:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Toggle switch */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--input-border);
+    transition: 0.3s;
+    border-radius: 22px;
+}
+
+.slider::before {
+    content: '';
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: var(--text-color);
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: var(--run-button-bg);
+}
+
+input:checked + .slider::before {
+    transform: translateX(18px);
+}

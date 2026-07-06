@@ -76,6 +76,17 @@
                         <option value="hevc">HEVC (Better Quality)</option>
                     </select>
                 </div>
+
+                <div class="input-group proxy-group">
+                    <div class="proxy-toggle">
+                        <label class="switch">
+                            <input type="checkbox" id="proxyEnabled" />
+                            <span class="slider"></span>
+                        </label>
+                        <label for="proxyEnabled" class="proxy-label">SOCKS5 Proxy</label>
+                    </div>
+                    <input type="text" id="proxyAddress" placeholder="127.0.0.1:1080" value="127.0.0.1:1080" disabled />
+                </div>
             </div>
 
             <div id="cancelActionControls" style="display: none; margin-bottom: 10px;">
