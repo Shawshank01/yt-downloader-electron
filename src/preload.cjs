@@ -26,5 +26,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Generic command API
     cancelCommand: () => ipcRenderer.invoke('cancel-command'),
     deleteTemporaryFiles: (paths) => ipcRenderer.invoke('delete-temporary-files', paths),
-    getFormatInfo: (args) => ipcRenderer.invoke('get-format-info', args)
+    getFormatInfo: (args) => ipcRenderer.invoke('get-format-info', args),
+    // Persistent user settings
+    getSettings: () => ipcRenderer.invoke('get-settings'),
+    setSettings: (updates) => ipcRenderer.invoke('set-settings', updates)
 });

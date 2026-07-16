@@ -9,6 +9,46 @@ import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './upd
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Persistent user settings
+let settingsFilePath = null;
+
+async function getSettingsPath() {
+    if (!settingsFilePath) {
+        settingsFilePath = join(app.getPath('userData'), 'user-settings.json');
+    }
+    return settingsFilePath;
+}
+
+async function readSettings() {
+    try {
+        const filePath = await getSettingsPath();
+        const raw = await fs.readFile(filePath, 'utf-8');
+        return JSON.parse(raw);
+    } catch {
+        return {};
+    }
+}
+
+async function writeSettings(data) {
+    try {
+        const filePath = await getSettingsPath();
+        await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (e) {
+        console.error('Failed to write settings:', e);
+    }
+}
+
+ipcMain.handle('get-settings', async () => {
+    return readSettings();
+});
+
+ipcMain.handle('set-settings', async (_event, updates) => {
+    const current = await readSettings();
+    const merged = { ...current, ...updates };
+    await writeSettings(merged);
+    return merged;
+});
+
 // Fix PATH so yt-dlp is found
 const extraPaths = [
     '/usr/local/bin',
