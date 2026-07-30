@@ -64,6 +64,52 @@ process.env.PATH = [...new Set([...(process.env.PATH || '').split(':'), ...extra
 let activeProcess = null;
 let isActionCancelled = false;
 
+// Rule list for log noise reduction
+const LOG_NOISE_PATTERNS = [
+    /Opening 'https?:\/\//i,                                // HLS segment download spam
+    /Changing ID3 metadata in HLS audio/i,                  // Twitter/X non-fatal metadata warning
+    /mime type is not rfc8216 compliant/i,                  // HLS header compliance warning
+    /^\s*(Input|Output) #\d+/i,                             // FFmpeg stream probe input/output header
+    /^\s*Program \d+/i,                                     // FFmpeg program header
+    /^\s*Stream mapping:/i,                                 // FFmpeg stream mapping header
+    /^\s*Stream #\d+:\d+/i,                                 // FFmpeg stream descriptor
+    /^\s*(Metadata:|variant_bitrate|encoder\s*:)/i,          // FFmpeg metadata tags
+    /^\s*(TIT3|id3v2_priv|JSONMetadata|Hydra)/i,            // Twitter HLS ID3 metadata dumps
+    /Press \[[q?]\] to stop/i,                              // FFmpeg interactive prompt
+    /muxing overhead: unknown/i                             // FFmpeg muxing summary header
+];
+
+function shouldSuppressLogLine(line) {
+    return LOG_NOISE_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+// Line buffer wrapper to safely handle chunked stream data and filter noise
+class LineStreamFilter {
+    constructor(onLine) {
+        this.buffer = '';
+        this.onLine = onLine;
+    }
+
+    push(chunk) {
+        this.buffer += chunk.toString();
+        const lines = this.buffer.split('\n');
+        this.buffer = lines.pop(); // Keep incomplete trailing fragment in buffer
+
+        for (const line of lines) {
+            if (!shouldSuppressLogLine(line)) {
+                this.onLine(line);
+            }
+        }
+    }
+
+    flush() {
+        if (this.buffer.length > 0 && !shouldSuppressLogLine(this.buffer)) {
+            this.onLine(this.buffer);
+            this.buffer = '';
+        }
+    }
+}
+
 function runCommandWithOutput(command) {
     return new Promise((resolve) => {
         exec(command, { maxBuffer: 1024 * 1024 * 20 }, (error, stdout, stderr) => {
@@ -316,26 +362,27 @@ ipcMain.handle('run-command', async (event, args) => {
 
     return new Promise((resolve) => {
         activeProcess = spawn('yt-dlp', args);
-        let output = '';
+        let outputLines = [];
 
-        activeProcess.stdout.on('data', (data) => {
-            const str = data.toString();
-            output += str;
-            if (str.includes('[download]')) {
-                event.sender.send('download-progress', str.trim());
+        const handleCleanLine = (line) => {
+            outputLines.push(line);
+            if (line.includes('[download]')) {
+                event.sender.send('download-progress', line.trim());
             }
-        });
+        };
 
-        activeProcess.stderr.on('data', (data) => {
-            const str = data.toString();
-            output += '\n' + str;
-            if (str.includes('[download]')) {
-                event.sender.send('download-progress', str.trim());
-            }
-        });
+        const stdoutFilter = new LineStreamFilter(handleCleanLine);
+        const stderrFilter = new LineStreamFilter(handleCleanLine);
+
+        activeProcess.stdout.on('data', (data) => stdoutFilter.push(data));
+        activeProcess.stderr.on('data', (data) => stderrFilter.push(data));
 
         activeProcess.on('close', (code) => {
+            stdoutFilter.flush();
+            stderrFilter.flush();
             activeProcess = null;
+
+            let output = outputLines.join('\n');
             if (isActionCancelled) {
                 resolve('Action cancelled by user.');
             } else {
@@ -620,21 +667,21 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             isActionCancelled = false;
             activeProcess = spawn('yt-dlp', args);
 
-            activeProcess.stdout.on('data', (data) => {
-                const str = data.toString();
-                if (str.includes('[download]')) {
-                    event.sender.send('download-progress', str.trim());
+            const handleProgressLine = (line) => {
+                if (line.includes('[download]')) {
+                    event.sender.send('download-progress', line.trim());
                 }
-            });
+            };
 
-            activeProcess.stderr.on('data', (data) => {
-                const str = data.toString();
-                if (str.includes('[download]')) {
-                    event.sender.send('download-progress', str.trim());
-                }
-            });
+            const stdoutFilter = new LineStreamFilter(handleProgressLine);
+            const stderrFilter = new LineStreamFilter(handleProgressLine);
+
+            activeProcess.stdout.on('data', (data) => stdoutFilter.push(data));
+            activeProcess.stderr.on('data', (data) => stderrFilter.push(data));
 
             activeProcess.on('close', (code) => {
+                stdoutFilter.flush();
+                stderrFilter.flush();
                 activeProcess = null;
                 if (isActionCancelled) {
                     reject(new Error('Action cancelled by user.'));
