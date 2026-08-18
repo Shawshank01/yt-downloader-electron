@@ -58,6 +58,7 @@ jobs:
           if [ "$RUNNER_OS" == "Linux" ]; then
             sudo apt-get update && sudo apt-get install -y inkscape
           elif [ "$RUNNER_OS" == "macOS" ]; then
+            brew untap aws/tap 2>/dev/null || true
             brew install inkscape
           elif [ "$RUNNER_OS" == "Windows" ]; then
             choco install inkscape --no-progress
@@ -96,7 +97,7 @@ jobs:
           ls -la dist/ || echo "dist/ directory not found"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ runner.os }}-build
           path: dist/
@@ -115,7 +116,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           path: dist/
           merge-multiple: true
@@ -151,7 +152,7 @@ jobs:
           ls -l release_assets
 
       - name: Publish to GitHub Releases
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
