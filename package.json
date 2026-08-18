@@ -115,7 +115,6 @@
   },
   "allowScripts": {
     "electron-winstaller@5.4.0": true,
-    "electron@41.10.3": true,
     "electron@41.10.5": true
   }
 }
