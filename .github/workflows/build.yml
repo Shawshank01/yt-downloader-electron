@@ -1,161 +1,161 @@
 name: Build/Release
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+    push:
+        branches:
+            - main
+        tags:
+            - 'v*'
 
 permissions:
-  contents: write
-  actions: write
+    contents: write
+    actions: write
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v6
+    lint:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check out Git repository
+              uses: actions/checkout@v7
 
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
+            - name: Install Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 24
 
-      - name: Install dependencies
-        run: npm install
+            - name: Install dependencies
+              run: npm install
 
-      - name: Run lint
-        run: npm run lint
+            - name: Run lint
+              run: npm run lint
 
-  release:
-    needs: lint
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ${{ matrix.os }}
+    release:
+        needs: lint
+        if: startsWith(github.ref, 'refs/tags/v')
+        runs-on: ${{ matrix.os }}
 
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            build_script: build:mac
-          - os: windows-latest
-            build_script: build:win
-          - os: ubuntu-latest
-            build_script: build:linux
+        strategy:
+            matrix:
+                include:
+                    - os: macos-latest
+                      build_script: build:mac
+                    - os: windows-latest
+                      build_script: build:win
+                    - os: ubuntu-latest
+                      build_script: build:linux
 
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v6
+        steps:
+            - name: Check out Git repository
+              uses: actions/checkout@v7
 
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
+            - name: Install Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 24
 
-      - name: Install Inkscape (for SVG to icon conversion)
-        run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get update && sudo apt-get install -y inkscape
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            brew untap aws/tap 2>/dev/null || true
-            brew install inkscape
-          elif [ "$RUNNER_OS" == "Windows" ]; then
-            choco install inkscape --no-progress
-          fi
-        shell: bash
+            - name: Install Inkscape (for SVG to icon conversion)
+              run: |
+                  if [ "$RUNNER_OS" == "Linux" ]; then
+                    sudo apt-get update && sudo apt-get install -y inkscape
+                  elif [ "$RUNNER_OS" == "macOS" ]; then
+                    brew untap aws/tap 2>/dev/null || true
+                    brew install inkscape
+                  elif [ "$RUNNER_OS" == "Windows" ]; then
+                    choco install inkscape --no-progress
+                  fi
+              shell: bash
 
-      - name: Set INKSCAPE_PATH Environment Variable
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
-            echo "INKSCAPE_PATH=$(which inkscape)" >> $GITHUB_ENV
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            echo "INKSCAPE_PATH=/Applications/Inkscape.app/Contents/MacOS/inkscape" >> $GITHUB_ENV
-          elif [ "$RUNNER_OS" == "Windows" ]; then
-            echo "INKSCAPE_PATH=C:\Program Files\Inkscape\bin\inkscape.exe" >> $GITHUB_ENV
-          fi
+            - name: Set INKSCAPE_PATH Environment Variable
+              shell: bash
+              run: |
+                  if [ "$RUNNER_OS" == "Linux" ]; then
+                    echo "INKSCAPE_PATH=$(which inkscape)" >> $GITHUB_ENV
+                  elif [ "$RUNNER_OS" == "macOS" ]; then
+                    echo "INKSCAPE_PATH=/Applications/Inkscape.app/Contents/MacOS/inkscape" >> $GITHUB_ENV
+                  elif [ "$RUNNER_OS" == "Windows" ]; then
+                    echo "INKSCAPE_PATH=C:\Program Files\Inkscape\bin\inkscape.exe" >> $GITHUB_ENV
+                  fi
 
-      - name: Install dependencies
-        run: npm install
+            - name: Install dependencies
+              run: npm install
 
-      - name: Convert SVG to PNG icon
-        run: |
-          mkdir -p build
-          "$INKSCAPE_PATH" build/icon.svg --export-type=png --export-filename=build/icon.png -w 1024 -h 1024
-        shell: bash
+            - name: Convert SVG to PNG icon
+              run: |
+                  mkdir -p build
+                  "$INKSCAPE_PATH" build/icon.svg --export-type=png --export-filename=build/icon.png -w 1024 -h 1024
+              shell: bash
 
-      - name: Build Electron app
-        run: npm run ${{ matrix.build_script }}
-        env:
-          INKSCAPE_PATH: ${{ env.INKSCAPE_PATH }}
+            - name: Build Electron app
+              run: npm run ${{ matrix.build_script }}
+              env:
+                  INKSCAPE_PATH: ${{ env.INKSCAPE_PATH }}
 
-      - name: List build artifacts
-        shell: bash
-        run: |
-          echo "=== Build artifacts for ${{ runner.os }} ==="
-          ls -la dist/ || echo "dist/ directory not found"
+            - name: List build artifacts
+              shell: bash
+              run: |
+                  echo "=== Build artifacts for ${{ runner.os }} ==="
+                  ls -la dist/ || echo "dist/ directory not found"
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ runner.os }}-build
-          path: dist/
+            - name: Upload build artifacts
+              uses: actions/upload-artifact@v7
+              with:
+                  name: ${{ runner.os }}-build
+                  path: dist/
 
-  upload_release:
-    needs: release
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-      actions: read
-    steps:
-      - name: Check out Git repository (for tag annotations)
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
+    upload_release:
+        needs: release
+        runs-on: ubuntu-latest
+        if: startsWith(github.ref, 'refs/tags/v')
+        permissions:
+            contents: write
+            actions: read
+        steps:
+            - name: Check out Git repository (for tag annotations)
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
 
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: dist/
-          merge-multiple: true
+            - name: Download all build artifacts
+              uses: actions/download-artifact@v8
+              with:
+                  path: dist/
+                  merge-multiple: true
 
-      - name: List all downloaded artifacts
-        shell: bash
-        run: |
-          echo "=== All downloaded artifacts ==="
-          find dist/ -type f -print
+            - name: List all downloaded artifacts
+              shell: bash
+              run: |
+                  echo "=== All downloaded artifacts ==="
+                  find dist/ -type f -print
 
-      - name: Prepare release assets
-        shell: bash
-        run: |
-          mkdir release_assets
-          echo "Moving release assets..."
-          find dist -type f -name "*.dmg" -exec mv {} release_assets/ \;
-          find dist -type f -name "YT-Downloader-*.exe" -exec mv {} release_assets/ \;
-          find dist -type f -name "*.AppImage" -exec mv {} release_assets/ \;
-          find dist -type f -name "*.deb" -exec mv {} release_assets/ \;
-          find dist -type f -name "latest*.yml" -exec mv {} release_assets/ \;
-          # Try to collect release notes from the tag annotation if available
-          TAG_NAME=${{ github.ref_name }}
-          echo "Fetching annotated tag message for $TAG_NAME..."
-          # Try to read tag annotation locally first
-          git tag -l --format='%(contents)' "$TAG_NAME" > release_notes.txt 2>/dev/null || true
-          # Remove PGP signature block if present
-          sed -i '/-----BEGIN PGP SIGNATURE-----/,$d' release_notes.txt
-          # Trim leading/trailing whitespace/newlines
-          sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' release_notes.txt
-          echo "Release notes content:"
-          cat release_notes.txt
-          echo "Final assets to be released:"
-          ls -l release_assets
+            - name: Prepare release assets
+              shell: bash
+              run: |
+                  mkdir release_assets
+                  echo "Moving release assets..."
+                  find dist -type f -name "*.dmg" -exec mv {} release_assets/ \;
+                  find dist -type f -name "YT-Downloader-*.exe" -exec mv {} release_assets/ \;
+                  find dist -type f -name "*.AppImage" -exec mv {} release_assets/ \;
+                  find dist -type f -name "*.deb" -exec mv {} release_assets/ \;
+                  find dist -type f -name "latest*.yml" -exec mv {} release_assets/ \;
+                  # Try to collect release notes from the tag annotation if available
+                  TAG_NAME=${{ github.ref_name }}
+                  echo "Fetching annotated tag message for $TAG_NAME..."
+                  # Try to read tag annotation locally first
+                  git tag -l --format='%(contents)' "$TAG_NAME" > release_notes.txt 2>/dev/null || true
+                  # Remove PGP signature block if present
+                  sed -i '/-----BEGIN PGP SIGNATURE-----/,$d' release_notes.txt
+                  # Trim leading/trailing whitespace/newlines
+                  sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' release_notes.txt
+                  echo "Release notes content:"
+                  cat release_notes.txt
+                  echo "Final assets to be released:"
+                  ls -l release_assets
 
-      - name: Publish to GitHub Releases
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          generate_release_notes: false
-          body_path: release_notes.txt
-          files: release_assets/*
+            - name: Publish to GitHub Releases
+              uses: softprops/action-gh-release@v3
+              with:
+                  tag_name: ${{ github.ref_name }}
+                  name: Release ${{ github.ref_name }}
+                  generate_release_notes: false
+                  body_path: release_notes.txt
+                  files: release_assets/*
