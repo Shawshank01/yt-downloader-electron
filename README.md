@@ -9,20 +9,21 @@ This is a modern, user-friendly desktop application for downloading videos from 
 
 ## Features
 
-- 🎥 Download videos in various formats and qualities
-- 📝 Smart subtitle downloading with language selection
-- 🎬 Hardcode subtitles into video using macOS hardware acceleration (H.264 / HEVC)
-- 🖼️ Automatically extracts and embeds YouTube thumbnails natively into MP4 video containers
-- 🛑 Safely cancel any ongoing downloads or encoding processes
-- 🛡️ Built-in process concurrency guards and command injection task protections
-- 🍪 Browser cookie support (Brave, Chrome, Firefox, Safari)
-- 📂 Custom download folder selection
-- 📊 Real-time download progress
-- 🎯 Format selection with detailed format list
-- 🔄 MP4 re-encoding with H.264/AAC codecs for maximum compatibility
-- 🔒 **SOCKS5 Proxy support** (default listening address `127.0.0.1:1080`, with manual custom override)
+- Download videos in various formats and qualities
+- Smart subtitle downloading with language selection
+- Hardcode subtitles into video using macOS hardware acceleration (H.264 / HEVC)
+- Automatically extracts and embeds YouTube thumbnails natively into MP4 video containers
+- Safely cancel any ongoing downloads or encoding processes
+- Built-in process concurrency guards and command injection task protections
+- Browser cookie support (Brave, Chrome, Firefox, Safari)
+- Custom download folder selection
+- Real-time download progress
+- Format selection with detailed format list
+- MP4 re-encoding with H.264/AAC codecs for maximum compatibility
+- SOCKS5 Proxy support (default listening address `127.0.0.1:1080`, with manual custom override)
 
-## 🚩 Important: yt-dlp and ffmpeg Are Not Bundled
+> [!IMPORTANT]
+> yt-dlp and FFmpeg Are Not Bundled
 
 **This app does NOT bundle `yt-dlp` or `ffmpeg` inside the installer.**  
 You must have both `yt-dlp` and `ffmpeg` installed on your system for the app to work.
