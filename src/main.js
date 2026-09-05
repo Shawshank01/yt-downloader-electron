@@ -92,19 +92,23 @@ class LineStreamFilter {
 
     push(chunk) {
         this.buffer += chunk.toString();
-        const lines = this.buffer.split('\n');
+        const lines = this.buffer.split(/\r\n|\r|\n/);
         this.buffer = lines.pop(); // Keep incomplete trailing fragment in buffer
 
         for (const line of lines) {
-            if (!shouldSuppressLogLine(line)) {
+            const trimmed = line.trim();
+            if (trimmed.length > 0 && !shouldSuppressLogLine(trimmed)) {
                 this.onLine(line);
             }
         }
     }
 
     flush() {
-        if (this.buffer.length > 0 && !shouldSuppressLogLine(this.buffer)) {
-            this.onLine(this.buffer);
+        if (this.buffer.length > 0) {
+            const trimmed = this.buffer.trim();
+            if (trimmed.length > 0 && !shouldSuppressLogLine(trimmed)) {
+                this.onLine(this.buffer);
+            }
             this.buffer = '';
         }
     }
@@ -365,9 +369,12 @@ ipcMain.handle('run-command', async (event, args) => {
         let outputLines = [];
 
         const handleCleanLine = (line) => {
-            outputLines.push(line);
-            if (line.includes('[download]')) {
-                event.sender.send('download-progress', line.trim());
+            const trimmed = line.trim();
+            if (trimmed.includes('[download]')) {
+                event.sender.send('download-progress', trimmed);
+            }
+            if (!trimmed.startsWith('[download]') || (!trimmed.includes('%') && !trimmed.includes('ETA'))) {
+                outputLines.push(line);
             }
         };
 
