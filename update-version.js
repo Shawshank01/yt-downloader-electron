@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execSync } from 'child_process';
-import { readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -218,26 +218,36 @@ try {
     writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
     success(`Updated package.json to version ${selectedVersion}`);
 
-    // Update package-lock.json
+    // Update package-lock.json if it exists (legacy npm)
     const packageLockPath = join(__dirname, 'package-lock.json');
-    try {
-        const packageLockJson = JSON.parse(readFileSync(packageLockPath, 'utf8'));
-        packageLockJson.version = selectedVersion;
+    if (existsSync(packageLockPath)) {
+        try {
+            const packageLockJson = JSON.parse(readFileSync(packageLockPath, 'utf8'));
+            packageLockJson.version = selectedVersion;
 
-        // Also update the version in the packages[""] object if it exists
-        if (packageLockJson.packages && packageLockJson.packages[""]) {
-            packageLockJson.packages[""].version = selectedVersion;
+            // Also update the version in the packages[""] object if it exists
+            if (packageLockJson.packages && packageLockJson.packages[""]) {
+                packageLockJson.packages[""].version = selectedVersion;
+            }
+
+            writeFileSync(packageLockPath, JSON.stringify(packageLockJson, null, 2) + '\n');
+            success(`Updated package-lock.json to version ${selectedVersion}`);
+        } catch (err) {
+            warning(`Failed to update package-lock.json: ${err.message}`);
         }
-
-        writeFileSync(packageLockPath, JSON.stringify(packageLockJson, null, 2) + '\n');
-        success(`Updated package-lock.json to version ${selectedVersion}`);
-    } catch (err) {
-        warning(`Failed to update package-lock.json: ${err.message}`);
     }
 
     // Commit the version change (preserve multiline commit message)
     try {
-        execSync('git add package.json package-lock.json');
+        const filesToStage = ['package.json'];
+        if (existsSync(packageLockPath)) {
+            filesToStage.push('package-lock.json');
+        }
+        const pnpmLockPath = join(__dirname, 'pnpm-lock.yaml');
+        if (existsSync(pnpmLockPath)) {
+            filesToStage.push('pnpm-lock.yaml');
+        }
+        execSync(`git add ${filesToStage.join(' ')}`);
         const commitMessagePath = join(__dirname, '.git', 'COMMIT_MESSAGE.txt');
         writeFileSync(commitMessagePath, commitMessage + '\n', 'utf8');
         execSync(`git commit -F "${commitMessagePath}" --cleanup=verbatim`);
