@@ -44,11 +44,21 @@ if ! pnpm start; then
     show_error "Failed to start the application. Please check the error message above."
 fi
 
-# If successful, close the terminal after a short delay
+# After exiting, close the terminal window corresponding to this session
 sleep 1
-# Get the terminal window ID
-WINDOW_ID=$(osascript -e 'tell application "Terminal" to id of window 1')
-# Close the window without confirmation
-osascript -e "tell application \"Terminal\" to close window id $WINDOW_ID" &
-# Exit the script immediately
-exit 0 
+# Get the current TTY and find the corresponding Terminal window/tab
+CURRENT_TTY=$(tty)
+osascript -e "
+delay 1
+tell application \"Terminal\"
+    repeat with w in windows
+        repeat with t in tabs of w
+            if tty of t is \"$CURRENT_TTY\" then
+                close w
+                return
+            end if
+        end repeat
+    end repeat
+end tell
+" &
+exit 0

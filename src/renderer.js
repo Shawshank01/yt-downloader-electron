@@ -410,18 +410,47 @@ window.runCommand = async function () {
     try {
         const result = await window.electronAPI.runCommand(args);
 
-        // Cache the format list output for audio-only detection
-        if (action === 'List Formats') {
-            cachedFormatList = result || '';
-        }
-
         // Clean the result by removing progress lines and keeping only the final message
         const cleanResult = cleanYtDlpResult(result);
 
         document.getElementById('output').textContent = commandLine + '\n' + cleanResult;
 
-        // Ask for confirmation before re-encoding
-        if (action === 'Download & Re-encode as high quality MP4 (H.264/AAC)' && downloadFolder) {
+        // Check for cancellation or process errors
+        const isCancelled =
+            (result || '').includes('cancelled by user') ||
+            document.getElementById('output').textContent.includes('cancelled by user');
+
+        const isError =
+            (result || '').includes('Process exited with code') ||
+            (result || '').includes('ERROR:') ||
+            (result || '').startsWith('Error:') ||
+            document.getElementById('output').textContent.includes('Process exited with code') ||
+            document.getElementById('output').textContent.includes('ERROR:');
+
+        // Cache the format list output and automatically switch to "Download (Custom Format)"
+        if (action === 'List Formats') {
+            cachedFormatList = result || '';
+            if (!isCancelled && !isError) {
+                const actionSelect = document.getElementById('action');
+                if (actionSelect) {
+                    actionSelect.value = 'Download (Custom Format)';
+                    updateFormatCodeVisibility();
+                    actionSelect.dispatchEvent(new Event('change'));
+                    const formatCodeInput = document.getElementById('formatCode');
+                    if (formatCodeInput) {
+                        formatCodeInput.focus();
+                    }
+                }
+            }
+        }
+
+        // Ask for confirmation before re-encoding (only on successful download)
+        if (
+            action === 'Download & Re-encode as high quality MP4 (H.264/AAC)' &&
+            downloadFolder &&
+            !isCancelled &&
+            !isError
+        ) {
             const shouldReEncode = confirm(
                 'Video download completed! Would you like to re-encode it to high quality MP4 (H.264/AAC)?\n\nThis will:\n• Use H.264 video codec with maximum quality (CRF 18)\n• Use AAC audio codec for maximum compatibility\n• Replace the original file with the re-encoded version\n\nNote: Re-encoding may take some time depending on the video length.\n\nIf you skip re-encoding, the original video format will be preserved.'
             );
@@ -505,7 +534,6 @@ window.runCommand = async function () {
 
         // Add completion hint if it's a download action
         if (action !== 'List Formats') {
-            const isCancelled = document.getElementById('output').textContent.includes('cancelled by user');
             const completionHint = document.createElement('div');
             completionHint.style.marginTop = '10px';
             completionHint.style.padding = '10px';
@@ -515,6 +543,10 @@ window.runCommand = async function () {
                 completionHint.style.backgroundColor = '#ffebee';
                 completionHint.style.color = '#c62828';
                 completionHint.innerHTML = '❌ Download canceled!';
+            } else if (isError) {
+                completionHint.style.backgroundColor = '#ffebee';
+                completionHint.style.color = '#c62828';
+                completionHint.innerHTML = '❌ Download failed!';
             } else {
                 completionHint.style.backgroundColor = '#e8f5e9';
                 completionHint.style.color = '#2e7d32';
@@ -525,6 +557,16 @@ window.runCommand = async function () {
     } catch (e) {
         document.getElementById('output').textContent += '\nError: ' + e;
         if (cancelActionControls) cancelActionControls.style.display = 'none';
+        if (action !== 'List Formats') {
+            const completionHint = document.createElement('div');
+            completionHint.style.marginTop = '10px';
+            completionHint.style.padding = '10px';
+            completionHint.style.borderRadius = '4px';
+            completionHint.style.backgroundColor = '#ffebee';
+            completionHint.style.color = '#c62828';
+            completionHint.innerHTML = '❌ Download failed!';
+            document.getElementById('output').appendChild(completionHint);
+        }
     }
 };
 
