@@ -50,27 +50,32 @@ You must have both `yt-dlp` and `ffmpeg` installed on your system for the app to
 ### Method 2: From Source (For Developers)
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/Shawshank01/yt-downloader-electron.git
    cd yt-downloader-electron
    ```
 
 2. Install dependencies:
+
    ```bash
-   npm install
+   pnpm install
    ```
 
 3. Start the application:
+
    ```bash
-   npm start
+   pnpm start
    ```
 
 ### Building Distributables
 
 To build the application for your platform:
+
 ```bash
-npm run build
+pnpm run build
 ```
+
 This will create a distributable package in the `dist` directory.
 
 ## Usage
@@ -131,9 +136,10 @@ The app includes a built-in update checker:
 2. If a new version is available, you will be prompted to open the [GitHub Releases](https://github.com/Shawshank01/yt-downloader-electron/releases/latest) page to download the latest installer for your platform (macOS, Windows, or Linux).
 3. If you are already on the latest version, the app will let you know that you are up to date.
 
-**Update button is only supported when running the packaged app** (from `.dmg`, `.exe`, or `.AppImage`/`.deb`). If you run the app in development mode (using `start.command` or `npm start`), update may not be available.
+**Update button is only supported when running the packaged app** (from `.dmg`, `.exe`, or `.AppImage`/`.deb`). If you run the app in development mode (using `start.command` or `pnpm start`), update may not be available.
 
 **Note:**
+
 - The app cannot update `yt-dlp` or `ffmpeg` automatically on Windows or Linux—you must update them yourself (see Troubleshooting below).
 - On macOS, the app can help install or update dependencies via Homebrew if needed.
 
@@ -145,13 +151,17 @@ The app includes a built-in update checker:
    - On **Linux/Windows**, install manually (no one-click installer in app).
    - If manual installation is needed:
      - **macOS:**  
+
        ```bash
        brew install yt-dlp ffmpeg
        ```
+
      - **Linux (Ubuntu/Debian):**  
+
        ```bash
        sudo apt install yt-dlp ffmpeg
        ```
+
      - **Windows:**  
        - Download [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) and [ffmpeg](https://ffmpeg.org/download.html)
        - Add them to your system PATH
@@ -166,6 +176,7 @@ The app includes a built-in update checker:
 4. **start.command Issues (macOS)**
    - If you get a security warning, right-click the file and select "Open"
    - Make sure the file has execute permissions:
+
      ```bash
      chmod +x start.command
      ```

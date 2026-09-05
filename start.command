@@ -19,15 +19,15 @@ show_success() {
     echo "✅ $1"
 }
 
-# Check if npm is installed
-if ! command -v npm &> /dev/null; then
-    show_error "npm is not installed. Please install Node.js and npm first."
+# Check if pnpm is installed
+if ! command -v pnpm &> /dev/null; then
+    show_error "pnpm is not installed. Please install pnpm first (e.g. npm install -g pnpm or brew install pnpm)."
 fi
 
-# Check if node_modules exists, if not run npm install
+# Check if node_modules exists, if not run pnpm install
 if [ ! -d "node_modules" ]; then
     echo "📦 Installing dependencies..."
-    if ! npm install; then
+    if ! pnpm install; then
         show_error "Failed to install dependencies. Please check your internet connection and try again."
     fi
     show_success "Dependencies installed successfully"
@@ -40,7 +40,7 @@ fi
 
 # Start the application
 echo "🚀 Starting YT Downloader..."
-if ! npm start; then
+if ! pnpm start; then
     show_error "Failed to start the application. Please check the error message above."
 fi
 
