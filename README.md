@@ -23,17 +23,17 @@ This is a modern, user-friendly desktop application for downloading videos from 
 - SOCKS5 Proxy support (default listening address `127.0.0.1:1080`, with manual custom override)
 
 > [!IMPORTANT]
-> yt-dlp and FFmpeg Are Not Bundled
+> **yt-dlp and FFmpeg Are Not Bundled**
 
-**This app does NOT bundle `yt-dlp` or `ffmpeg` inside the installer.**  
-You must have both `yt-dlp` and `ffmpeg` installed on your system for the app to work.
+**This app does NOT bundle `yt-dlp` or `FFmpeg` inside the installer.**  
+You must have both `yt-dlp` and `FFmpeg` installed on your system for the app to work.
 
 - **On macOS:**  
-  The app does not bundle `yt-dlp` or `ffmpeg`. Use the app's **"Check for Dependencies"** button. If dependencies are missing, the app can ask for confirmation and install Homebrew, `yt-dlp`, and `ffmpeg` for you.
+  The app does not bundle `yt-dlp` or `FFmpeg`. Use the app's **"Check for Dependencies"** button. If dependencies are missing, the app can ask for confirmation and install Homebrew, `yt-dlp`, and `FFmpeg` for you.
 - **On Linux:**  
-  Please install `yt-dlp` and `ffmpeg` using your package manager before use (see below).
+  Please install `yt-dlp` and `FFmpeg` using your package manager before use (see below).
 - **On Windows:**  
-  Please install [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) and [ffmpeg](https://ffmpeg.org/download.html) manually and make sure they are available in your PATH.
+  Please install [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) and [FFmpeg](https://ffmpeg.org/download.html) manually and make sure they are available in your PATH.
 
 ## Installation
 
@@ -45,8 +45,8 @@ You must have both `yt-dlp` and `ffmpeg` installed on your system for the app to
     - **Linux:** `.AppImage` or `.deb`
     - **Windows:** `.exe` installer
 3. **First Run:**
-    - On **macOS**, click **"Check for Dependencies"** (bottom-right corner). If dependencies are missing, the app can install Homebrew first and then install `yt-dlp` and `ffmpeg` via Homebrew after you confirm.
-    - On **Linux/Windows**, you must install `yt-dlp` and `ffmpeg` yourself if not already present (see troubleshooting below).
+    - On **macOS**, click **"Check for Dependencies"** (bottom-right corner). If dependencies are missing, the app can install Homebrew first and then install `yt-dlp` and `FFmpeg` via Homebrew after you confirm.
+    - On **Linux/Windows**, you must install `yt-dlp` and `FFmpeg` yourself if not already present (see troubleshooting below).
 
 ### Method 2: From Source (For Developers)
 
@@ -69,7 +69,7 @@ You must have both `yt-dlp` and `ffmpeg` installed on your system for the app to
    pnpm start
    ```
 
-### Building Distributables
+#### Building Distributables
 
 To build the application for your platform:
 
@@ -105,7 +105,7 @@ This will create a distributable package in the `dist` directory.
    - Enter the video URL
    - Select "Download & Re-encode as MP4 (H.264/AAC)"
    - Click "Run"
-   - The video will be downloaded and then re-encoded using ffmpeg with:
+   - The video will be downloaded and then re-encoded using FFmpeg with:
      - Video: H.264 (libx264) with CRF 18 and veryslow preset for maximum quality
      - Audio: AAC (libfdk_aac preferred, falls back to aac if not available)
      - Container: MP4 with proper AVC1 tag
@@ -125,7 +125,7 @@ This will create a distributable package in the `dist` directory.
    - If your proxy is running on a different port or host, you can edit the address manually before running the action.
 
 **Cancelling Actions:**  
-During any long-running download or encoding action, a "Cancel Action" button will appear. Clicking it will cleanly abort the current process (`yt-dlp` or `ffmpeg`) and clean up any partial files.
+During any long-running download or encoding action, a "Cancel Action" button will appear. Clicking it will cleanly abort the current process (`yt-dlp` or `FFmpeg`) and clean up any partial files.
 
 ## Updating
 
@@ -139,10 +139,10 @@ The app includes a built-in update checker:
 
 **Update button is only supported when running the packaged app** (from `.dmg`, `.exe`, or `.AppImage`/`.deb`). If you run the app in development mode (using `start.command` or `pnpm start`), update may not be available.
 
-**Note:**
-
-- The app cannot update `yt-dlp` or `ffmpeg` automatically on Windows or Linux—you must update them yourself (see Troubleshooting below).
-- On macOS, the app can help install or update dependencies via Homebrew if needed.
+> [!NOTE]
+>
+> - The app cannot update `yt-dlp` or `FFmpeg` automatically on Windows or Linux—you must update them yourself (see Troubleshooting below).
+> - On macOS, the app can help install or update dependencies via Homebrew if needed.
 
 ## Troubleshooting
 
@@ -164,11 +164,11 @@ The app includes a built-in update checker:
        ```
 
      - **Windows:**  
-       - Download [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) and [ffmpeg](https://ffmpeg.org/download.html)
+       - Download [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) and [FFmpeg](https://ffmpeg.org/download.html)
        - Add them to your system PATH
 
 2. **Update Issues**
-   - If updates fail, try updating `yt-dlp` and `ffmpeg` manually (see above).
+   - If updates fail, try updating `yt-dlp` and `FFmpeg` manually (see above).
 
 3. **Browser Cookie Issues**
    - Make sure you're logged into YouTube in your selected browser
