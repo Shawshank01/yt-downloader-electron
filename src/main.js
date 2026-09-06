@@ -452,9 +452,17 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
                     args.push('-i', thumbnailPath);
                     args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
                     args.push('-c:v:0', 'libx264', '-crf:0', '22', '-preset', 'veryslow', '-c:a:0', audioCodec, '-tag:v:0', 'avc1');
+                    if (audioCodec === 'aac_at') {
+                        args.push('-aac_at_mode', 'cvbr');
+                    }
+                    args.push('-b:a:0', '128k');
                     args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
                 } else {
                     args.push('-c:v', 'libx264', '-crf', '22', '-preset', 'veryslow', '-c:a', audioCodec, '-tag:v', 'avc1');
+                    if (audioCodec === 'aac_at') {
+                        args.push('-aac_at_mode', 'cvbr');
+                    }
+                    args.push('-b:a', '128k');
                 }
 
                 args.push(outputPath);
@@ -813,6 +821,10 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                 }
 
                 args.push(thumbnailPath ? '-c:a:0' : '-c:a', audioCodec);
+                if (audioCodec === 'aac_at') {
+                    args.push('-aac_at_mode', 'cvbr');
+                }
+                args.push(thumbnailPath ? '-b:a:0' : '-b:a', '128k');
 
                 if (thumbnailPath) {
                     args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');

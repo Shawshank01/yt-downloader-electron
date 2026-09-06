@@ -107,7 +107,7 @@ This will create a distributable package in the `dist` directory.
    - Click "Run"
    - The video will be downloaded and then re-encoded using FFmpeg with:
      - Video: H.264 (libx264) with CRF 18 and veryslow preset for maximum quality
-     - Audio: AAC (libfdk_aac preferred, falls back to aac if not available)
+     - Audio: AAC (aac_at preferred with CVBR 128k, falls back to libfdk_aac, then aac if not available)
      - Container: MP4 with proper AVC1 tag
 
 5. **Download with Hardsub (macOS Only)**

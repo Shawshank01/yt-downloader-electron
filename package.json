@@ -4,7 +4,7 @@
   "description": "Video downloader using yt-dlp and ffmpeg",
   "main": "src/main.js",
   "type": "module",
-  "packageManager": "pnpm@12.3.2",
+  "packageManager": "pnpm@11.22.0",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prestart": "node src/check-dependencies.js",
@@ -42,10 +42,10 @@
     "electron-updater": "^6.8.9"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "electron": "^41.10.7",
     "electron-builder": "^26.15.3",
-    "eslint": "^9.39.5",
+    "eslint": "^10.10.0",
     "globals": "^17.12.0",
     "prettier": "^3.9.6"
   },
