@@ -1,6 +1,6 @@
 {
   "name": "yt-downloader-electron",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "description": "Video downloader using yt-dlp and ffmpeg",
   "main": "src/main.js",
   "type": "module",
@@ -23,14 +23,21 @@
   },
   "keywords": [
     "youtube",
+    "x(twitter)",
+    "tiktok",
+    "instagram",
+    "facebook",
+    "reddit",
+    "bilibili",
     "video",
+    "audio",
     "downloader",
     "yt-dlp",
     "ffmpeg",
     "electron"
   ],
   "author": {
-    "name": "Shawshank01",
+    "name": "Michifumi",
     "email": "lelouch@outlook.ie"
   },
   "license": "MIT",

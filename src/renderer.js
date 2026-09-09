@@ -55,7 +55,35 @@ async function isImageFormat(formatCode, browser, url) {
     return meta?.ext === 'mhtml';
 }
 
-// Function to clean yt-dlp output by removing progress lines
+// Function to check if a line is a progress update
+function isProgressLine(line) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('[download]') && (trimmed.includes('%') || trimmed.includes('ETA'))) {
+        return true;
+    }
+    if ((/^(?:frame|size)=\s*\S+/i.test(trimmed) && trimmed.includes('time=')) ||
+        (/^time=\S+/i.test(trimmed) && trimmed.includes('bitrate='))) {
+        return true;
+    }
+    return false;
+}
+
+// Function to check if a line is intermediate extractor or probe noise
+function isExtractorOrNoiseLine(line) {
+    const trimmed = line.trim();
+    if (/^\s*Duration:\s*[\d:.]+/i.test(trimmed)) {
+        return true;
+    }
+    if (/^\[[^\]]+\]\s+Extracting URL:/i.test(trimmed)) {
+        return true;
+    }
+    if (/^\[(?!download\])[^\]]+\]\s+(?:.*:\s+)?Downloading\s+/i.test(trimmed)) {
+        return true;
+    }
+    return false;
+}
+
+// Function to clean yt-dlp output by removing progress lines and intermediate noise
 function cleanYtDlpResult(result) {
     if (!result) return result;
 
@@ -66,11 +94,16 @@ function cleanYtDlpResult(result) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 
-        if (trimmed.startsWith('[download]') && (trimmed.includes('%') || trimmed.includes('ETA'))) {
+        if (isProgressLine(trimmed) || isExtractorOrNoiseLine(trimmed)) {
             continue;
         }
 
         cleanLines.push(trimmed);
+    }
+
+    if (cleanLines.length === 0) {
+        const nonProgress = lines.map((l) => l.trim()).filter((l) => l && !isProgressLine(l));
+        return (nonProgress.length > 0 ? nonProgress : lines.map((l) => l.trim()).filter(Boolean)).join('\n').trim();
     }
 
     return cleanLines.join('\n').trim();
@@ -411,7 +444,7 @@ window.runCommand = async function () {
         const result = await window.electronAPI.runCommand(args);
 
         // Clean the result by removing progress lines and keeping only the final message
-        const cleanResult = cleanYtDlpResult(result);
+        const cleanResult = action === 'List Formats' ? result.trim() : cleanYtDlpResult(result);
 
         document.getElementById('output').textContent = commandLine + '\n' + cleanResult;
 

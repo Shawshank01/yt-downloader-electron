@@ -73,14 +73,27 @@ const LOG_NOISE_PATTERNS = [
     /^\s*Program \d+/i,                                     // FFmpeg program header
     /^\s*Stream mapping:/i,                                 // FFmpeg stream mapping header
     /^\s*Stream #\d+:\d+/i,                                 // FFmpeg stream descriptor
-    /^\s*(Metadata:|variant_bitrate|encoder\s*:)/i,          // FFmpeg metadata tags
+    /^\s*(Metadata:|variant_bitrate|encoder\s*:)/i,         // FFmpeg metadata tags
     /^\s*(TIT3|id3v2_priv|JSONMetadata|Hydra)/i,            // Twitter HLS ID3 metadata dumps
     /Press \[[q?]\] to stop/i,                              // FFmpeg interactive prompt
-    /muxing overhead: unknown/i                             // FFmpeg muxing summary header
+    /muxing overhead: unknown/i,                            // FFmpeg muxing summary header
+    /^\s*Duration:\s*[\d:.]+/i                              // FFmpeg stream duration probe header
 ];
 
 function shouldSuppressLogLine(line) {
     return LOG_NOISE_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+function isProgressLine(line) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('[download]') && (trimmed.includes('%') || trimmed.includes('ETA'))) {
+        return true;
+    }
+    if ((/^(?:frame|size)=\s*\S+/i.test(trimmed) && trimmed.includes('time=')) ||
+        (/^time=\S+/i.test(trimmed) && trimmed.includes('bitrate='))) {
+        return true;
+    }
+    return false;
 }
 
 // Line buffer wrapper to safely handle chunked stream data and filter noise
@@ -370,10 +383,12 @@ ipcMain.handle('run-command', async (event, args) => {
 
         const handleCleanLine = (line) => {
             const trimmed = line.trim();
-            if (trimmed.includes('[download]')) {
+            const isProgress = isProgressLine(trimmed);
+
+            if (isProgress || trimmed.startsWith('[download]')) {
                 event.sender.send('download-progress', trimmed);
             }
-            if (!trimmed.startsWith('[download]') || (!trimmed.includes('%') && !trimmed.includes('ETA'))) {
+            if (!isProgress) {
                 outputLines.push(line);
             }
         };
@@ -683,8 +698,9 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             activeProcess = spawn('yt-dlp', args);
 
             const handleProgressLine = (line) => {
-                if (line.includes('[download]')) {
-                    event.sender.send('download-progress', line.trim());
+                const trimmed = line.trim();
+                if (isProgressLine(trimmed) || trimmed.startsWith('[download]')) {
+                    event.sender.send('download-progress', trimmed);
                 }
             };
 
