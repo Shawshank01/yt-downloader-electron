@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
-import { dirname, join, extname, basename } from 'path';
+import { dirname, join, extname, basename, delimiter } from 'path';
 import { promises as fs } from 'fs';
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
 import { checkSystemDependencies, installMissingDependencies } from './dependencies.js';
@@ -23,24 +23,24 @@ async function getSettingsPath() {
 async function readSettings() {
     try {
         const filePath = await getSettingsPath();
-        const raw = await fs.readFile(filePath, 'utf-8');
-        return JSON.parse(raw);
+        const data = await fs.readFile(filePath, 'utf-8');
+        return JSON.parse(data);
     } catch {
         return {};
     }
 }
 
-async function writeSettings(data) {
+async function writeSettings(settings) {
     try {
         const filePath = await getSettingsPath();
-        await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+        await fs.writeFile(filePath, JSON.stringify(settings, null, 2), 'utf-8');
     } catch (e) {
-        console.error('Failed to write settings:', e);
+        console.error('Failed to save settings:', e);
     }
 }
 
 ipcMain.handle('get-settings', async () => {
-    return readSettings();
+    return await readSettings();
 });
 
 ipcMain.handle('set-settings', async (_event, updates) => {
@@ -51,15 +51,20 @@ ipcMain.handle('set-settings', async (_event, updates) => {
 });
 
 // Fix PATH so yt-dlp is found
-const extraPaths = [
-    '/usr/local/bin',
-    '/opt/homebrew/bin',
-    '/usr/bin',
-    '/bin',
-    '/usr/sbin',
-    '/sbin'
-];
-process.env.PATH = [...new Set([...(process.env.PATH || '').split(':'), ...extraPaths])].join(':');
+const extraPaths = process.platform === 'win32'
+    ? []
+    : [
+        '/usr/local/bin',
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        '/usr/bin',
+        '/bin',
+        '/usr/sbin',
+        '/sbin'
+    ];
+process.env.PATH = [...new Set([...(process.env.PATH || '').split(delimiter), ...extraPaths])]
+    .filter(Boolean)
+    .join(delimiter);
 
 // Task management for long-running processes (yt-dlp or ffmpeg)
 class TaskManager {
@@ -392,7 +397,9 @@ const TRANSCODE_CONFIG = {
     pixelFormatHevc: 'p010le',
     tagH264: 'avc1',
     tagHevc: 'hvc1',
-    audioCodecs: ['aac_at', 'libfdk_aac', 'aac']
+    audioCodecs: process.platform === 'darwin'
+        ? ['aac_at', 'libfdk_aac', 'aac']
+        : ['libfdk_aac', 'aac']
 };
 
 // Helper to construct FFmpeg arguments for re-encoding
@@ -435,7 +442,9 @@ function buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnail
     const args = [];
     const escapedSubPath = subtitlePath.replace(/'/g, "'\\''").replace(/:/g, '\\:');
 
-    args.push('-hwaccel', 'videotoolbox');
+    if (process.platform === 'darwin') {
+        args.push('-hwaccel', 'videotoolbox');
+    }
     args.push('-i', videoPath);
 
     const subFilter = `subtitles='${escapedSubPath}':force_style='FontName=${DEFAULT_SUBTITLE_FONT}'`;
@@ -448,15 +457,17 @@ function buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnail
     }
 
     if (codec === 'hevc') {
+        const vcodec = process.platform === 'darwin' ? 'hevc_videotoolbox' : 'libx265';
         args.push(
-            thumbnailPath ? '-c:v:0' : '-c:v', 'hevc_videotoolbox',
+            thumbnailPath ? '-c:v:0' : '-c:v', vcodec,
             '-pix_fmt', TRANSCODE_CONFIG.pixelFormatHevc,
             thumbnailPath ? '-b:v:0' : '-b:v', TRANSCODE_CONFIG.hevcBitrate,
             thumbnailPath ? '-tag:v:0' : '-tag:v', TRANSCODE_CONFIG.tagHevc
         );
     } else {
+        const vcodec = process.platform === 'darwin' ? 'h264_videotoolbox' : 'libx264';
         args.push(
-            thumbnailPath ? '-c:v:0' : '-c:v', 'h264_videotoolbox',
+            thumbnailPath ? '-c:v:0' : '-c:v', vcodec,
             thumbnailPath ? '-b:v:0' : '-b:v', TRANSCODE_CONFIG.h264Bitrate,
             thumbnailPath ? '-tag:v:0' : '-tag:v', TRANSCODE_CONFIG.tagH264
         );

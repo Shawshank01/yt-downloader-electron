@@ -6,9 +6,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     chooseFolder: () => ipcRenderer.invoke('choose-folder'),
     runCommand: (cmd) => ipcRenderer.invoke('run-command', cmd),
     onProgress: (callback) => {
-        ipcRenderer.on('download-progress', (_, progress) => callback(progress));
+        const listener = (_, progress) => callback(progress);
+        ipcRenderer.on('download-progress', listener);
         return () => {
-            ipcRenderer.removeAllListeners('download-progress');
+            ipcRenderer.removeListener('download-progress', listener);
         };
     },
     checkAppUpdate: () => ipcRenderer.invoke('check-app-update'),

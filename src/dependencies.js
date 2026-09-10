@@ -1,15 +1,21 @@
 import { exec } from 'child_process';
+import { delimiter } from 'path';
 
 // Ensure standard binary directories are included in PATH across all environments
-const extraPaths = [
-    '/usr/local/bin',
-    '/opt/homebrew/bin',
-    '/usr/bin',
-    '/bin',
-    '/usr/sbin',
-    '/sbin'
-];
-process.env.PATH = [...new Set([...(process.env.PATH || '').split(':'), ...extraPaths])].join(':');
+const extraPaths = process.platform === 'win32'
+    ? []
+    : [
+        '/usr/local/bin',
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        '/usr/bin',
+        '/bin',
+        '/usr/sbin',
+        '/sbin'
+    ];
+process.env.PATH = [...new Set([...(process.env.PATH || '').split(delimiter), ...extraPaths])]
+    .filter(Boolean)
+    .join(delimiter);
 
 // 20 MB maximum buffer size for command output capture
 const MAX_BUFFER_BYTES = 20 * 1024 * 1024;

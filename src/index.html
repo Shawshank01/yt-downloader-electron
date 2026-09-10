@@ -124,6 +124,21 @@
             </div>
         </div>
 
+        <!-- Confirmation Modal -->
+        <div id="confirmModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2 id="confirmTitle">Confirm Action</h2>
+                <div id="confirmMessage"
+                    style="text-align: left; margin-bottom: 20px; white-space: pre-wrap; line-height: 1.5; max-height: 50vh; overflow-y: auto;">
+                </div>
+                <div class="modal-buttons" style="gap: 10px;">
+                    <button class="cancel-btn" id="confirmCancelBtn">Cancel</button>
+                    <button class="run-button" id="confirmAcceptBtn"
+                        style="padding: 10px 20px; font-weight: 500;">Confirm</button>
+                </div>
+            </div>
+        </div>
+
         <footer class="app-footer">
             <button type="button" class="update-button" onclick="checkUpdate()">Check for Updates</button>
             <button type="button" class="dependency-button" onclick="checkDependencies()">Check for

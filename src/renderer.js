@@ -183,7 +183,12 @@ window.checkUpdate = async function () {
                 (cleanedNotes ? `Release notes:\n${cleanedNotes}\n\n` : '\n') +
                 `Do you want to open the GitHub releases page to download the latest version?`;
 
-            const openNow = confirm(promptMsg);
+            const openNow = await showConfirmModal({
+                title: 'Update Available',
+                message: promptMsg,
+                confirmText: 'Open Releases Page',
+                cancelText: 'Later'
+            });
 
             // Then print to output (also using cleaned notes)
             output.textContent += `\n✅ Update available!\n`;
@@ -269,14 +274,18 @@ window.checkDependencies = async function () {
             const missingBrew = result.missing.includes('brew');
             const installList = missingBrew ? result.missing : installableMissing;
 
-            const shouldInstall = confirm(
-                `Missing dependencies:\n${result.missing.join(', ')}\n\n` +
-                `Would you like to install missing ones now?\n` +
-                (missingBrew
-                    ? `This will run Homebrew installer:\n/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"\nThen run:\nbrew install ${installList.filter((d) => d !== 'brew').join(' ')}`
-                    : `This will run: brew install ${installList.join(' ')}`) +
-                `\n\nYou can cancel and install later.`
-            );
+            const shouldInstall = await showConfirmModal({
+                title: 'Install Missing Dependencies',
+                message:
+                    `Missing dependencies:\n- ${result.missing.join('\n- ')}\n\n` +
+                    `Would you like to install missing ones now?\n\n` +
+                    (missingBrew
+                        ? `This will run Homebrew installer:\n/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"\n\nThen run:\nbrew install ${installList.filter((d) => d !== 'brew').join(' ')}`
+                        : `This will run:\nbrew install ${installList.join(' ')}`) +
+                    `\n\nYou can cancel and install later.`,
+                confirmText: 'Install Now',
+                cancelText: 'Install Later'
+            });
 
             if (!shouldInstall) {
                 output.textContent +=
@@ -579,15 +588,19 @@ function handleFormatListSelection(result, isCancelled, isError) {
 
 // Handle optional re-encode workflow following download
 async function handleReEncodePrompt({ url, downloadFolder, commandLine, cleanResult }) {
-    const shouldReEncode = confirm(
-        'Video download completed! Would you like to re-encode it to high quality MP4 (H.264/AAC)?\n\n' +
-        'This will:\n' +
-        '• Use H.264 video codec with high quality (CRF 22)\n' +
-        '• Use AAC audio codec for maximum compatibility\n' +
-        '• Replace the original file with the re-encoded version\n\n' +
-        'Note: Re-encoding may take some time depending on the video length.\n\n' +
-        'If you skip re-encoding, the original video format will be preserved.'
-    );
+    const shouldReEncode = await showConfirmModal({
+        title: 'Re-encode to MP4?',
+        message:
+            'Video download completed! Would you like to re-encode it to high quality MP4 (H.264/AAC)?\n\n' +
+            'This will:\n' +
+            '• Use H.264 video codec with high quality (CRF 22)\n' +
+            '• Use AAC audio codec for maximum compatibility\n' +
+            '• Replace the original file with the re-encoded version\n\n' +
+            'Note: Re-encoding may take some time depending on the video length.\n\n' +
+            'If you skip re-encoding, the original video format will be preserved.',
+        confirmText: 'Re-encode',
+        cancelText: 'Skip'
+    });
 
     if (!shouldReEncode) {
         document.getElementById('output').textContent +=
@@ -687,8 +700,8 @@ window.runCommand = async function () {
             ? rawResult
             : {
                 success: !(rawResult || '').includes('Process exited with code') &&
-                         !(rawResult || '').includes('ERROR:') &&
-                         !(rawResult || '').startsWith('Error:'),
+                    !(rawResult || '').includes('ERROR:') &&
+                    !(rawResult || '').startsWith('Error:'),
                 cancelled: (rawResult || '').includes('cancelled by user'),
                 output: rawResult || '',
                 error: (rawResult || '').includes('ERROR:') ? rawResult : ''
@@ -1035,27 +1048,58 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.electronAPI?.setSettings({ proxyAddress: proxyInput.value.trim() }).catch(console.error);
         });
     }
-
-    // Re-encode cancel button
-    const cancelReEncodeBtn = document.getElementById('cancelReEncodeBtn');
-    if (cancelReEncodeBtn) {
-        cancelReEncodeBtn.addEventListener('click', async () => {
-            cancelReEncodeBtn.disabled = true;
-            cancelReEncodeBtn.textContent = "Cancelling...";
-            await window.electronAPI.cancelReEncode();
-        });
-    }
-
-    // Hardsub cancel button
-    const cancelHardsubBtn = document.getElementById('cancelHardsubBtn');
-    if (cancelHardsubBtn) {
-        cancelHardsubBtn.addEventListener('click', async () => {
-            cancelHardsubBtn.disabled = true;
-            cancelHardsubBtn.textContent = "Cancelling...";
-            await window.electronAPI.cancelHardsub();
-        });
-    }
 });
+
+// Show asynchronous confirmation modal and return boolean without freezing UI thread
+function showConfirmModal({ title = 'Confirm Action', message = '', confirmText = 'Confirm', cancelText = 'Cancel' } = {}) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('confirmModal');
+        const titleEl = document.getElementById('confirmTitle');
+        const messageEl = document.getElementById('confirmMessage');
+        const cancelBtn = document.getElementById('confirmCancelBtn');
+        const acceptBtn = document.getElementById('confirmAcceptBtn');
+
+        if (!modal || !cancelBtn || !acceptBtn) {
+            resolve(false);
+            return;
+        }
+
+        if (titleEl) titleEl.textContent = title;
+        if (messageEl) messageEl.textContent = message;
+        acceptBtn.textContent = confirmText;
+        cancelBtn.textContent = cancelText;
+
+        const cleanup = () => {
+            modal.style.display = 'none';
+            acceptBtn.removeEventListener('click', handleAccept);
+            cancelBtn.removeEventListener('click', handleCancel);
+            document.removeEventListener('keydown', handleKeydown);
+        };
+
+        const handleAccept = () => {
+            cleanup();
+            resolve(true);
+        };
+
+        const handleCancel = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        const handleKeydown = (e) => {
+            if (e.key === 'Escape') {
+                handleCancel();
+            }
+        };
+
+        acceptBtn.addEventListener('click', handleAccept);
+        cancelBtn.addEventListener('click', handleCancel);
+        document.addEventListener('keydown', handleKeydown);
+
+        modal.style.display = 'flex';
+        acceptBtn.focus();
+    });
+}
 
 // Show cleanup modal and return boolean for delete files
 function showCleanupModal(message) {
