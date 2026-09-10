@@ -1005,7 +1005,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             };
         }
 
-        const { videoFile, videoPath, subtitlePath, thumbnailPath, videoName } = media;
+        const { videoPath, subtitlePath, thumbnailPath, videoName } = media;
         const codecSuffix = codec === 'hevc' ? '_HEVC' : '_H264';
         const outputPath = join(downloadFolder, `${videoName}${codecSuffix}_temp.mp4`);
 
