@@ -34,7 +34,7 @@ function success(message) {
 }
 
 function info(message) {
-    log(`ℹ️  ${message}`, 'blue');
+    log(`\u2139\uFE0F  ${message}`, 'blue');
 }
 
 function warning(message) {
@@ -270,15 +270,13 @@ try {
         execSync(`git tag -a ${tagName} -F "${tagMessagePath}" --cleanup=verbatim`);
         success(`Created git tag: ${tagName}`);
 
-        execSync(`git push origin ${tagName}`);
-        success(`Pushed tag ${tagName} to GitHub`);
-
         // Clean up temp file
         try { unlinkSync(tagMessagePath); } catch { }
 
-        // Push the commit as well
-        execSync('git push origin main');
-        success('Pushed commit to GitHub');
+        // Push both the commit and tag together to GitHub
+        const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim() || 'main';
+        execSync(`git push origin ${currentBranch} ${tagName}`);
+        success(`Pushed ${currentBranch} and tag ${tagName} to GitHub`);
 
     } catch (err) {
         error('Failed to create/push tag: ' + err.message);
