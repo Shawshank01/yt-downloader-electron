@@ -509,6 +509,220 @@ ipcMain.handle('run-command', async (event, args) => {
     });
 });
 
+// Helper to construct FFmpeg arguments for re-encoding
+function buildFfmpegReEncodeArgs({ filePath, outputPath, thumbnailPath, audioCodec }) {
+    const args = ['-i', filePath];
+    if (thumbnailPath) {
+        args.push('-i', thumbnailPath);
+        args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
+        args.push('-c:v:0', 'libx264', '-crf:0', '22', '-preset', 'veryslow', '-c:a:0', audioCodec, '-tag:v:0', 'avc1');
+        if (audioCodec === 'aac_at') {
+            args.push('-aac_at_mode', 'cvbr');
+        }
+        args.push('-b:a:0', '128k');
+        args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
+    } else {
+        args.push('-c:v', 'libx264', '-crf', '22', '-preset', 'veryslow', '-c:a', audioCodec, '-tag:v', 'avc1');
+        if (audioCodec === 'aac_at') {
+            args.push('-aac_at_mode', 'cvbr');
+        }
+        args.push('-b:a', '128k');
+    }
+    args.push(outputPath);
+    return args;
+}
+
+// Helper to construct FFmpeg arguments for hardcoding subtitles
+function buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnailPath, codec, audioCodec }) {
+    const args = [];
+    const escapedSubPath = subtitlePath.replace(/'/g, "'\\''").replace(/:/g, '\\:');
+
+    args.push('-hwaccel', 'videotoolbox');
+    args.push('-i', videoPath);
+
+    if (thumbnailPath) {
+        args.push('-i', thumbnailPath);
+        args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
+        args.push('-filter:v:0', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
+    } else {
+        args.push('-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
+    }
+
+    if (codec === 'hevc') {
+        args.push(
+            thumbnailPath ? '-c:v:0' : '-c:v', 'hevc_videotoolbox',
+            '-pix_fmt', 'p010le',
+            thumbnailPath ? '-b:v:0' : '-b:v', '2500k',
+            thumbnailPath ? '-tag:v:0' : '-tag:v', 'hvc1'
+        );
+    } else {
+        args.push(
+            thumbnailPath ? '-c:v:0' : '-c:v', 'h264_videotoolbox',
+            thumbnailPath ? '-b:v:0' : '-b:v', '4000k',
+            thumbnailPath ? '-tag:v:0' : '-tag:v', 'avc1'
+        );
+    }
+
+    args.push(thumbnailPath ? '-c:a:0' : '-c:a', audioCodec);
+    if (audioCodec === 'aac_at') {
+        args.push('-aac_at_mode', 'cvbr');
+    }
+    args.push(thumbnailPath ? '-b:a:0' : '-b:a', '128k');
+
+    if (thumbnailPath) {
+        args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
+    }
+
+    args.push(outputPath);
+    return args;
+}
+
+// Reusable runner for FFmpeg transcoding with automatic audio codec fallbacks
+async function runFfmpegWithCodecFallback({ task, event, buildArgs, outputPath, logPrefix }) {
+    const audioCodecs = ['aac_at', 'libfdk_aac', 'aac'];
+    let success = false;
+    let lastCode = 0;
+
+    for (const audioCodec of audioCodecs) {
+        if (task.isCancelled) break;
+
+        const args = buildArgs(audioCodec);
+        console.log(`${logPrefix} FFmpeg args:`, args);
+
+        const exitCode = await new Promise((resolve) => {
+            let child;
+            try {
+                child = taskManager.spawnProcess(task, 'ffmpeg', args);
+            } catch {
+                resolve(-1);
+                return;
+            }
+
+            const handleProgress = (data) => {
+                if (task.isCancelled) return;
+                const str = data.toString();
+                if (str.includes('time=') || str.includes('frame=')) {
+                    event.sender.send('download-progress', `${logPrefix} (${audioCodec}): ${str.trim()}`);
+                }
+            };
+
+            child.stdout.on('data', handleProgress);
+            child.stderr.on('data', handleProgress);
+
+            child.on('close', (code) => {
+                resolve(code);
+            });
+        });
+
+        if (task.isCancelled) {
+            break;
+        }
+
+        if (exitCode === 0) {
+            success = true;
+            break;
+        } else {
+            try { await fs.unlink(outputPath); } catch { /* ignore */ }
+            console.log(`${logPrefix} with ${audioCodec} failed with code ${exitCode}`);
+            if (audioCodec === 'aac_at') {
+                event.sender.send('download-progress', 'aac_at not available, trying with libfdk_aac...');
+            } else if (audioCodec === 'libfdk_aac') {
+                event.sender.send('download-progress', 'libfdk_aac not available, trying with aac...');
+            }
+            lastCode = exitCode;
+        }
+    }
+
+    return { success, lastCode, isCancelled: task.isCancelled };
+}
+
+// Find video and thumbnail files for re-encoding
+async function findVideoToReEncode(downloadFolder, videoId) {
+    const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
+    const allFiles = await fs.readdir(downloadFolder);
+    const files = allFiles.filter((file) => {
+        const lower = file.toLowerCase();
+        return videoExtensions.some((ext) => lower.endsWith(ext)) && file.includes(videoId);
+    });
+
+    if (files.length === 0) return null;
+
+    const file = files[0];
+    const filePath = join(downloadFolder, file);
+    const fileExt = extname(file);
+    const filename = basename(file, fileExt);
+
+    let thumbnailFile = null;
+    for (const f of allFiles) {
+        if (f.endsWith('.jpg') && f.includes(filename.substring(0, 20))) {
+            thumbnailFile = f;
+            break;
+        }
+    }
+    const thumbnailPath = thumbnailFile ? join(downloadFolder, thumbnailFile) : null;
+
+    return { file, filePath, filename, thumbnailPath };
+}
+
+// Find media, subtitles, and thumbnail for hardsubbing
+async function findHardsubSourceFiles(downloadFolder, subtitleLang) {
+    const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
+    const allFiles = await fs.readdir(downloadFolder);
+
+    const filesWithStats = await Promise.all(
+        allFiles.map(async (file) => {
+            const filePath = join(downloadFolder, file);
+            const stat = await fs.stat(filePath);
+            return { file, mtime: stat.mtime };
+        })
+    );
+    filesWithStats.sort((a, b) => b.mtime - a.mtime);
+
+    let videoFile = null;
+    for (const { file } of filesWithStats) {
+        const lower = file.toLowerCase();
+        if (videoExtensions.some((ext) => lower.endsWith(ext)) && !file.includes('_hardsub')) {
+            videoFile = file;
+            break;
+        }
+    }
+    if (!videoFile) return null;
+
+    const videoBasename = basename(videoFile, extname(videoFile));
+    let subtitleFile = null;
+    for (const { file } of filesWithStats) {
+        if (file.endsWith('.vtt') && file.includes(videoBasename.substring(0, 20))) {
+            subtitleFile = file;
+            break;
+        }
+    }
+    if (!subtitleFile) {
+        for (const { file } of filesWithStats) {
+            if (file.endsWith('.vtt') && file.includes(subtitleLang)) {
+                subtitleFile = file;
+                break;
+            }
+        }
+    }
+    if (!subtitleFile) return null;
+
+    let thumbnailFile = null;
+    for (const { file } of filesWithStats) {
+        if (file.endsWith('.jpg') && file.includes(videoBasename.substring(0, 20))) {
+            thumbnailFile = f;
+            break;
+        }
+    }
+
+    const videoPath = join(downloadFolder, videoFile);
+    const subtitlePath = join(downloadFolder, subtitleFile);
+    const thumbnailPath = thumbnailFile ? join(downloadFolder, thumbnailFile) : null;
+    const videoExt = extname(videoFile);
+    const videoName = basename(videoFile, videoExt);
+
+    return { videoFile, videoPath, subtitlePath, thumbnailPath, videoName };
+}
+
 // IPC handler for re-encoding videos to MP4 with H.264 and AAC
 ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
     console.log("Re-encoding video in folder:", downloadFolder, "for video ID:", videoId);
@@ -521,136 +735,47 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
     }
 
     try {
-        const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
-        const allFiles = await fs.readdir(downloadFolder);
-        const files = allFiles.filter(file => {
-            const lowerFile = file.toLowerCase();
-            return videoExtensions.some(ext => lowerFile.endsWith(ext)) && file.includes(videoId);
-        });
-
-        if (files.length === 0) {
+        const media = await findVideoToReEncode(downloadFolder, videoId);
+        if (!media) {
             return "No matching video file found to re-encode.";
         }
 
-        const file = files[0];
-        const filePath = join(downloadFolder, file);
-
-        const fileExt = extname(file);
-        const filename = basename(file, fileExt);
+        const { file, filePath, filename, thumbnailPath } = media;
         const outputPath = join(downloadFolder, `${filename}_reencoded.mp4`);
-
-        // Find matching thumbnail file
-        let thumbnailFile = null;
-        for (const f of allFiles) {
-            if (f.endsWith('.jpg') && f.includes(filename.substring(0, 20))) {
-                thumbnailFile = f;
-                break;
-            }
-        }
-        const thumbnailPath = thumbnailFile ? join(downloadFolder, thumbnailFile) : null;
 
         console.log(`Re-encoding file: ${file}`);
         event.sender.send('download-progress', `Re-encoding ${file}...`);
 
-        const audioCodecs = ['aac_at', 'libfdk_aac', 'aac'];
-        let success = false;
-        let lastError = '';
+        const result = await runFfmpegWithCodecFallback({
+            task,
+            event,
+            buildArgs: (audioCodec) => buildFfmpegReEncodeArgs({ filePath, outputPath, thumbnailPath, audioCodec }),
+            outputPath,
+            logPrefix: `Re-encoding ${file}`
+        });
 
-        for (const audioCodec of audioCodecs) {
-            if (task.isCancelled) break;
-
-            const args = ['-i', filePath];
-            if (thumbnailPath) {
-                args.push('-i', thumbnailPath);
-                args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
-                args.push('-c:v:0', 'libx264', '-crf:0', '22', '-preset', 'veryslow', '-c:a:0', audioCodec, '-tag:v:0', 'avc1');
-                if (audioCodec === 'aac_at') {
-                    args.push('-aac_at_mode', 'cvbr');
-                }
-                args.push('-b:a:0', '128k');
-                args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
-            } else {
-                args.push('-c:v', 'libx264', '-crf', '22', '-preset', 'veryslow', '-c:a', audioCodec, '-tag:v', 'avc1');
-                if (audioCodec === 'aac_at') {
-                    args.push('-aac_at_mode', 'cvbr');
-                }
-                args.push('-b:a', '128k');
-            }
-            args.push(outputPath);
-
-            const exitCode = await new Promise((resolve) => {
-                let child;
-                try {
-                    child = taskManager.spawnProcess(task, 'ffmpeg', args);
-                } catch {
-                    resolve(-1);
-                    return;
-                }
-
-                const handleProgress = (data) => {
-                    if (task.isCancelled) return;
-                    const str = data.toString();
-                    if (str.includes('time=')) {
-                        event.sender.send('download-progress', `Re-encoding ${file} (${audioCodec}): ${str.trim()}`);
-                    }
-                };
-
-                child.stdout.on('data', handleProgress);
-                child.stderr.on('data', handleProgress);
-
-                child.on('close', (code) => {
-                    resolve(code);
-                });
-            });
-
-            if (task.isCancelled) {
-                break;
-            }
-
-            if (exitCode === 0) {
-                success = true;
-                break;
-            } else {
-                // Remove partial output before fallback
-                try { await fs.unlink(outputPath); } catch { /* ignore */ }
-                console.log(`${audioCodec} failed for ${file}, exit code: ${exitCode}`);
-                if (audioCodec === 'aac_at') {
-                    event.sender.send('download-progress', 'aac_at not available, trying with libfdk_aac...');
-                } else if (audioCodec === 'libfdk_aac') {
-                    event.sender.send('download-progress', 'libfdk_aac not available, trying with aac...');
-                }
-                lastError = `Failed to re-encode ${file} with exit code ${exitCode}`;
-            }
-        }
-
-        if (task.isCancelled) {
+        if (result.isCancelled) {
             console.log("Re-encoding was cancelled. Cleaning up temporary output only...");
             try { await fs.unlink(outputPath); } catch { /* ignore */ }
-            // Note: Original filePath and thumbnailPath are preserved on user cancellation!
             return "Re-encoding cancelled by user. Files cleaned up.";
         }
 
-        if (success) {
+        if (result.success) {
             const finalPath = join(downloadFolder, `${filename}.mp4`);
             await fs.rename(outputPath, finalPath);
             console.log(`Successfully re-encoded: ${file} to ${finalPath}`);
 
-            // Build tmpFiles ensuring finalPath is NEVER marked for deletion
             const tmpFiles = [];
-            if (filePath !== finalPath) {
-                tmpFiles.push(filePath);
-            }
-            if (thumbnailPath && thumbnailPath !== finalPath) {
-                tmpFiles.push(thumbnailPath);
-            }
+            if (filePath !== finalPath) tmpFiles.push(filePath);
+            if (thumbnailPath && thumbnailPath !== finalPath) tmpFiles.push(thumbnailPath);
 
             return JSON.stringify({
                 text: `Re-encoding completed successfully. Saved as: ${filename}.mp4`,
-                tmpFiles: tmpFiles
+                tmpFiles
             });
         } else {
             try { await fs.unlink(outputPath); } catch { /* ignore */ }
-            return lastError || `Failed to re-encode ${file}`;
+            return `Failed to re-encode ${file} with exit code ${result.lastCode}`;
         }
     } catch (error) {
         return `Error during re-encoding: ${error.message}`;
@@ -779,7 +904,6 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
 
     try {
         // Step 1: Download video with subtitle (limit to avc1/H.264)
-        // Use --write-auto-subs for auto-generated captions, --write-subs for manual subtitles
         const subsFlag = subtitleType === 'manual' ? '--write-subs' : '--write-auto-subs';
         let args = [
             '-f', 'bestvideo[vcodec^=avc1]+bestaudio/best[vcodec^=avc1]',
@@ -795,7 +919,6 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         event.sender.send('download-progress', 'Downloading video and subtitles...');
         console.log('Download command:', args);
 
-        // Execute download
         const downloadCode = await new Promise((resolve) => {
             let child;
             try {
@@ -837,76 +960,12 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             return 'Hardsub cancelled by user.';
         }
 
-        const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
-        const allFiles = await fs.readdir(downloadFolder);
-
-        // Sort by modification time descending to get most recent files
-        const filesWithStats = await Promise.all(
-            allFiles.map(async (file) => {
-                const filePath = join(downloadFolder, file);
-                const stat = await fs.stat(filePath);
-                return { file, mtime: stat.mtime };
-            })
-        );
-        filesWithStats.sort((a, b) => b.mtime - a.mtime);
-
-        if (task.isCancelled) {
-            return 'Hardsub cancelled by user.';
+        const media = await findHardsubSourceFiles(downloadFolder, subtitleLang);
+        if (!media) {
+            return 'Error: Video or subtitle file not found after download.';
         }
 
-        // Find the most recently downloaded video file
-        let videoFile = null;
-        for (const { file } of filesWithStats) {
-            const lowerFile = file.toLowerCase();
-            if (videoExtensions.some(ext => lowerFile.endsWith(ext)) && !file.includes('_hardsub')) {
-                videoFile = file;
-                break;
-            }
-        }
-
-        if (!videoFile) {
-            return 'Error: No video file found after download.';
-        }
-
-        // Find matching subtitle file
-        const videoBasename = basename(videoFile, extname(videoFile));
-        let subtitleFile = null;
-
-        for (const { file } of filesWithStats) {
-            if (file.endsWith('.vtt') && file.includes(videoBasename.substring(0, 20))) {
-                subtitleFile = file;
-                break;
-            }
-        }
-
-        // Also check for subtitle files that match the language
-        if (!subtitleFile) {
-            for (const { file } of filesWithStats) {
-                if (file.endsWith('.vtt') && file.includes(subtitleLang)) {
-                    subtitleFile = file;
-                    break;
-                }
-            }
-        }
-
-        if (!subtitleFile) {
-            return 'Error: No subtitle file found after download. The video may not have subtitles in the selected language.';
-        }
-
-        // Find matching thumbnail file
-        let thumbnailFile = null;
-        for (const { file } of filesWithStats) {
-            if (file.endsWith('.jpg') && file.includes(videoBasename.substring(0, 20))) {
-                thumbnailFile = file;
-                break;
-            }
-        }
-
-        const videoPath = join(downloadFolder, videoFile);
-        const subtitlePath = join(downloadFolder, subtitleFile);
-        const thumbnailPath = thumbnailFile ? join(downloadFolder, thumbnailFile) : null;
-        const videoExt = extname(videoFile);
-        const videoName = basename(videoFile, videoExt);
+        const { videoFile, videoPath, subtitlePath, thumbnailPath, videoName } = media;
         const codecSuffix = codec === 'hevc' ? '_HEVC' : '_H264';
         const outputPath = join(downloadFolder, `${videoName}${codecSuffix}_temp.mp4`);
 
@@ -921,111 +980,21 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         // Step 3: Run ffmpeg with hardsub
         event.sender.send('download-progress', `Hardcoding subtitles using ${codec.toUpperCase()}...`);
 
-        const audioCodecs = ['aac_at', 'libfdk_aac', 'aac'];
-        let success = false;
-        let lastCode = 0;
+        const result = await runFfmpegWithCodecFallback({
+            task,
+            event,
+            buildArgs: (audioCodec) => buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnailPath, codec, audioCodec }),
+            outputPath,
+            logPrefix: 'Hardcoding'
+        });
 
-        for (const audioCodec of audioCodecs) {
-            if (task.isCancelled) break;
-
-            let ffmpegArgs = [];
-            // Escape the subtitle path for ffmpeg filter
-            const escapedSubPath = subtitlePath.replace(/'/g, "'\\''").replace(/:/g, '\\:');
-
-            ffmpegArgs.push('-hwaccel', 'videotoolbox');
-            ffmpegArgs.push('-i', videoPath);
-
-            if (thumbnailPath) {
-                ffmpegArgs.push('-i', thumbnailPath);
-                ffmpegArgs.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
-                ffmpegArgs.push('-filter:v:0', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
-            } else {
-                ffmpegArgs.push('-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
-            }
-
-            if (codec === 'hevc') {
-                ffmpegArgs.push(
-                    thumbnailPath ? '-c:v:0' : '-c:v', 'hevc_videotoolbox',
-                    '-pix_fmt', 'p010le',
-                    thumbnailPath ? '-b:v:0' : '-b:v', '2500k',
-                    thumbnailPath ? '-tag:v:0' : '-tag:v', 'hvc1'
-                );
-            } else {
-                // Default to H.264
-                ffmpegArgs.push(
-                    thumbnailPath ? '-c:v:0' : '-c:v', 'h264_videotoolbox',
-                    thumbnailPath ? '-b:v:0' : '-b:v', '4000k',
-                    thumbnailPath ? '-tag:v:0' : '-tag:v', 'avc1'
-                );
-            }
-
-            ffmpegArgs.push(thumbnailPath ? '-c:a:0' : '-c:a', audioCodec);
-            if (audioCodec === 'aac_at') {
-                ffmpegArgs.push('-aac_at_mode', 'cvbr');
-            }
-            ffmpegArgs.push(thumbnailPath ? '-b:a:0' : '-b:a', '128k');
-
-            if (thumbnailPath) {
-                ffmpegArgs.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
-            }
-
-            ffmpegArgs.push(outputPath);
-
-            console.log('FFmpeg args:', ffmpegArgs);
-
-            const ffmpegCode = await new Promise((resolve) => {
-                let child;
-                try {
-                    child = taskManager.spawnProcess(task, 'ffmpeg', ffmpegArgs);
-                } catch {
-                    resolve(-1);
-                    return;
-                }
-
-                const handleProgress = (data) => {
-                    if (task.isCancelled) return;
-                    const str = data.toString();
-                    if (str.includes('time=') || str.includes('frame=')) {
-                        event.sender.send('download-progress', `Hardcoding (${audioCodec}): ${str.trim()}`);
-                    }
-                };
-
-                child.stdout.on('data', handleProgress);
-                child.stderr.on('data', handleProgress);
-
-                child.on('close', (code) => {
-                    resolve(code);
-                });
-            });
-
-            if (task.isCancelled) {
-                break;
-            }
-
-            if (ffmpegCode === 0) {
-                success = true;
-                break;
-            } else {
-                try { await fs.unlink(outputPath); } catch { /* ignore */ }
-                console.log(`FFmpeg ${audioCodec} failed with code ${ffmpegCode}`);
-                if (audioCodec === 'aac_at') {
-                    console.log('aac_at failed, trying with libfdk_aac...');
-                    event.sender.send('download-progress', 'aac_at not available, trying with libfdk_aac...');
-                } else if (audioCodec === 'libfdk_aac') {
-                    console.log('libfdk_aac failed, trying with aac...');
-                    event.sender.send('download-progress', 'libfdk_aac not available, trying with aac...');
-                }
-                lastCode = ffmpegCode;
-            }
-        }
-
-        if (task.isCancelled) {
+        if (result.isCancelled) {
             console.log("Hardsub was cancelled. Cleaning up temporary output only...");
             try { await fs.unlink(outputPath); } catch { /* ignore */ }
             return "Hardsub cancelled by user.";
         }
 
-        if (success) {
+        if (result.success) {
             const finalPath = join(downloadFolder, `${videoName}${codecSuffix}.mp4`);
             await fs.rename(outputPath, finalPath);
 
@@ -1041,7 +1010,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             });
         } else {
             try { await fs.unlink(outputPath); } catch { /* ignore */ }
-            return `Failed to create hardsub video. FFmpeg exit code: ${lastCode}`;
+            return `Failed to create hardsub video. FFmpeg exit code: ${result.lastCode}`;
         }
     } catch (error) {
         console.error('Hardsub error:', error);

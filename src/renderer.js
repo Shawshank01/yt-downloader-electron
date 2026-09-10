@@ -328,7 +328,8 @@ window.checkDependencies = async function () {
     }
 };
 
-window.runCommand = async function () {
+// Validate form inputs before running any action
+function validateRunInputs() {
     const url = document.getElementById('url').value.trim();
     const action = document.getElementById('action').value;
     const formatCode = document.getElementById('formatCode').value.trim();
@@ -336,24 +337,30 @@ window.runCommand = async function () {
     const downloadFolder = document.getElementById('downloadFolder').value.trim();
 
     if (!url) {
-        document.getElementById('output').textContent = 'Error: You must enter a video URL.';
-        return;
+        return { ok: false, error: 'Error: You must enter a video URL.' };
     }
     if (!['', 'brave', 'chrome', 'firefox', 'safari'].includes(browser)) {
-        document.getElementById('output').textContent = 'Error: Invalid browser selection.';
-        return;
+        return { ok: false, error: 'Error: Invalid browser selection.' };
     }
     if (!downloadFolder && action !== 'List Formats' && action !== 'Download Subtitles') {
-        document.getElementById('output').textContent = 'Error: Please select a download folder.';
-        return;
+        return { ok: false, error: 'Error: Please select a download folder.' };
+    }
+    if (action === 'Download (Custom Format)' && !formatCode) {
+        return {
+            ok: false,
+            error: 'Error: Please enter a format code (e.g., 140, 356, or 140+356) for audio/video download.'
+        };
     }
 
-    // Clear previous progress handler
-    if (progressHandler) {
-        progressHandler();
-    }
+    return {
+        ok: true,
+        values: { url, action, formatCode, browser, downloadFolder }
+    };
+}
 
-    let args = [...getProxyArgs()];
+// Build yt-dlp CLI arguments for the chosen action
+async function buildActionArgs(action, { url, browser, downloadFolder, formatCode }) {
+    const args = [...getProxyArgs()];
     if (browser) {
         args.push('--cookies-from-browser', browser);
     }
@@ -366,240 +373,246 @@ window.runCommand = async function () {
             args.push('-F', url);
             break;
         case 'Download (Custom Format)':
-            if (formatCode) {
-                args.push('-f', formatCode);
-                if (!cachedFormatList) {
-                    document.getElementById('output').textContent =
-                        'Detecting format metadata... (run "List Formats" first to skip this step)';
-                }
-                if (!await isImageFormat(formatCode, browser, url)) {
-                    const audioFmt = await getAudioOnlyWebmFormat(formatCode, browser, url);
-                    if (audioFmt) {
-                        // Extract audio so --embed-thumbnail works
-                        args.push('-x', '--audio-format', audioFmt);
-                    }
-                    args.push('--embed-thumbnail');
-                }
-                args.push('-P', downloadFolder, url);
-            } else {
+            args.push('-f', formatCode);
+            if (!cachedFormatList) {
                 document.getElementById('output').textContent =
-                    'Error: Please enter a format code (e.g., 140, 356, or 140+356) for audio/video download.';
-                return;
+                    'Detecting format metadata... (run "List Formats" first to skip this step)';
             }
+            if (!await isImageFormat(formatCode, browser, url)) {
+                const audioFmt = await getAudioOnlyWebmFormat(formatCode, browser, url);
+                if (audioFmt) {
+                    args.push('-x', '--audio-format', audioFmt);
+                }
+                args.push('--embed-thumbnail');
+            }
+            args.push('-P', downloadFolder, url);
             break;
-        case 'Download Subtitles':
-            // Handle subtitle download workflow separately
-            await handleSubtitleDownload(url, browser, downloadFolder);
-            return;
         case 'Download Thumbnail':
-            // Download only the video thumbnail in its original format, no video/audio
             args.push('--write-thumbnail', '--skip-download', '-P', downloadFolder, url);
             break;
         case 'Download & Re-encode as high quality MP4 (H.264/AAC)':
             args.push('--write-thumbnail', '--convert-thumbnails', 'jpg', '-P', downloadFolder, url);
             break;
-        case 'Download & Add Hardsub (Only Support on macOS)':
-            // Handle hardsub workflow separately
-            await handleHardsubAction(url, browser, downloadFolder);
-            return;
         default:
             args.push('--embed-thumbnail', '-P', downloadFolder, url);
             break;
     }
+    return args;
+}
 
-    // Store the command line for progress updates
+// Manage cancel button UI state without cloning DOM nodes
+function showCancelButton(onCancel = null) {
+    const cancelActionControls = document.getElementById('cancelActionControls');
+    const cancelActionBtn = document.getElementById('cancelActionBtn');
+    if (!cancelActionControls || !cancelActionBtn) return;
+
+    cancelActionControls.style.display = 'block';
+    cancelActionBtn.disabled = false;
+    cancelActionBtn.textContent = 'Cancel Action';
+
+    cancelActionBtn.onclick = async () => {
+        cancelActionBtn.disabled = true;
+        cancelActionBtn.textContent = 'Cancelling...';
+        if (onCancel) {
+            await onCancel();
+        } else {
+            await window.electronAPI.cancelCommand();
+        }
+    };
+}
+
+function hideCancelButton() {
+    const cancelActionControls = document.getElementById('cancelActionControls');
+    const cancelActionBtn = document.getElementById('cancelActionBtn');
+    if (cancelActionControls) cancelActionControls.style.display = 'none';
+    if (cancelActionBtn) {
+        cancelActionBtn.onclick = null;
+        cancelActionBtn.disabled = false;
+        cancelActionBtn.textContent = 'Cancel Action';
+    }
+}
+
+// Render status banner with CSS classes
+function renderStatusBanner(status, message) {
+    const outputElement = document.getElementById('output');
+    if (!outputElement) return;
+
+    const banner = document.createElement('div');
+    banner.className = `completion-hint ${status}`;
+    banner.textContent = message;
+    outputElement.appendChild(banner);
+}
+
+// Extract video ID from URL supporting YouTube formats and fallbacks
+function extractVideoId(url) {
+    try {
+        const urlObj = new URL(url);
+        if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
+            if (urlObj.pathname.includes('/shorts/')) {
+                const id = urlObj.pathname.split('/shorts/')[1];
+                return id ? id.split('/')[0].split('?')[0] : '';
+            }
+            if (urlObj.pathname.includes('/watch')) {
+                return urlObj.searchParams.get('v') || '';
+            }
+            if (urlObj.hostname.includes('youtu.be')) {
+                return urlObj.pathname.substring(1).split('/')[0].split('?')[0];
+            }
+        }
+        return urlObj.searchParams.get('v') || urlObj.pathname.split('/').filter(Boolean).pop() || '';
+    } catch {
+        return '';
+    }
+}
+
+// Handle format list result and automatically transition UI
+function handleFormatListSelection(result, isCancelled, isError) {
+    cachedFormatList = result || '';
+    if (!isCancelled && !isError) {
+        const actionSelect = document.getElementById('action');
+        if (actionSelect) {
+            actionSelect.value = 'Download (Custom Format)';
+            updateFormatCodeVisibility();
+            actionSelect.dispatchEvent(new Event('change'));
+            const formatCodeInput = document.getElementById('formatCode');
+            if (formatCodeInput) {
+                formatCodeInput.focus();
+            }
+        }
+    }
+}
+
+// Handle optional re-encode workflow following download
+async function handleReEncodePrompt({ url, downloadFolder, commandLine, cleanResult }) {
+    const shouldReEncode = confirm(
+        'Video download completed! Would you like to re-encode it to high quality MP4 (H.264/AAC)?\n\n' +
+        'This will:\n' +
+        '• Use H.264 video codec with maximum quality (CRF 18)\n' +
+        '• Use AAC audio codec for maximum compatibility\n' +
+        '• Replace the original file with the re-encoded version\n\n' +
+        'Note: Re-encoding may take some time depending on the video length.\n\n' +
+        'If you skip re-encoding, the original video format will be preserved.'
+    );
+
+    if (!shouldReEncode) {
+        document.getElementById('output').textContent +=
+            '\n\nRe-encoding skipped. Original video file preserved.';
+        return;
+    }
+
+    document.getElementById('output').textContent +=
+        '\n\nRe-encoding videos to H.264/AAC...\n';
+
+    const videoId = extractVideoId(url);
+    if (!videoId) {
+        document.getElementById('output').textContent +=
+            'Could not extract video ID from URL.';
+        return;
+    }
+
+    showCancelButton();
+
+    try {
+        const reEncodeResult = await window.electronAPI.reEncodeToMp4(downloadFolder, videoId);
+        let parsedResult;
+        try {
+            parsedResult = JSON.parse(reEncodeResult);
+        } catch {
+            parsedResult = { text: reEncodeResult, tmpFiles: [] };
+        }
+
+        document.getElementById('output').textContent =
+            commandLine + '\n' + cleanResult + '\n' + parsedResult.text;
+
+        if (parsedResult.tmpFiles && parsedResult.tmpFiles.length > 0) {
+            const shouldDelete = await showCleanupModal(
+                'Re-encoding completed successfully. Do you want to delete the temporary downloaded files (original video and thumbnail)?'
+            );
+            if (shouldDelete) {
+                await window.electronAPI.deleteTemporaryFiles(parsedResult.tmpFiles);
+            }
+        }
+    } catch (reEncodeError) {
+        document.getElementById('output').textContent +=
+            `\nRe-encoding error: ${reEncodeError.message || reEncodeError}`;
+    } finally {
+        hideCancelButton();
+    }
+}
+
+window.runCommand = async function () {
+    const validation = validateRunInputs();
+    if (!validation.ok) {
+        document.getElementById('output').textContent = validation.error;
+        return;
+    }
+
+    const { url, action, formatCode, browser, downloadFolder } = validation.values;
+
+    if (action === 'Download Subtitles') {
+        await handleSubtitleDownload(url, browser, downloadFolder);
+        return;
+    }
+    if (action === 'Download & Add Hardsub (Only Support on macOS)') {
+        await handleHardsubAction(url, browser, downloadFolder);
+        return;
+    }
+
+    if (progressHandler) {
+        progressHandler();
+    }
+
+    const args = await buildActionArgs(action, { url, browser, downloadFolder, formatCode });
     const commandLine = 'Running: yt-dlp ' + args.join(' ');
+    const outputElement = document.getElementById('output');
 
-    // Set up new progress handler
     progressHandler = window.electronAPI.onProgress((progress) => {
-        const outputElement = document.getElementById('output');
-        // Only show command line + latest progress
         outputElement.textContent = commandLine + '\n' + progress;
     });
 
-    document.getElementById('output').textContent = commandLine + '\n';
+    outputElement.textContent = commandLine + '\n';
     console.log('Running command:', args);
 
-    // Show generic cancel button
-    const cancelActionControls = document.getElementById('cancelActionControls');
-    const cancelActionBtn = document.getElementById('cancelActionBtn');
-
-    if (cancelActionControls) cancelActionControls.style.display = 'block';
-    if (cancelActionBtn) {
-        cancelActionBtn.disabled = false;
-        cancelActionBtn.textContent = 'Cancel Action';
-
-        // Remove old listeners to prevent duplicates
-        const newCancelBtn = cancelActionBtn.cloneNode(true);
-        cancelActionBtn.parentNode.replaceChild(newCancelBtn, cancelActionBtn);
-
-        newCancelBtn.addEventListener('click', async () => {
-            newCancelBtn.disabled = true;
-            newCancelBtn.textContent = 'Cancelling...';
-            await window.electronAPI.cancelCommand();
-        });
-    }
+    showCancelButton();
 
     try {
         const result = await window.electronAPI.runCommand(args);
-
-        // Clean the result by removing progress lines and keeping only the final message
         const cleanResult = action === 'List Formats' ? result.trim() : cleanYtDlpResult(result);
+        outputElement.textContent = commandLine + '\n' + cleanResult;
 
-        document.getElementById('output').textContent = commandLine + '\n' + cleanResult;
-
-        // Check for cancellation or process errors
-        const isCancelled =
-            (result || '').includes('cancelled by user') ||
-            document.getElementById('output').textContent.includes('cancelled by user');
-
+        const isCancelled = (result || '').includes('cancelled by user');
         const isError =
             (result || '').includes('Process exited with code') ||
             (result || '').includes('ERROR:') ||
-            (result || '').startsWith('Error:') ||
-            document.getElementById('output').textContent.includes('Process exited with code') ||
-            document.getElementById('output').textContent.includes('ERROR:');
+            (result || '').startsWith('Error:');
 
-        // Cache the format list output and automatically switch to "Download (Custom Format)"
         if (action === 'List Formats') {
-            cachedFormatList = result || '';
-            if (!isCancelled && !isError) {
-                const actionSelect = document.getElementById('action');
-                if (actionSelect) {
-                    actionSelect.value = 'Download (Custom Format)';
-                    updateFormatCodeVisibility();
-                    actionSelect.dispatchEvent(new Event('change'));
-                    const formatCodeInput = document.getElementById('formatCode');
-                    if (formatCodeInput) {
-                        formatCodeInput.focus();
-                    }
-                }
-            }
-        }
-
-        // Ask for confirmation before re-encoding (only on successful download)
-        if (
+            handleFormatListSelection(result, isCancelled, isError);
+        } else if (
             action === 'Download & Re-encode as high quality MP4 (H.264/AAC)' &&
             downloadFolder &&
             !isCancelled &&
             !isError
         ) {
-            const shouldReEncode = confirm(
-                'Video download completed! Would you like to re-encode it to high quality MP4 (H.264/AAC)?\n\nThis will:\n• Use H.264 video codec with maximum quality (CRF 18)\n• Use AAC audio codec for maximum compatibility\n• Replace the original file with the re-encoded version\n\nNote: Re-encoding may take some time depending on the video length.\n\nIf you skip re-encoding, the original video format will be preserved.'
-            );
-
-            if (shouldReEncode) {
-                document.getElementById('output').textContent +=
-                    '\n\nRe-encoding videos to H.264/AAC...\n';
-
-                try {
-                    // Extract video ID from URL
-                    const urlObj = new URL(url);
-                    let videoId = '';
-
-                    // Handle different YouTube URL formats
-                    if (
-                        urlObj.hostname.includes('youtube.com') ||
-                        urlObj.hostname.includes('youtu.be')
-                    ) {
-                        if (urlObj.pathname.includes('/shorts/')) {
-                            videoId = urlObj.pathname.split('/shorts/')[1];
-                        } else if (urlObj.pathname.includes('/watch')) {
-                            videoId = urlObj.searchParams.get('v');
-                        } else if (urlObj.hostname.includes('youtu.be')) {
-                            videoId = urlObj.pathname.substring(1);
-                        }
-                    }
-
-                    if (videoId) {
-                        try {
-                            // Show cancel button
-                            const cancelActionControls = document.getElementById('cancelActionControls');
-                            const cancelActionBtn = document.getElementById('cancelActionBtn');
-                            if (cancelActionControls) cancelActionControls.style.display = 'block';
-                            if (cancelActionBtn) {
-                                cancelActionBtn.disabled = false;
-                                cancelActionBtn.textContent = 'Cancel Action';
-                            }
-
-                            const reEncodeResult = await window.electronAPI.reEncodeToMp4(
-                                downloadFolder,
-                                videoId
-                            );
-
-                            let parsedResult;
-                            try {
-                                parsedResult = JSON.parse(reEncodeResult);
-                            } catch {
-                                parsedResult = { text: reEncodeResult, tmpFiles: [] };
-                            }
-
-                            document.getElementById('output').textContent =
-                                commandLine + '\n' + cleanResult + '\n' + parsedResult.text;
-
-                            if (parsedResult.tmpFiles && parsedResult.tmpFiles.length > 0) {
-                                const shouldDelete = await showCleanupModal('Re-encoding completed successfully. Do you want to delete the temporary downloaded files (original video and thumbnail)?');
-                                if (shouldDelete) {
-                                    await window.electronAPI.deleteTemporaryFiles(parsedResult.tmpFiles);
-                                }
-                            }
-                        } finally {
-                            // Hide cancel button
-                            const cancelActionControls = document.getElementById('cancelActionControls');
-                            if (cancelActionControls) cancelActionControls.style.display = 'none';
-                        }
-                    } else {
-                        document.getElementById('output').textContent +=
-                            'Could not extract video ID from URL.';
-                    }
-                } catch (reEncodeError) {
-                    document.getElementById('output').textContent +=
-                        `\nRe-encoding error: ${reEncodeError}`;
-                }
-            } else {
-                document.getElementById('output').textContent +=
-                    '\n\nRe-encoding skipped. Original video file preserved.';
-            }
+            await handleReEncodePrompt({ url, downloadFolder, commandLine, cleanResult });
         }
 
-        // Hide generic cancel button
-        if (cancelActionControls) cancelActionControls.style.display = 'none';
-
-        // Add completion hint if it's a download action
         if (action !== 'List Formats') {
-            const completionHint = document.createElement('div');
-            completionHint.style.marginTop = '10px';
-            completionHint.style.padding = '10px';
-            completionHint.style.borderRadius = '4px';
-
             if (isCancelled) {
-                completionHint.style.backgroundColor = '#ffebee';
-                completionHint.style.color = '#c62828';
-                completionHint.innerHTML = '❌ Download canceled!';
+                renderStatusBanner('cancelled', '❌ Download canceled!');
             } else if (isError) {
-                completionHint.style.backgroundColor = '#ffebee';
-                completionHint.style.color = '#c62828';
-                completionHint.innerHTML = '❌ Download failed!';
+                renderStatusBanner('error', '❌ Download failed!');
             } else {
-                completionHint.style.backgroundColor = '#e8f5e9';
-                completionHint.style.color = '#2e7d32';
-                completionHint.innerHTML = '✅ Download completed!';
+                renderStatusBanner('success', '✅ Download completed!');
             }
-            document.getElementById('output').appendChild(completionHint);
         }
     } catch (e) {
-        document.getElementById('output').textContent += '\nError: ' + e;
-        if (cancelActionControls) cancelActionControls.style.display = 'none';
+        outputElement.textContent += '\nError: ' + e;
         if (action !== 'List Formats') {
-            const completionHint = document.createElement('div');
-            completionHint.style.marginTop = '10px';
-            completionHint.style.padding = '10px';
-            completionHint.style.borderRadius = '4px';
-            completionHint.style.backgroundColor = '#ffebee';
-            completionHint.style.color = '#c62828';
-            completionHint.innerHTML = '❌ Download failed!';
-            document.getElementById('output').appendChild(completionHint);
+            renderStatusBanner('error', '❌ Download failed!');
         }
+    } finally {
+        hideCancelButton();
     }
 };
 
@@ -629,7 +642,9 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
     output.textContent = 'Fetching available subtitles...';
 
     try {
-        const proxyUrl = getProxyArgs().length ? `socks5://${document.getElementById('proxyAddress').value.trim()}/` : '';
+        const proxyUrl = getProxyArgs().length
+            ? `socks5://${document.getElementById('proxyAddress').value.trim()}/`
+            : '';
         const result = await window.electronAPI.listSubtitles(url, browser, proxyUrl);
 
         if (result.error) {
@@ -643,7 +658,6 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
         }
 
         const selectedSubtitle = await showSubtitleModal(result.subtitles, result.isAutoGenerated);
-
         if (!selectedSubtitle) {
             output.textContent = 'Subtitle download cancelled.';
             return;
@@ -656,27 +670,35 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
             args.push('--cookies-from-browser', browser);
         }
         const subsFlag = selectedSubtitle.type === 'manual' ? '--write-subs' : '--write-auto-subs';
-        args.push(subsFlag, '--sub-langs', selectedSubtitle.code, '--skip-download', '--convert-subs', 'vtt', '-P', downloadFolder, url);
+        args.push(
+            subsFlag,
+            '--sub-langs', selectedSubtitle.code,
+            '--skip-download',
+            '--convert-subs', 'vtt',
+            '-P', downloadFolder,
+            url
+        );
 
-        const cmdResult = await window.electronAPI.runCommand(args);
+        showCancelButton();
 
-        if (cmdResult.includes('cancelled by user')) {
-            output.textContent = 'Subtitle download cancelled.';
-            const completionHint = document.createElement('div');
-            completionHint.style.marginTop = '10px';
-            completionHint.style.padding = '10px';
-            completionHint.style.backgroundColor = '#ffebee';
-            completionHint.style.borderRadius = '4px';
-            completionHint.style.color = '#c62828';
-            completionHint.innerHTML = '❌ Download canceled!';
-            output.appendChild(completionHint);
-        } else if (cmdResult.includes('There are no subtitles for the requested languages')) {
-            output.textContent = 'No subtitles available for this video.';
-        } else {
-            output.textContent = `✅ Subtitle downloaded: ${selectedSubtitle.name} (${selectedSubtitle.code})`;
+        try {
+            const cmdResult = await window.electronAPI.runCommand(args);
+
+            if (cmdResult.includes('cancelled by user')) {
+                output.textContent = 'Subtitle download cancelled.';
+                renderStatusBanner('cancelled', '❌ Download canceled!');
+            } else if (cmdResult.includes('There are no subtitles for the requested languages')) {
+                output.textContent = 'No subtitles available for this video.';
+            } else {
+                output.textContent = `✅ Subtitle downloaded: ${selectedSubtitle.name} (${selectedSubtitle.code})`;
+                renderStatusBanner('success', '✅ Subtitle downloaded successfully!');
+            }
+        } finally {
+            hideCancelButton();
         }
     } catch (error) {
         output.textContent = `Error: ${error.message}`;
+        renderStatusBanner('error', '❌ Download failed!');
     }
 }
 
@@ -690,12 +712,10 @@ async function handleHardsubAction(url, browser, downloadFolder) {
         return;
     }
 
-    // Clear previous progress handler
     if (progressHandler) {
         progressHandler();
     }
 
-    // Set up progress handler
     progressHandler = window.electronAPI.onProgress((progress) => {
         output.textContent = progress;
     });
@@ -703,8 +723,9 @@ async function handleHardsubAction(url, browser, downloadFolder) {
     output.textContent = 'Fetching available subtitles...';
 
     try {
-        // Step 1: List available subtitles
-        const proxyUrl = getProxyArgs().length ? `socks5://${document.getElementById('proxyAddress').value.trim()}/` : '';
+        const proxyUrl = getProxyArgs().length
+            ? `socks5://${document.getElementById('proxyAddress').value.trim()}/`
+            : '';
         const result = await window.electronAPI.listSubtitles(url, browser, proxyUrl);
 
         if (result.error) {
@@ -717,37 +738,16 @@ async function handleHardsubAction(url, browser, downloadFolder) {
             return;
         }
 
-        // Step 2: Show subtitle selection modal
         const selectedSubtitle = await showSubtitleModal(result.subtitles, result.isAutoGenerated);
-
         if (!selectedSubtitle) {
             output.textContent = 'Subtitle selection cancelled.';
             return;
         }
 
         output.textContent = `Selected subtitle: ${selectedSubtitle.name} (${selectedSubtitle.code})\nStarting download...`;
-
-        // Show hardsub controls
-        const cancelActionControls = document.getElementById('cancelActionControls');
-        const cancelActionBtn = document.getElementById('cancelActionBtn');
-        if (cancelActionControls) cancelActionControls.style.display = 'block';
-        if (cancelActionBtn) {
-            cancelActionBtn.disabled = false;
-            cancelActionBtn.textContent = 'Cancel Action';
-
-            // Make sure listener is attached
-            const newCancelBtn = cancelActionBtn.cloneNode(true);
-            cancelActionBtn.parentNode.replaceChild(newCancelBtn, cancelActionBtn);
-
-            newCancelBtn.addEventListener('click', async () => {
-                newCancelBtn.disabled = true;
-                newCancelBtn.textContent = 'Cancelling...';
-                await window.electronAPI.cancelCommand();
-            });
-        }
+        showCancelButton();
 
         try {
-            // Step 3: Download and hardsub
             const hardsubResult = await window.electronAPI.downloadWithHardsub({
                 url,
                 browser,
@@ -768,50 +768,31 @@ async function handleHardsubAction(url, browser, downloadFolder) {
             output.textContent = parsedResult.text;
 
             if (parsedResult.tmpFiles && parsedResult.tmpFiles.length > 0) {
-                const shouldDelete = await showCleanupModal('Hardsub completed successfully. Do you want to delete the temporary downloaded files (original video, thumbnail, and subtitles)?');
+                const shouldDelete = await showCleanupModal(
+                    'Hardsub completed successfully. Do you want to delete the temporary downloaded files (original video, thumbnail, and subtitles)?'
+                );
                 if (shouldDelete) {
                     await window.electronAPI.deleteTemporaryFiles(parsedResult.tmpFiles);
                 }
             }
 
-            // Add completion hint
             if (parsedResult.text.includes('cancelled by user')) {
-                const completionHint = document.createElement('div');
-                completionHint.style.marginTop = '10px';
-                completionHint.style.padding = '10px';
-                completionHint.style.backgroundColor = '#ffebee';
-                completionHint.style.borderRadius = '4px';
-                completionHint.style.color = '#c62828';
-                completionHint.innerHTML = '❌ Hardsub canceled!';
-                output.appendChild(completionHint);
+                renderStatusBanner('cancelled', '❌ Hardsub canceled!');
             } else if (hardsubResult.includes('completed') || hardsubResult.includes('Saved as')) {
-                const completionHint = document.createElement('div');
-                completionHint.style.marginTop = '10px';
-                completionHint.style.padding = '10px';
-                completionHint.style.backgroundColor = '#e8f5e9';
-                completionHint.style.borderRadius = '4px';
-                completionHint.style.color = '#2e7d32';
-                completionHint.innerHTML = '✅ Hardsub completed!';
-                output.appendChild(completionHint);
+                renderStatusBanner('success', '✅ Hardsub completed!');
+            } else {
+                renderStatusBanner('error', '❌ Hardsub failed!');
             }
         } finally {
-            // Hide hardsub controls
-            const cancelActionControls = document.getElementById('cancelActionControls');
-            if (cancelActionControls) cancelActionControls.style.display = 'none';
+            hideCancelButton();
         }
     } catch (error) {
-        if (error.message.includes('cancelled by user')) {
+        if (error.message && error.message.includes('cancelled by user')) {
             output.textContent = 'Action cancelled by user.';
-            const completionHint = document.createElement('div');
-            completionHint.style.marginTop = '10px';
-            completionHint.style.padding = '10px';
-            completionHint.style.backgroundColor = '#ffebee';
-            completionHint.style.borderRadius = '4px';
-            completionHint.style.color = '#c62828';
-            completionHint.innerHTML = '❌ Hardsub canceled!';
-            output.appendChild(completionHint);
+            renderStatusBanner('cancelled', '❌ Hardsub canceled!');
         } else {
             output.textContent = `Error: ${error.message}`;
+            renderStatusBanner('error', '❌ Hardsub failed!');
         }
     }
 }

@@ -155,9 +155,23 @@ button.run-button:hover {
 .completion-hint {
     margin-top: 10px;
     padding: 10px;
-    background-color: #1b5e20;
     border-radius: 4px;
+    font-size: 14px;
+}
+
+.completion-hint.success {
+    background-color: #1b5e20;
     color: #81c784;
+}
+
+.completion-hint.error {
+    background-color: #b71c1c;
+    color: #ffcdd2;
+}
+
+.completion-hint.cancelled {
+    background-color: #e65100;
+    color: #ffe0b2;
 }
 
 .app-footer {
