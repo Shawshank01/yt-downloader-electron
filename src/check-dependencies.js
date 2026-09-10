@@ -1,81 +1,68 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { exit } from 'process';
+import { checkSystemDependencies, installMissingDependencies } from './dependencies.js';
 
-const execAsync = promisify(exec);
-
-async function checkCommand(command) {
-    try {
-        await execAsync(command);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-async function checkDependencies() {
+async function runPrestartCheck() {
     console.log('Checking required dependencies...');
 
-    const finder = process.platform === 'win32' ? 'where' : 'which';
+    const result = await checkSystemDependencies();
+    if (!result.success) {
+        console.error('Error checking dependencies:', result.message);
+        exit(1);
+    }
+
+    // Print status for already installed dependencies
+    for (const dep of result.dependencies) {
+        if (dep.installed) {
+            console.log(`✅ ${dep.name} is installed`);
+        }
+    }
+
+    if (result.allInstalled) {
+        console.log('\nAll dependencies are satisfied! Starting the app...\n');
+        return;
+    }
+
     const isMac = process.platform === 'darwin';
-
-    // Check for Homebrew
-    if (isMac) {
-        const hasHomebrew = await checkCommand(`${finder} brew`);
-        if (!hasHomebrew) {
-            console.error('\n❌ Homebrew is not installed. Please install it first:');
-            console.error(
-                '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-            );
-            exit(1);
+    if (!isMac) {
+        for (const name of result.missing) {
+            console.error(`\n❌ ${name} is not installed. Please install it manually via your OS package manager.`);
         }
-        console.log('✅ Homebrew is installed');
+        exit(1);
     }
 
-    // Check for yt-dlp
-    const hasYtDlp = await checkCommand(`${finder} yt-dlp`);
-    if (!hasYtDlp) {
-        if (isMac) {
-            console.error('\n❌ yt-dlp is not installed. Installing via Homebrew...');
-            try {
-                await execAsync('brew install yt-dlp');
-                console.log('✅ yt-dlp has been installed');
-            } catch (error) {
-                console.error('Failed to install yt-dlp:', error.message);
-                exit(1);
-            }
-        } else {
-            console.error('\n❌ yt-dlp is not installed. Please install it manually via your OS package manager.');
-            exit(1);
-        }
-    } else {
-        console.log('✅ yt-dlp is installed');
+    if (result.missing.includes('brew')) {
+        console.error('\n❌ Homebrew is not installed. Please install it first:');
+        console.error(
+            '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+        );
+        exit(1);
     }
 
-    // Check for ffmpeg
-    const hasFfmpeg = await checkCommand(`${finder} ffmpeg`);
-    if (!hasFfmpeg) {
-        if (isMac) {
-            console.error('\n❌ ffmpeg is not installed. Installing via Homebrew...');
-            try {
-                await execAsync('brew install ffmpeg');
-                console.log('✅ ffmpeg has been installed');
-            } catch (error) {
-                console.error('Failed to install ffmpeg:', error.message);
-                exit(1);
-            }
-        } else {
-            console.error('\n❌ ffmpeg is not installed. Please install it manually via your OS package manager.');
-            exit(1);
+    // Automatically install missing dependencies on macOS
+    for (const name of result.missing) {
+        console.log(`\n❌ ${name} is not installed. Installing via Homebrew...`);
+    }
+
+    const installResult = await installMissingDependencies({
+        onProgress: (msg) => console.log(msg)
+    });
+
+    if (!installResult.success) {
+        console.error('Failed to install dependencies:', installResult.message);
+        if (installResult.failed?.length) {
+            console.error('Failed items:', installResult.failed.join(', '));
         }
-    } else {
-        console.log('✅ ffmpeg is installed');
+        exit(1);
+    }
+
+    for (const name of installResult.installed) {
+        console.log(`✅ ${name} has been installed`);
     }
 
     console.log('\nAll dependencies are satisfied! Starting the app...\n');
 }
 
-checkDependencies().catch((error) => {
+runPrestartCheck().catch((error) => {
     console.error('Error checking dependencies:', error);
     exit(1);
 });

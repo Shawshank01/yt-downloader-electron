@@ -1,9 +1,10 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
-import { exec, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join, extname, basename } from 'path';
 import { promises as fs } from 'fs';
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
+import { checkSystemDependencies, installMissingDependencies } from './dependencies.js';
 
 // ESM-compatible dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -214,52 +215,17 @@ class LineStreamFilter {
     }
 }
 
-function runCommandWithOutput(command) {
-    return new Promise((resolve) => {
-        exec(command, { maxBuffer: 1024 * 1024 * 20 }, (error, stdout, stderr) => {
-            if (error) {
-                resolve({
-                    ok: false,
-                    stdout: stdout?.trim() || '',
-                    stderr: stderr?.trim() || '',
-                    error: error.message
-                });
-                return;
-            }
+// Helper to attach stdout and stderr line-stream filters to a child process
+function attachLineStreamFilters(child, onLine) {
+    const stdoutFilter = new LineStreamFilter(onLine);
+    const stderrFilter = new LineStreamFilter(onLine);
 
-            resolve({
-                ok: true,
-                stdout: stdout?.trim() || '',
-                stderr: stderr?.trim() || '',
-                error: ''
-            });
-        });
-    });
-}
+    child.stdout.on('data', (data) => stdoutFilter.push(data));
+    child.stderr.on('data', (data) => stderrFilter.push(data));
 
-async function getDependencyInfo(name, versionCommand) {
-    const pathCommand = process.platform === 'win32' ? `where ${name}` : `which ${name}`;
-    const pathResult = await runCommandWithOutput(pathCommand);
-    if (!pathResult.ok || !pathResult.stdout) {
-        return {
-            name,
-            installed: false,
-            path: '',
-            version: ''
-        };
-    }
-
-    const versionResult = await runCommandWithOutput(versionCommand);
-    const versionLine =
-        versionResult.stdout.split('\n')[0]?.trim() ||
-        versionResult.stderr.split('\n')[0]?.trim() ||
-        'Version unavailable';
-
-    return {
-        name,
-        installed: true,
-        path: pathResult.stdout.split('\n')[0].trim(),
-        version: versionLine
+    return () => {
+        stdoutFilter.flush();
+        stderrFilter.flush();
     };
 }
 
@@ -269,135 +235,11 @@ ipcMain.handle('cancel-command', async () => {
 });
 
 ipcMain.handle('check-dependencies', async () => {
-    try {
-        const isMac = process.platform === 'darwin';
-        const checkList = [
-            getDependencyInfo('yt-dlp', 'yt-dlp --version'),
-            getDependencyInfo('ffmpeg', 'ffmpeg -version')
-        ];
-
-        if (isMac) {
-            checkList.unshift(getDependencyInfo('brew', 'brew --version'));
-        }
-
-        const dependencies = await Promise.all(checkList);
-        const missing = dependencies.filter((dep) => !dep.installed).map((dep) => dep.name);
-
-        return {
-            success: true,
-            allInstalled: missing.length === 0,
-            dependencies,
-            missing,
-            platform: process.platform
-        };
-    } catch (error) {
-        return {
-            success: false,
-            message: error.message || 'Failed to check dependencies.'
-        };
-    }
+    return checkSystemDependencies();
 });
 
 ipcMain.handle('install-missing-dependencies', async (_event, options = {}) => {
-    if (process.platform !== 'darwin') {
-        return {
-            success: false,
-            message: 'Automatic installation is supported on macOS only.'
-        };
-    }
-
-    try {
-        const installHomebrew = Boolean(options.installHomebrew);
-        let brewInfo = await getDependencyInfo('brew', 'brew --version');
-
-        if (!brewInfo.installed) {
-            if (!installHomebrew) {
-                return {
-                    success: false,
-                    message:
-                        'Homebrew is not installed. Please install it first, then restart the dependency check.'
-                };
-            }
-
-            const brewInstallCommand =
-                '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"';
-            const brewInstallResult = await runCommandWithOutput(brewInstallCommand);
-            if (!brewInstallResult.ok) {
-                return {
-                    success: false,
-                    message:
-                        brewInstallResult.stderr ||
-                        brewInstallResult.error ||
-                        'Failed to install Homebrew.'
-                };
-            }
-
-            brewInfo = await getDependencyInfo('brew', 'brew --version');
-            if (!brewInfo.installed) {
-                return {
-                    success: false,
-                    message:
-                        'Homebrew installation command finished, but brew is still not found in PATH.'
-                };
-            }
-        }
-
-        const ytDlpInfo = await getDependencyInfo('yt-dlp', 'yt-dlp --version');
-        const ffmpegInfo = await getDependencyInfo('ffmpeg', 'ffmpeg -version');
-
-        const missing = [];
-        if (!ytDlpInfo.installed) missing.push('yt-dlp');
-        if (!ffmpegInfo.installed) missing.push('ffmpeg');
-
-        if (missing.length === 0) {
-            return {
-                success: true,
-                installed: [],
-                failed: [],
-                message: 'Nothing to install.',
-                dependencies: [brewInfo, ytDlpInfo, ffmpegInfo]
-            };
-        }
-
-        const installed = [];
-        const failed = [];
-        const details = {};
-
-        for (const dep of missing) {
-            const cmd = `brew install ${dep}`;
-            const result = await runCommandWithOutput(cmd);
-            details[dep] = result;
-
-            if (result.ok) {
-                installed.push(dep);
-            } else {
-                failed.push(dep);
-            }
-        }
-
-        const finalDependencies = await Promise.all([
-            getDependencyInfo('brew', 'brew --version'),
-            getDependencyInfo('yt-dlp', 'yt-dlp --version'),
-            getDependencyInfo('ffmpeg', 'ffmpeg -version')
-        ]);
-
-        return {
-            success: failed.length === 0,
-            installed,
-            failed,
-            message:
-                failed.length === 0
-                    ? 'Installation completed.'
-                    : 'Installation finished with some failures.',
-            dependencies: finalDependencies,
-            details
-        };
-    } catch (error) {
-        return {
-            success: false,
-            message: error.message || 'Failed to install dependencies.'
-        };
-    }
+    return installMissingDependencies(options);
 });
 
 function createWindow() {
@@ -483,15 +325,10 @@ ipcMain.handle('run-command', async (event, args) => {
             }
         };
 
-        const stdoutFilter = new LineStreamFilter(handleCleanLine);
-        const stderrFilter = new LineStreamFilter(handleCleanLine);
-
-        child.stdout.on('data', (data) => stdoutFilter.push(data));
-        child.stderr.on('data', (data) => stderrFilter.push(data));
+        const flushFilters = attachLineStreamFilters(child, handleCleanLine);
 
         child.on('close', (code) => {
-            stdoutFilter.flush();
-            stderrFilter.flush();
+            flushFilters();
 
             const wasCancelled = task.isCancelled;
             taskManager.endTask(task);
@@ -636,13 +473,27 @@ async function runFfmpegWithCodecFallback({ task, event, buildArgs, outputPath, 
     return { success, lastCode, isCancelled: task.isCancelled };
 }
 
+// Supported video file extensions for transcoding and discovery
+const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
+
+// Find matching thumbnail file by 20-character filename prefix
+function findMatchingThumbnail(files, baseName) {
+    const prefix = baseName.substring(0, 20);
+    for (const f of files) {
+        const name = typeof f === 'string' ? f : f.file;
+        if (name.endsWith('.jpg') && name.includes(prefix)) {
+            return name;
+        }
+    }
+    return null;
+}
+
 // Find video and thumbnail files for re-encoding
 async function findVideoToReEncode(downloadFolder, videoId) {
-    const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
     const allFiles = await fs.readdir(downloadFolder);
     const files = allFiles.filter((file) => {
         const lower = file.toLowerCase();
-        return videoExtensions.some((ext) => lower.endsWith(ext)) && file.includes(videoId);
+        return VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext)) && file.includes(videoId);
     });
 
     if (files.length === 0) return null;
@@ -651,14 +502,7 @@ async function findVideoToReEncode(downloadFolder, videoId) {
     const filePath = join(downloadFolder, file);
     const fileExt = extname(file);
     const filename = basename(file, fileExt);
-
-    let thumbnailFile = null;
-    for (const f of allFiles) {
-        if (f.endsWith('.jpg') && f.includes(filename.substring(0, 20))) {
-            thumbnailFile = f;
-            break;
-        }
-    }
+    const thumbnailFile = findMatchingThumbnail(allFiles, filename);
     const thumbnailPath = thumbnailFile ? join(downloadFolder, thumbnailFile) : null;
 
     return { file, filePath, filename, thumbnailPath };
@@ -666,7 +510,6 @@ async function findVideoToReEncode(downloadFolder, videoId) {
 
 // Find media, subtitles, and thumbnail for hardsubbing
 async function findHardsubSourceFiles(downloadFolder, subtitleLang) {
-    const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
     const allFiles = await fs.readdir(downloadFolder);
 
     const filesWithStats = await Promise.all(
@@ -681,7 +524,7 @@ async function findHardsubSourceFiles(downloadFolder, subtitleLang) {
     let videoFile = null;
     for (const { file } of filesWithStats) {
         const lower = file.toLowerCase();
-        if (videoExtensions.some((ext) => lower.endsWith(ext)) && !file.includes('_hardsub')) {
+        if (VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext)) && !file.includes('_hardsub')) {
             videoFile = file;
             break;
         }
@@ -706,13 +549,7 @@ async function findHardsubSourceFiles(downloadFolder, subtitleLang) {
     }
     if (!subtitleFile) return null;
 
-    let thumbnailFile = null;
-    for (const { file } of filesWithStats) {
-        if (file.endsWith('.jpg') && file.includes(videoBasename.substring(0, 20))) {
-            thumbnailFile = f;
-            break;
-        }
-    }
+    const thumbnailFile = findMatchingThumbnail(filesWithStats, videoBasename);
 
     const videoPath = join(downloadFolder, videoFile);
     const subtitlePath = join(downloadFolder, subtitleFile);
@@ -928,22 +765,15 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                 return;
             }
 
-            const handleProgressLine = (line) => {
+            const flushFilters = attachLineStreamFilters(child, (line) => {
                 const trimmed = line.trim();
                 if (isProgressLine(trimmed) || trimmed.startsWith('[download]')) {
                     event.sender.send('download-progress', trimmed);
                 }
-            };
-
-            const stdoutFilter = new LineStreamFilter(handleProgressLine);
-            const stderrFilter = new LineStreamFilter(handleProgressLine);
-
-            child.stdout.on('data', (data) => stdoutFilter.push(data));
-            child.stderr.on('data', (data) => stderrFilter.push(data));
+            });
 
             child.on('close', (code) => {
-                stdoutFilter.flush();
-                stderrFilter.flush();
+                flushFilters();
                 resolve(code);
             });
         });

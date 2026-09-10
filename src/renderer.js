@@ -88,38 +88,47 @@ function cleanYtDlpResult(result) {
     if (!result) return result;
 
     const lines = result.split(/[\r\n]+/);
-    const cleanLines = [];
+    const nonNoiseLines = [];
+    const nonProgressLines = [];
 
     for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 
-        if (isProgressLine(trimmed) || isExtractorOrNoiseLine(trimmed)) {
-            continue;
+        if (!isProgressLine(trimmed)) {
+            nonProgressLines.push(trimmed);
+            if (!isExtractorOrNoiseLine(trimmed)) {
+                nonNoiseLines.push(trimmed);
+            }
         }
-
-        cleanLines.push(trimmed);
     }
 
-    if (cleanLines.length === 0) {
-        const nonProgress = lines.map((l) => l.trim()).filter((l) => l && !isProgressLine(l));
-        return (nonProgress.length > 0 ? nonProgress : lines.map((l) => l.trim()).filter(Boolean)).join('\n').trim();
+    if (nonNoiseLines.length > 0) {
+        return nonNoiseLines.join('\n');
     }
-
-    return cleanLines.join('\n').trim();
+    if (nonProgressLines.length > 0) {
+        return nonProgressLines.join('\n');
+    }
+    return result.trim();
 }
 
-// Build proxy args for yt-dlp if proxy is enabled
-function getProxyArgs() {
+// Resolve proxy URL if proxy is enabled
+function getProxyUrl() {
     const proxyEnabled = document.getElementById('proxyEnabled');
     const proxyAddress = document.getElementById('proxyAddress');
     if (proxyEnabled && proxyEnabled.checked && proxyAddress) {
         const addr = proxyAddress.value.trim();
         if (addr) {
-            return ['--proxy', `socks5://${addr}/`];
+            return `socks5://${addr}/`;
         }
     }
-    return [];
+    return '';
+}
+
+// Build proxy args for yt-dlp if proxy is enabled
+function getProxyArgs() {
+    const proxyUrl = getProxyUrl();
+    return proxyUrl ? ['--proxy', proxyUrl] : [];
 }
 
 window.chooseFolder = async function () {
@@ -642,9 +651,7 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
     output.textContent = 'Fetching available subtitles...';
 
     try {
-        const proxyUrl = getProxyArgs().length
-            ? `socks5://${document.getElementById('proxyAddress').value.trim()}/`
-            : '';
+        const proxyUrl = getProxyUrl();
         const result = await window.electronAPI.listSubtitles(url, browser, proxyUrl);
 
         if (result.error) {
@@ -723,9 +730,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
     output.textContent = 'Fetching available subtitles...';
 
     try {
-        const proxyUrl = getProxyArgs().length
-            ? `socks5://${document.getElementById('proxyAddress').value.trim()}/`
-            : '';
+        const proxyUrl = getProxyUrl();
         const result = await window.electronAPI.listSubtitles(url, browser, proxyUrl);
 
         if (result.error) {
