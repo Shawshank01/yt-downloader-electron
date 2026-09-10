@@ -440,7 +440,7 @@ function buildFfmpegReEncodeArgs({ filePath, outputPath, thumbnailPath, audioCod
 // Helper to construct FFmpeg arguments for hardcoding subtitles
 function buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnailPath, codec, audioCodec }) {
     const args = [];
-    const escapedSubPath = subtitlePath.replace(/'/g, "'\\''").replace(/:/g, '\\:');
+    const escapedSubPath = subtitlePath.replace(/\\/g, '/').replace(/'/g, "'\\''").replace(/:/g, '\\:');
 
     if (process.platform === 'darwin') {
         args.push('-hwaccel', 'videotoolbox');

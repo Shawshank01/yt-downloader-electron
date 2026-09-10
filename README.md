@@ -110,14 +110,14 @@ This will create a distributable package in the `dist` directory.
      - Audio: AAC (aac_at preferred with CVBR 128k, falls back to libfdk_aac, then aac if not available)
      - Container: MP4 with proper AVC1 tag
 
-5. **Download with Hardsub (macOS Only)**
+5. **Download with Hardsub**
    - Enter the video URL
-   - Select "Download with Hardsub (macOS)"
+   - Select "Download & Add Hardsub"
    - Choose your preferred codec (H.264 or HEVC)
    - Click "Run"
    - Select the subtitle language from the popup dialog
-   - The app will securely download the best video quality and automatically hardcode the subtitles using macOS hardware acceleration (`videotoolbox`).
-   - *Note: Requires `Songti SC` font to be available on your system.*
+   - The app will securely download the best video quality and automatically hardcode the subtitles using macOS hardware acceleration (`videotoolbox`) or universal encoders on Windows and Linux (`libx264`/`libx265`).
+   - *Note: Subtitle fonts adapt automatically to your operating system (PingFang SC/Songti SC on macOS, Microsoft YaHei/Arial on Windows, DejaVu Sans on Linux).*
 
 6. **SOCKS5 Proxy Mode**
    - Toggle the **SOCKS5 Proxy** switch to route all `yt-dlp` requests (including subtitle metadata fetching and media downloads) through a proxy server.

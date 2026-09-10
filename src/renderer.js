@@ -672,7 +672,7 @@ window.runCommand = async function () {
         await handleSubtitleDownload(url, browser, downloadFolder);
         return;
     }
-    if (action === 'Download & Add Hardsub (Only Support on macOS)') {
+    if (action === 'Download & Add Hardsub' || action === 'Download & Add Hardsub (Only Support on macOS)') {
         await handleHardsubAction(url, browser, downloadFolder);
         return;
     }
@@ -754,7 +754,8 @@ function updateFormatCodeVisibility() {
         formatGroup.style.display = action === 'Download (Custom Format)' ? '' : 'none';
     }
     if (codecGroup) {
-        codecGroup.style.display = action === 'Download & Add Hardsub (Only Support on macOS)' ? '' : 'none';
+        codecGroup.style.display =
+            (action === 'Download & Add Hardsub' || action === 'Download & Add Hardsub (Only Support on macOS)') ? '' : 'none';
     }
 }
 
