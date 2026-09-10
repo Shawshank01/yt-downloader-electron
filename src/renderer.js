@@ -452,26 +452,112 @@ function renderStatusBanner(status, message) {
     outputElement.appendChild(banner);
 }
 
-// Extract video ID from URL supporting YouTube formats and fallbacks
+// Extract video ID from URL supporting YouTube, TikTok, Twitter/X, Instagram, Bilibili, Reddit, and generic platforms
 function extractVideoId(url) {
     try {
         const urlObj = new URL(url);
-        if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
-            if (urlObj.pathname.includes('/shorts/')) {
-                const id = urlObj.pathname.split('/shorts/')[1];
+        const host = urlObj.hostname.toLowerCase();
+        const path = urlObj.pathname;
+
+        // 1. YouTube
+        if (host.includes('youtube.com') || host.includes('youtu.be')) {
+            if (path.includes('/shorts/')) {
+                const id = path.split('/shorts/')[1];
                 return id ? id.split('/')[0].split('?')[0] : '';
             }
-            if (urlObj.pathname.includes('/watch')) {
+            if (path.includes('/embed/')) {
+                const id = path.split('/embed/')[1];
+                return id ? id.split('/')[0].split('?')[0] : '';
+            }
+            if (path.includes('/live/')) {
+                const id = path.split('/live/')[1];
+                return id ? id.split('/')[0].split('?')[0] : '';
+            }
+            if (path.includes('/watch')) {
                 return urlObj.searchParams.get('v') || '';
             }
-            if (urlObj.hostname.includes('youtu.be')) {
-                return urlObj.pathname.substring(1).split('/')[0].split('?')[0];
+            if (host.includes('youtu.be')) {
+                return path.substring(1).split('/')[0].split('?')[0];
             }
         }
-        return urlObj.searchParams.get('v') || urlObj.pathname.split('/').filter(Boolean).pop() || '';
+
+        // 2. Twitter / X (e.g., https://x.com/user/status/1234567890)
+        if (host.includes('twitter.com') || host.includes('x.com')) {
+            const m = path.match(/status(?:es)?\/(\d+)/i);
+            if (m) return m[1];
+        }
+
+        // 3. TikTok (e.g., https://www.tiktok.com/@user/video/1234567890)
+        if (host.includes('tiktok.com')) {
+            const m = path.match(/(?:video|v)\/(\d+)/i);
+            if (m) return m[1];
+        }
+
+        // 4. Instagram (e.g., https://www.instagram.com/reel/C12345/)
+        if (host.includes('instagram.com')) {
+            const m = path.match(/(?:reel|p|tv)\/([A-Za-z0-9_-]+)/i);
+            if (m) return m[1];
+        }
+
+        // 5. Bilibili (e.g., https://www.bilibili.com/video/BV1xx411c7mD)
+        if (host.includes('bilibili.com')) {
+            const m = path.match(/(BV[a-zA-Z0-9]+|av\d+)/i);
+            if (m) return m[1];
+        }
+
+        // 6. Reddit (e.g., https://www.reddit.com/r/videos/comments/abc123/title/)
+        if (host.includes('reddit.com')) {
+            const m = path.match(/\/comments\/([a-z0-9]+)/i);
+            if (m) return m[1];
+        }
+
+        // 7. Vimeo (e.g., https://vimeo.com/123456789)
+        if (host.includes('vimeo.com')) {
+            const m = path.match(/\/(\d+)/);
+            if (m) return m[1];
+        }
+
+        // 8. Facebook (e.g., https://www.facebook.com/watch/?v=123456)
+        if (host.includes('facebook.com')) {
+            if (urlObj.searchParams.has('v')) return urlObj.searchParams.get('v');
+            const m = path.match(/(?:reel|videos)\/(\d+)/i);
+            if (m) return m[1];
+        }
+
+        // 9. Generic query param search
+        for (const param of ['v', 'id', 'video_id', 'item_id']) {
+            const val = urlObj.searchParams.get(param);
+            if (val) return val;
+        }
+
+        // 10. Generic last path segment fallback
+        const segments = path.split('/').filter(Boolean);
+        if (segments.length > 0) {
+            return segments[segments.length - 1].split('.')[0];
+        }
+
+        return '';
     } catch {
         return '';
     }
+}
+
+// Extract downloaded video destination path from yt-dlp stdout lines
+function extractDownloadedPath(text) {
+    if (!text) return null;
+    const lines = text.split(/[\r\n]+/);
+    for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        const mergeMatch = line.match(/^\[Merger\] Merging formats into ["']?(.+?)["']?$/i);
+        if (mergeMatch) return mergeMatch[1].trim();
+
+        const alreadyMatch = line.match(/^\[download\]\s+["']?(.+?)["']?\s+has already been downloaded/i);
+        if (alreadyMatch) return alreadyMatch[1].trim();
+
+        const destMatch = line.match(/^\[(?:download|ExtractAudio)\] Destination:\s+["']?(.+?)["']?$/i);
+        if (destMatch) return destMatch[1].trim();
+    }
+    return null;
 }
 
 // Handle format list result and automatically transition UI
@@ -496,7 +582,7 @@ async function handleReEncodePrompt({ url, downloadFolder, commandLine, cleanRes
     const shouldReEncode = confirm(
         'Video download completed! Would you like to re-encode it to high quality MP4 (H.264/AAC)?\n\n' +
         'This will:\n' +
-        '• Use H.264 video codec with maximum quality (CRF 18)\n' +
+        '• Use H.264 video codec with high quality (CRF 22)\n' +
         '• Use AAC audio codec for maximum compatibility\n' +
         '• Replace the original file with the re-encoded version\n\n' +
         'Note: Re-encoding may take some time depending on the video length.\n\n' +
@@ -512,17 +598,20 @@ async function handleReEncodePrompt({ url, downloadFolder, commandLine, cleanRes
     document.getElementById('output').textContent +=
         '\n\nRe-encoding videos to H.264/AAC...\n';
 
-    const videoId = extractVideoId(url);
-    if (!videoId) {
+    // Prefer exact downloaded file path from yt-dlp output, or fall back to extracted video ID
+    const downloadedPath = extractDownloadedPath(cleanResult);
+    const targetIdentifier = downloadedPath || extractVideoId(url);
+
+    if (!targetIdentifier) {
         document.getElementById('output').textContent +=
-            'Could not extract video ID from URL.';
+            'Could not determine video file or extract video ID from URL.';
         return;
     }
 
     showCancelButton();
 
     try {
-        const reEncodeResult = await window.electronAPI.reEncodeToMp4(downloadFolder, videoId);
+        const reEncodeResult = await window.electronAPI.reEncodeToMp4(downloadFolder, targetIdentifier);
         let parsedResult;
         try {
             parsedResult = JSON.parse(reEncodeResult);

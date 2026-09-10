@@ -11,12 +11,15 @@ const extraPaths = [
 ];
 process.env.PATH = [...new Set([...(process.env.PATH || '').split(':'), ...extraPaths])].join(':');
 
+// 20 MB maximum buffer size for command output capture
+const MAX_BUFFER_BYTES = 20 * 1024 * 1024;
+
 /**
  * Execute a shell command and return captured stdout, stderr, and success status.
  */
 export function runCommandWithOutput(command) {
     return new Promise((resolve) => {
-        exec(command, { maxBuffer: 1024 * 1024 * 20 }, (error, stdout, stderr) => {
+        exec(command, { maxBuffer: MAX_BUFFER_BYTES }, (error, stdout, stderr) => {
             if (error) {
                 resolve({
                     ok: false,

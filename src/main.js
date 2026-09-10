@@ -346,24 +346,56 @@ ipcMain.handle('run-command', async (event, args) => {
     });
 });
 
+// Platform-adaptive default subtitle font
+const DEFAULT_SUBTITLE_FONT = process.platform === 'darwin'
+    ? 'PingFang SC,Songti SC'
+    : process.platform === 'win32'
+        ? 'Microsoft YaHei,Arial'
+        : 'DejaVu Sans,sans-serif';
+
+// Centralised transcoding and encoding configuration parameters
+const TRANSCODE_CONFIG = {
+    crf: '22',
+    preset: 'veryslow',
+    audioBitrate: '128k',
+    h264Bitrate: '4000k',
+    hevcBitrate: '2500k',
+    pixelFormatHevc: 'p010le',
+    tagH264: 'avc1',
+    tagHevc: 'hvc1',
+    audioCodecs: ['aac_at', 'libfdk_aac', 'aac']
+};
+
 // Helper to construct FFmpeg arguments for re-encoding
 function buildFfmpegReEncodeArgs({ filePath, outputPath, thumbnailPath, audioCodec }) {
     const args = ['-i', filePath];
     if (thumbnailPath) {
         args.push('-i', thumbnailPath);
         args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
-        args.push('-c:v:0', 'libx264', '-crf:0', '22', '-preset', 'veryslow', '-c:a:0', audioCodec, '-tag:v:0', 'avc1');
+        args.push(
+            '-c:v:0', 'libx264',
+            '-crf:0', TRANSCODE_CONFIG.crf,
+            '-preset', TRANSCODE_CONFIG.preset,
+            '-c:a:0', audioCodec,
+            '-tag:v:0', TRANSCODE_CONFIG.tagH264
+        );
         if (audioCodec === 'aac_at') {
             args.push('-aac_at_mode', 'cvbr');
         }
-        args.push('-b:a:0', '128k');
+        args.push('-b:a:0', TRANSCODE_CONFIG.audioBitrate);
         args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
     } else {
-        args.push('-c:v', 'libx264', '-crf', '22', '-preset', 'veryslow', '-c:a', audioCodec, '-tag:v', 'avc1');
+        args.push(
+            '-c:v', 'libx264',
+            '-crf', TRANSCODE_CONFIG.crf,
+            '-preset', TRANSCODE_CONFIG.preset,
+            '-c:a', audioCodec,
+            '-tag:v', TRANSCODE_CONFIG.tagH264
+        );
         if (audioCodec === 'aac_at') {
             args.push('-aac_at_mode', 'cvbr');
         }
-        args.push('-b:a', '128k');
+        args.push('-b:a', TRANSCODE_CONFIG.audioBitrate);
     }
     args.push(outputPath);
     return args;
@@ -377,26 +409,27 @@ function buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnail
     args.push('-hwaccel', 'videotoolbox');
     args.push('-i', videoPath);
 
+    const subFilter = `subtitles='${escapedSubPath}':force_style='FontName=${DEFAULT_SUBTITLE_FONT}'`;
     if (thumbnailPath) {
         args.push('-i', thumbnailPath);
         args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
-        args.push('-filter:v:0', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
+        args.push('-filter:v:0', subFilter);
     } else {
-        args.push('-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
+        args.push('-vf', subFilter);
     }
 
     if (codec === 'hevc') {
         args.push(
             thumbnailPath ? '-c:v:0' : '-c:v', 'hevc_videotoolbox',
-            '-pix_fmt', 'p010le',
-            thumbnailPath ? '-b:v:0' : '-b:v', '2500k',
-            thumbnailPath ? '-tag:v:0' : '-tag:v', 'hvc1'
+            '-pix_fmt', TRANSCODE_CONFIG.pixelFormatHevc,
+            thumbnailPath ? '-b:v:0' : '-b:v', TRANSCODE_CONFIG.hevcBitrate,
+            thumbnailPath ? '-tag:v:0' : '-tag:v', TRANSCODE_CONFIG.tagHevc
         );
     } else {
         args.push(
             thumbnailPath ? '-c:v:0' : '-c:v', 'h264_videotoolbox',
-            thumbnailPath ? '-b:v:0' : '-b:v', '4000k',
-            thumbnailPath ? '-tag:v:0' : '-tag:v', 'avc1'
+            thumbnailPath ? '-b:v:0' : '-b:v', TRANSCODE_CONFIG.h264Bitrate,
+            thumbnailPath ? '-tag:v:0' : '-tag:v', TRANSCODE_CONFIG.tagH264
         );
     }
 
@@ -404,7 +437,7 @@ function buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnail
     if (audioCodec === 'aac_at') {
         args.push('-aac_at_mode', 'cvbr');
     }
-    args.push(thumbnailPath ? '-b:a:0' : '-b:a', '128k');
+    args.push(thumbnailPath ? '-b:a:0' : '-b:a', TRANSCODE_CONFIG.audioBitrate);
 
     if (thumbnailPath) {
         args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
@@ -416,7 +449,7 @@ function buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnail
 
 // Reusable runner for FFmpeg transcoding with automatic audio codec fallbacks
 async function runFfmpegWithCodecFallback({ task, event, buildArgs, outputPath, logPrefix }) {
-    const audioCodecs = ['aac_at', 'libfdk_aac', 'aac'];
+    const audioCodecs = TRANSCODE_CONFIG.audioCodecs;
     let success = false;
     let lastCode = 0;
 
@@ -476,86 +509,142 @@ async function runFfmpegWithCodecFallback({ task, event, buildArgs, outputPath, 
 // Supported video file extensions for transcoding and discovery
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
 
-// Find matching thumbnail file by 20-character filename prefix
+// Supported image extensions for video thumbnails
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.webp', '.png'];
+
+// Find matching thumbnail file using exact basename match or basename prefix
 function findMatchingThumbnail(files, baseName) {
-    const prefix = baseName.substring(0, 20);
-    for (const f of files) {
-        const name = typeof f === 'string' ? f : f.file;
-        if (name.endsWith('.jpg') && name.includes(prefix)) {
+    const fileNames = files.map((f) => (typeof f === 'string' ? f : f.file));
+
+    // Priority 1: Exact basename match (e.g., "title.jpg", "title.webp")
+    for (const ext of IMAGE_EXTENSIONS) {
+        const exact = `${baseName}${ext}`;
+        if (fileNames.includes(exact)) {
+            return exact;
+        }
+    }
+
+    // Priority 2: File begins with baseName and has an image extension
+    const basePrefix = `${baseName}.`;
+    for (const name of fileNames) {
+        const lower = name.toLowerCase();
+        if ((name.startsWith(basePrefix) || name.startsWith(baseName)) &&
+            IMAGE_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
             return name;
         }
     }
+
     return null;
 }
 
 // Find video and thumbnail files for re-encoding
-async function findVideoToReEncode(downloadFolder, videoId) {
+async function findVideoToReEncode(downloadFolder, targetIdentifier) {
     const allFiles = await fs.readdir(downloadFolder);
-    const files = allFiles.filter((file) => {
+
+    // Case 1: targetIdentifier matches a specific existing file in downloadFolder
+    const directMatch = allFiles.find((f) => f === targetIdentifier || join(downloadFolder, f) === targetIdentifier);
+    if (directMatch) {
+        const filePath = join(downloadFolder, directMatch);
+        const fileExt = extname(directMatch);
+        const filename = basename(directMatch, fileExt);
+        const thumbnailFile = findMatchingThumbnail(allFiles, filename);
+        const thumbnailPath = thumbnailFile ? join(downloadFolder, thumbnailFile) : null;
+        return { file: directMatch, filePath, filename, thumbnailPath };
+    }
+
+    // Case 2: Match by video ID or name fragment
+    const candidates = allFiles.filter((file) => {
         const lower = file.toLowerCase();
-        return VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext)) && file.includes(videoId);
+        return VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext)) &&
+            (!targetIdentifier || file.includes(targetIdentifier));
     });
 
-    if (files.length === 0) return null;
+    if (candidates.length === 0) return null;
 
-    const file = files[0];
-    const filePath = join(downloadFolder, file);
-    const fileExt = extname(file);
-    const filename = basename(file, fileExt);
+    // If multiple candidates exist, sort only candidate files by mtime descending to get the most recent
+    let chosenFile = candidates[0];
+    if (candidates.length > 1) {
+        const candidatesWithStats = await Promise.all(
+            candidates.map(async (file) => {
+                const stat = await fs.stat(join(downloadFolder, file));
+                return { file, mtime: stat.mtimeMs };
+            })
+        );
+        candidatesWithStats.sort((a, b) => b.mtime - a.mtime);
+        chosenFile = candidatesWithStats[0].file;
+    }
+
+    const filePath = join(downloadFolder, chosenFile);
+    const fileExt = extname(chosenFile);
+    const filename = basename(chosenFile, fileExt);
     const thumbnailFile = findMatchingThumbnail(allFiles, filename);
     const thumbnailPath = thumbnailFile ? join(downloadFolder, thumbnailFile) : null;
 
-    return { file, filePath, filename, thumbnailPath };
+    return { file: chosenFile, filePath, filename, thumbnailPath };
 }
 
 // Find media, subtitles, and thumbnail for hardsubbing
-async function findHardsubSourceFiles(downloadFolder, subtitleLang) {
+async function findHardsubSourceFiles(downloadFolder, subtitleLang, downloadedFilePath = null) {
     const allFiles = await fs.readdir(downloadFolder);
 
-    const filesWithStats = await Promise.all(
-        allFiles.map(async (file) => {
-            const filePath = join(downloadFolder, file);
-            const stat = await fs.stat(filePath);
-            return { file, mtime: stat.mtime };
-        })
-    );
-    filesWithStats.sort((a, b) => b.mtime - a.mtime);
-
     let videoFile = null;
-    for (const { file } of filesWithStats) {
-        const lower = file.toLowerCase();
-        if (VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext)) && !file.includes('_hardsub')) {
-            videoFile = file;
-            break;
+    if (downloadedFilePath) {
+        const candidate = basename(downloadedFilePath);
+        if (allFiles.includes(candidate)) {
+            videoFile = candidate;
         }
     }
-    if (!videoFile) return null;
 
-    const videoBasename = basename(videoFile, extname(videoFile));
+    // Fallback: search candidate video files in downloadFolder, statting only candidates
+    if (!videoFile) {
+        const candidates = allFiles.filter((file) => {
+            const lower = file.toLowerCase();
+            return VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext)) && !file.includes('_hardsub');
+        });
+
+        if (candidates.length === 0) return null;
+
+        if (candidates.length === 1) {
+            videoFile = candidates[0];
+        } else {
+            const candidatesWithStats = await Promise.all(
+                candidates.map(async (file) => {
+                    const stat = await fs.stat(join(downloadFolder, file));
+                    return { file, mtime: stat.mtimeMs };
+                })
+            );
+            candidatesWithStats.sort((a, b) => b.mtime - a.mtime);
+            videoFile = candidatesWithStats[0].file;
+        }
+    }
+
+    const videoExt = extname(videoFile);
+    const videoName = basename(videoFile, videoExt);
+
+    // Locate matching subtitle file deterministically:
+    // 1. Exact: ${videoName}.${subtitleLang}.vtt
+    // 2. Subtitle starting with ${videoName} and containing subtitleLang
+    // 3. Base: ${videoName}.vtt
+    // 4. Any vtt starting with ${videoName}
     let subtitleFile = null;
-    for (const { file } of filesWithStats) {
-        if (file.endsWith('.vtt') && file.includes(videoBasename.substring(0, 20))) {
-            subtitleFile = file;
-            break;
+    const exactSub = `${videoName}.${subtitleLang}.vtt`;
+    if (allFiles.includes(exactSub)) {
+        subtitleFile = exactSub;
+    } else {
+        const videoSubCandidates = allFiles.filter((f) => f.startsWith(videoName) && f.endsWith('.vtt'));
+        if (videoSubCandidates.length > 0) {
+            const langMatch = videoSubCandidates.find((f) => f.includes(subtitleLang));
+            subtitleFile = langMatch || videoSubCandidates[0];
         }
     }
-    if (!subtitleFile) {
-        for (const { file } of filesWithStats) {
-            if (file.endsWith('.vtt') && file.includes(subtitleLang)) {
-                subtitleFile = file;
-                break;
-            }
-        }
-    }
+
     if (!subtitleFile) return null;
 
-    const thumbnailFile = findMatchingThumbnail(filesWithStats, videoBasename);
+    const thumbnailFile = findMatchingThumbnail(allFiles, videoName);
 
     const videoPath = join(downloadFolder, videoFile);
     const subtitlePath = join(downloadFolder, subtitleFile);
     const thumbnailPath = thumbnailFile ? join(downloadFolder, thumbnailFile) : null;
-    const videoExt = extname(videoFile);
-    const videoName = basename(videoFile, videoExt);
 
     return { videoFile, videoPath, subtitlePath, thumbnailPath, videoName };
 }
@@ -741,12 +830,14 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
 
     try {
         // Step 1: Download video with subtitle (limit to avc1/H.264)
+        const manifestFile = join(app.getPath('temp'), `ytdl-sub-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.txt`);
         const subsFlag = subtitleType === 'manual' ? '--write-subs' : '--write-auto-subs';
         let args = [
             '-f', 'bestvideo[vcodec^=avc1]+bestaudio/best[vcodec^=avc1]',
             subsFlag, '--sub-langs', subtitleLang,
             '--convert-subs', 'vtt',
             '--write-thumbnail', '--convert-thumbnails', 'jpg',
+            '--print-to-file', 'after_move:filepath', manifestFile,
             '-P', downloadFolder
         ];
         if (proxy) args.push('--proxy', proxy);
@@ -756,6 +847,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         event.sender.send('download-progress', 'Downloading video and subtitles...');
         console.log('Download command:', args);
 
+        let capturedDownloadPath = null;
         const downloadCode = await new Promise((resolve) => {
             let child;
             try {
@@ -770,6 +862,10 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                 if (isProgressLine(trimmed) || trimmed.startsWith('[download]')) {
                     event.sender.send('download-progress', trimmed);
                 }
+                const mergeMatch = trimmed.match(/^\[Merger\] Merging formats into ["']?(.+?)["']?$/i);
+                if (mergeMatch) capturedDownloadPath = mergeMatch[1];
+                const destMatch = trimmed.match(/^\[download\] Destination:\s+["']?(.+?)["']?$/i);
+                if (destMatch && !capturedDownloadPath) capturedDownloadPath = destMatch[1];
             });
 
             child.on('close', (code) => {
@@ -777,6 +873,18 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                 resolve(code);
             });
         });
+
+        // Determine downloaded file path from manifest or stdout capture
+        let downloadedFilePath = capturedDownloadPath;
+        try {
+            const manifestContent = await fs.readFile(manifestFile, 'utf8');
+            const lines = manifestContent.trim().split(/[\r\n]+/);
+            if (lines[0] && lines[0].trim()) {
+                downloadedFilePath = lines[0].trim();
+            }
+        } catch { /* ignore if manifest not written */ }
+
+        try { await fs.unlink(manifestFile); } catch { /* ignore */ }
 
         if (task.isCancelled) {
             return 'Hardsub cancelled by user.';
@@ -790,7 +898,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             return 'Hardsub cancelled by user.';
         }
 
-        const media = await findHardsubSourceFiles(downloadFolder, subtitleLang);
+        const media = await findHardsubSourceFiles(downloadFolder, subtitleLang, downloadedFilePath);
         if (!media) {
             return 'Error: Video or subtitle file not found after download.';
         }
