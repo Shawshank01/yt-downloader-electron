@@ -612,27 +612,35 @@ async function handleReEncodePrompt({ url, downloadFolder, commandLine, cleanRes
 
     try {
         const reEncodeResult = await window.electronAPI.reEncodeToMp4(downloadFolder, targetIdentifier);
-        let parsedResult;
-        try {
-            parsedResult = JSON.parse(reEncodeResult);
-        } catch {
-            parsedResult = { text: reEncodeResult, tmpFiles: [] };
-        }
+        const res = typeof reEncodeResult === 'string'
+            ? (() => { try { return JSON.parse(reEncodeResult); } catch { return { success: false, message: reEncodeResult, tmpFiles: [] }; } })()
+            : reEncodeResult;
 
+        const messageText = res.message || res.text || '';
         document.getElementById('output').textContent =
-            commandLine + '\n' + cleanResult + '\n' + parsedResult.text;
+            commandLine + '\n' + cleanResult + '\n' + messageText;
 
-        if (parsedResult.tmpFiles && parsedResult.tmpFiles.length > 0) {
+        if (res.tmpFiles && res.tmpFiles.length > 0) {
             const shouldDelete = await showCleanupModal(
                 'Re-encoding completed successfully. Do you want to delete the temporary downloaded files (original video and thumbnail)?'
             );
             if (shouldDelete) {
-                await window.electronAPI.deleteTemporaryFiles(parsedResult.tmpFiles);
+                await window.electronAPI.deleteTemporaryFiles(res.tmpFiles);
+                document.getElementById('output').textContent += '\n\nTemporary files cleaned up.';
             }
+        }
+
+        if (res.cancelled) {
+            renderStatusBanner('cancelled', '❌ Re-encoding canceled!');
+        } else if (res.success) {
+            renderStatusBanner('success', '✅ Re-encoding completed successfully!');
+        } else {
+            renderStatusBanner('error', '❌ Re-encoding failed!');
         }
     } catch (reEncodeError) {
         document.getElementById('output').textContent +=
             `\nRe-encoding error: ${reEncodeError.message || reEncodeError}`;
+        renderStatusBanner('error', '❌ Re-encoding failed!');
     } finally {
         hideCancelButton();
     }
@@ -674,18 +682,27 @@ window.runCommand = async function () {
     showCancelButton();
 
     try {
-        const result = await window.electronAPI.runCommand(args);
-        const cleanResult = action === 'List Formats' ? result.trim() : cleanYtDlpResult(result);
+        const rawResult = await window.electronAPI.runCommand(args);
+        const res = typeof rawResult === 'object' && rawResult !== null
+            ? rawResult
+            : {
+                success: !(rawResult || '').includes('Process exited with code') &&
+                         !(rawResult || '').includes('ERROR:') &&
+                         !(rawResult || '').startsWith('Error:'),
+                cancelled: (rawResult || '').includes('cancelled by user'),
+                output: rawResult || '',
+                error: (rawResult || '').includes('ERROR:') ? rawResult : ''
+            };
+
+        const resultOutput = res.output || '';
+        const cleanResult = action === 'List Formats' ? resultOutput.trim() : cleanYtDlpResult(resultOutput);
         outputElement.textContent = commandLine + '\n' + cleanResult;
 
-        const isCancelled = (result || '').includes('cancelled by user');
-        const isError =
-            (result || '').includes('Process exited with code') ||
-            (result || '').includes('ERROR:') ||
-            (result || '').startsWith('Error:');
+        const isCancelled = res.cancelled;
+        const isError = !res.success && !isCancelled;
 
         if (action === 'List Formats') {
-            handleFormatListSelection(result, isCancelled, isError);
+            handleFormatListSelection(resultOutput, isCancelled, isError);
         } else if (
             action === 'Download & Re-encode as high quality MP4 (H.264/AAC)' &&
             downloadFolder &&
@@ -705,7 +722,7 @@ window.runCommand = async function () {
             }
         }
     } catch (e) {
-        outputElement.textContent += '\nError: ' + e;
+        outputElement.textContent += '\nError: ' + (e?.message || e);
         if (action !== 'List Formats') {
             renderStatusBanner('error', '❌ Download failed!');
         }
@@ -778,13 +795,23 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
         showCancelButton();
 
         try {
-            const cmdResult = await window.electronAPI.runCommand(args);
+            const rawCmdResult = await window.electronAPI.runCommand(args);
+            const res = typeof rawCmdResult === 'object' && rawCmdResult !== null
+                ? rawCmdResult
+                : {
+                    success: !(rawCmdResult || '').includes('Process exited with code') && !(rawCmdResult || '').includes('ERROR:'),
+                    cancelled: (rawCmdResult || '').includes('cancelled by user'),
+                    output: rawCmdResult || ''
+                };
 
-            if (cmdResult.includes('cancelled by user')) {
+            if (res.cancelled) {
                 output.textContent = 'Subtitle download cancelled.';
                 renderStatusBanner('cancelled', '❌ Download canceled!');
-            } else if (cmdResult.includes('There are no subtitles for the requested languages')) {
+            } else if (!res.success && (res.output || '').includes('There are no subtitles for the requested languages')) {
                 output.textContent = 'No subtitles available for this video.';
+            } else if (!res.success) {
+                output.textContent = `Subtitle download failed: ${res.error || res.output || 'Unknown error'}`;
+                renderStatusBanner('error', '❌ Download failed!');
             } else {
                 output.textContent = `✅ Subtitle downloaded: ${selectedSubtitle.name} (${selectedSubtitle.code})`;
                 renderStatusBanner('success', '✅ Subtitle downloaded successfully!');
@@ -793,7 +820,7 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
             hideCancelButton();
         }
     } catch (error) {
-        output.textContent = `Error: ${error.message}`;
+        output.textContent = `Error: ${error.message || error}`;
         renderStatusBanner('error', '❌ Download failed!');
     }
 }
@@ -842,7 +869,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
         showCancelButton();
 
         try {
-            const hardsubResult = await window.electronAPI.downloadWithHardsub({
+            const rawHardsubResult = await window.electronAPI.downloadWithHardsub({
                 url,
                 browser,
                 downloadFolder,
@@ -852,27 +879,36 @@ async function handleHardsubAction(url, browser, downloadFolder) {
                 proxy: proxyUrl
             });
 
-            let parsedResult;
-            try {
-                parsedResult = JSON.parse(hardsubResult);
-            } catch {
-                parsedResult = { text: hardsubResult, tmpFiles: [] };
-            }
+            const res = typeof rawHardsubResult === 'object' && rawHardsubResult !== null
+                ? rawHardsubResult
+                : (() => {
+                    try {
+                        return JSON.parse(rawHardsubResult);
+                    } catch {
+                        return {
+                            success: (rawHardsubResult || '').includes('completed') || (rawHardsubResult || '').includes('Saved as'),
+                            cancelled: (rawHardsubResult || '').includes('cancelled by user'),
+                            message: rawHardsubResult || '',
+                            tmpFiles: []
+                        };
+                    }
+                })();
 
-            output.textContent = parsedResult.text;
+            const messageText = res.message || res.text || '';
+            output.textContent = messageText;
 
-            if (parsedResult.tmpFiles && parsedResult.tmpFiles.length > 0) {
+            if (res.tmpFiles && res.tmpFiles.length > 0) {
                 const shouldDelete = await showCleanupModal(
                     'Hardsub completed successfully. Do you want to delete the temporary downloaded files (original video, thumbnail, and subtitles)?'
                 );
                 if (shouldDelete) {
-                    await window.electronAPI.deleteTemporaryFiles(parsedResult.tmpFiles);
+                    await window.electronAPI.deleteTemporaryFiles(res.tmpFiles);
                 }
             }
 
-            if (parsedResult.text.includes('cancelled by user')) {
+            if (res.cancelled) {
                 renderStatusBanner('cancelled', '❌ Hardsub canceled!');
-            } else if (hardsubResult.includes('completed') || hardsubResult.includes('Saved as')) {
+            } else if (res.success) {
                 renderStatusBanner('success', '✅ Hardsub completed!');
             } else {
                 renderStatusBanner('error', '❌ Hardsub failed!');
@@ -881,11 +917,11 @@ async function handleHardsubAction(url, browser, downloadFolder) {
             hideCancelButton();
         }
     } catch (error) {
-        if (error.message && error.message.includes('cancelled by user')) {
+        if (error?.cancelled || (error?.message && error.message.includes('cancelled by user'))) {
             output.textContent = 'Action cancelled by user.';
             renderStatusBanner('cancelled', '❌ Hardsub canceled!');
         } else {
-            output.textContent = `Error: ${error.message}`;
+            output.textContent = `Error: ${error?.message || error}`;
             renderStatusBanner('error', '❌ Hardsub failed!');
         }
     }

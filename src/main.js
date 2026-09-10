@@ -298,7 +298,13 @@ ipcMain.handle('run-command', async (event, args) => {
     try {
         task = taskManager.startTask('run-command');
     } catch (err) {
-        return `Error: ${err.message}`;
+        return {
+            success: false,
+            cancelled: false,
+            code: -1,
+            output: '',
+            error: err.message
+        };
     }
 
     return new Promise((resolve) => {
@@ -307,7 +313,13 @@ ipcMain.handle('run-command', async (event, args) => {
             child = taskManager.spawnProcess(task, 'yt-dlp', args);
         } catch (err) {
             taskManager.endTask(task);
-            resolve(err.message);
+            resolve({
+                success: false,
+                cancelled: false,
+                code: -1,
+                output: '',
+                error: err.message
+            });
             return;
         }
 
@@ -333,14 +345,31 @@ ipcMain.handle('run-command', async (event, args) => {
             const wasCancelled = task.isCancelled;
             taskManager.endTask(task);
 
-            let output = outputLines.join('\n');
+            const output = outputLines.join('\n').trim();
             if (wasCancelled) {
-                resolve('Action cancelled by user.');
+                resolve({
+                    success: false,
+                    cancelled: true,
+                    code: code ?? -1,
+                    output: 'Action cancelled by user.',
+                    error: 'Action cancelled by user.'
+                });
+            } else if (code !== 0) {
+                resolve({
+                    success: false,
+                    cancelled: false,
+                    code,
+                    output,
+                    error: `Process exited with code ${code}`
+                });
             } else {
-                if (code !== 0) {
-                    output += `\nProcess exited with code ${code}`;
-                }
-                resolve(output.trim());
+                resolve({
+                    success: true,
+                    cancelled: false,
+                    code: 0,
+                    output,
+                    error: ''
+                });
             }
         });
     });
@@ -657,13 +686,25 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
     try {
         task = taskManager.startTask('re-encode');
     } catch (err) {
-        return `Error: ${err.message}`;
+        return {
+            success: false,
+            cancelled: false,
+            message: `Error: ${err.message}`,
+            error: err.message,
+            tmpFiles: []
+        };
     }
 
     try {
         const media = await findVideoToReEncode(downloadFolder, videoId);
         if (!media) {
-            return "No matching video file found to re-encode.";
+            return {
+                success: false,
+                cancelled: false,
+                message: 'No matching video file found to re-encode.',
+                error: 'No matching video file found to re-encode.',
+                tmpFiles: []
+            };
         }
 
         const { file, filePath, filename, thumbnailPath } = media;
@@ -683,7 +724,13 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
         if (result.isCancelled) {
             console.log("Re-encoding was cancelled. Cleaning up temporary output only...");
             try { await fs.unlink(outputPath); } catch { /* ignore */ }
-            return "Re-encoding cancelled by user. Files cleaned up.";
+            return {
+                success: false,
+                cancelled: true,
+                message: 'Re-encoding cancelled by user. Files cleaned up.',
+                error: 'Action cancelled by user.',
+                tmpFiles: []
+            };
         }
 
         if (result.success) {
@@ -695,16 +742,30 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
             if (filePath !== finalPath) tmpFiles.push(filePath);
             if (thumbnailPath && thumbnailPath !== finalPath) tmpFiles.push(thumbnailPath);
 
-            return JSON.stringify({
-                text: `Re-encoding completed successfully. Saved as: ${filename}.mp4`,
+            return {
+                success: true,
+                cancelled: false,
+                message: `Re-encoding completed successfully. Saved as: ${filename}.mp4`,
                 tmpFiles
-            });
+            };
         } else {
             try { await fs.unlink(outputPath); } catch { /* ignore */ }
-            return `Failed to re-encode ${file} with exit code ${result.lastCode}`;
+            return {
+                success: false,
+                cancelled: false,
+                message: `Failed to re-encode ${file} with exit code ${result.lastCode}`,
+                error: `Process exited with code ${result.lastCode}`,
+                tmpFiles: []
+            };
         }
     } catch (error) {
-        return `Error during re-encoding: ${error.message}`;
+        return {
+            success: false,
+            cancelled: false,
+            message: `Error during re-encoding: ${error.message}`,
+            error: error.message,
+            tmpFiles: []
+        };
     } finally {
         taskManager.endTask(task);
     }
@@ -749,13 +810,13 @@ ipcMain.handle('list-subtitles', async (_event, url, browser, proxy) => {
             child.stderr.on('data', (data) => stderr += data);
             child.on('error', (err) => {
                 console.error('list-subtitles process error:', err);
-                resolve({ error: true, message: err.message, subtitles: [], isAutoGenerated: false });
+                resolve({ success: false, error: true, message: err.message, subtitles: [], isAutoGenerated: false });
             });
 
             child.on('close', (code) => {
                 if (code !== 0) {
                     console.error('Error getting video info:', stderr);
-                    resolve({ error: true, message: stderr || 'Unknown error', subtitles: [], isAutoGenerated: false });
+                    resolve({ success: false, error: true, message: stderr || 'Unknown error', subtitles: [], isAutoGenerated: false });
                     return;
                 }
 
@@ -804,14 +865,14 @@ ipcMain.handle('list-subtitles', async (_event, url, browser, proxy) => {
                         console.log('No subtitles available');
                     }
 
-                    resolve({ error: false, subtitles: subtitlesToReturn, isAutoGenerated });
+                    resolve({ success: true, error: false, message: '', subtitles: subtitlesToReturn, isAutoGenerated });
                 } catch (parseError) {
                     console.error('Error parsing video info:', parseError);
-                    resolve({ error: true, message: 'Failed to parse video information', subtitles: [], isAutoGenerated: false });
+                    resolve({ success: false, error: true, message: 'Failed to parse video information', subtitles: [], isAutoGenerated: false });
                 }
             });
         } catch (err) {
-            resolve({ error: true, message: err.message, subtitles: [], isAutoGenerated: false });
+            resolve({ success: false, error: true, message: err.message, subtitles: [], isAutoGenerated: false });
         }
     });
 });
@@ -825,7 +886,13 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
     try {
         task = taskManager.startTask('hardsub');
     } catch (err) {
-        return `Error: ${err.message}`;
+        return {
+            success: false,
+            cancelled: false,
+            message: `Error: ${err.message}`,
+            error: err.message,
+            tmpFiles: []
+        };
     }
 
     try {
@@ -887,20 +954,44 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         try { await fs.unlink(manifestFile); } catch { /* ignore */ }
 
         if (task.isCancelled) {
-            return 'Hardsub cancelled by user.';
+            return {
+                success: false,
+                cancelled: true,
+                message: 'Hardsub cancelled by user.',
+                error: 'Action cancelled by user.',
+                tmpFiles: []
+            };
         }
         if (downloadCode !== 0) {
-            return `Download failed with code ${downloadCode}`;
+            return {
+                success: false,
+                cancelled: false,
+                message: `Download failed with code ${downloadCode}`,
+                error: `Download failed with code ${downloadCode}`,
+                tmpFiles: []
+            };
         }
 
         // Step 2: Find downloaded files
         if (task.isCancelled) {
-            return 'Hardsub cancelled by user.';
+            return {
+                success: false,
+                cancelled: true,
+                message: 'Hardsub cancelled by user.',
+                error: 'Action cancelled by user.',
+                tmpFiles: []
+            };
         }
 
         const media = await findHardsubSourceFiles(downloadFolder, subtitleLang, downloadedFilePath);
         if (!media) {
-            return 'Error: Video or subtitle file not found after download.';
+            return {
+                success: false,
+                cancelled: false,
+                message: 'Error: Video or subtitle file not found after download.',
+                error: 'Video or subtitle file not found after download.',
+                tmpFiles: []
+            };
         }
 
         const { videoFile, videoPath, subtitlePath, thumbnailPath, videoName } = media;
@@ -912,7 +1003,13 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         console.log('Output path:', outputPath);
 
         if (task.isCancelled) {
-            return 'Hardsub cancelled by user.';
+            return {
+                success: false,
+                cancelled: true,
+                message: 'Hardsub cancelled by user.',
+                error: 'Action cancelled by user.',
+                tmpFiles: []
+            };
         }
 
         // Step 3: Run ffmpeg with hardsub
@@ -929,7 +1026,13 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         if (result.isCancelled) {
             console.log("Hardsub was cancelled. Cleaning up temporary output only...");
             try { await fs.unlink(outputPath); } catch { /* ignore */ }
-            return "Hardsub cancelled by user.";
+            return {
+                success: false,
+                cancelled: true,
+                message: 'Hardsub cancelled by user.',
+                error: 'Action cancelled by user.',
+                tmpFiles: []
+            };
         }
 
         if (result.success) {
@@ -942,17 +1045,31 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             if (subtitlePath && subtitlePath !== finalPath) tmpFiles.push(subtitlePath);
             if (thumbnailPath && thumbnailPath !== finalPath) tmpFiles.push(thumbnailPath);
 
-            return JSON.stringify({
-                text: `Hardsub completed! Saved as: ${videoName}${codecSuffix}.mp4`,
-                tmpFiles: tmpFiles
-            });
+            return {
+                success: true,
+                cancelled: false,
+                message: `Hardsub completed! Saved as: ${videoName}${codecSuffix}.mp4`,
+                tmpFiles
+            };
         } else {
             try { await fs.unlink(outputPath); } catch { /* ignore */ }
-            return `Failed to create hardsub video. FFmpeg exit code: ${result.lastCode}`;
+            return {
+                success: false,
+                cancelled: false,
+                message: `Failed to create hardsub video. FFmpeg exit code: ${result.lastCode}`,
+                error: `FFmpeg exit code ${result.lastCode}`,
+                tmpFiles: []
+            };
         }
     } catch (error) {
         console.error('Hardsub error:', error);
-        return `Error during hardsub: ${error.message}`;
+        return {
+            success: false,
+            cancelled: false,
+            message: `Error during hardsub: ${error.message}`,
+            error: error.message,
+            tmpFiles: []
+        };
     } finally {
         taskManager.endTask(task);
     }
