@@ -13,9 +13,11 @@
     "format": "prettier --write \"src/**/*.{js,html,css}\"",
     "postinstall": "electron-builder install-app-deps",
     "build": "electron-builder",
-    "build:mac": "electron-builder build --mac --universal --publish never",
-    "build:win": "electron-builder build --win --publish never && (mv dist/latest.yml dist/latest-win.yml 2>/dev/null || echo 'latest.yml not found, skipping rename')",
-    "build:linux": "electron-builder build --linux --publish never"
+    "build:mac": "electron-builder build --mac --x64 --arm64 --publish never",
+    "build:win": "electron-builder build --win --publish never",
+    "build:linux": "electron-builder build --linux AppImage --publish never",
+    "build:linux:x64": "electron-builder build --linux AppImage --x64 --publish never",
+    "build:linux:arm64": "electron-builder build --linux AppImage --arm64 --publish never"
   },
   "repository": {
     "type": "git",
@@ -92,8 +94,7 @@
     "linux": {
       "icon": "build/icon.png",
       "target": [
-        "AppImage",
-        "deb"
+        "AppImage"
       ],
       "category": "Utility"
     },
