@@ -60,9 +60,96 @@ const extraPaths = [
 ];
 process.env.PATH = [...new Set([...(process.env.PATH || '').split(':'), ...extraPaths])].join(':');
 
-// Global state for any active long-running process (yt-dlp or ffmpeg)
-let activeProcess = null;
-let isActionCancelled = false;
+// Task management for long-running processes (yt-dlp or ffmpeg)
+class TaskManager {
+    constructor() {
+        this.currentTask = null;
+    }
+
+    hasActiveTask() {
+        return this.currentTask !== null && !this.currentTask.isDone;
+    }
+
+    startTask(type, description = '') {
+        if (this.hasActiveTask()) {
+            throw new Error('Another task is already running. Please await completion or cancel it.');
+        }
+        const task = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            type,
+            description,
+            isCancelled: false,
+            isDone: false,
+            activeProcess: null
+        };
+        this.currentTask = task;
+        return task;
+    }
+
+    spawnProcess(task, command, args, options = {}) {
+        if (task.isCancelled) {
+            throw new Error('Action cancelled by user.');
+        }
+
+        const child = spawn(command, args, options);
+        task.activeProcess = child;
+
+        child.on('error', (err) => {
+            console.error(`Process error [${command}]:`, err);
+        });
+
+        child.on('close', () => {
+            if (task.activeProcess === child) {
+                task.activeProcess = null;
+            }
+        });
+
+        return child;
+    }
+
+    cancelCurrentTask() {
+        if (!this.hasActiveTask()) {
+            return false;
+        }
+
+        const task = this.currentTask;
+        task.isCancelled = true;
+
+        if (task.activeProcess) {
+            const pid = task.activeProcess.pid;
+            console.log(`Cancelling task [${task.type}] with process PID: ${pid}`);
+
+            try {
+                if (process.platform === 'win32') {
+                    spawn('taskkill', ['/pid', pid.toString(), '/T', '/F']);
+                } else {
+                    task.activeProcess.kill('SIGKILL');
+                }
+            } catch (e) {
+                console.error('Error killing process:', e);
+            }
+        }
+
+        return true;
+    }
+
+    endTask(task) {
+        if (task) {
+            task.isDone = true;
+            if (task.activeProcess) {
+                try {
+                    task.activeProcess.kill('SIGKILL');
+                } catch { /* ignore */ }
+                task.activeProcess = null;
+            }
+            if (this.currentTask === task) {
+                this.currentTask = null;
+            }
+        }
+    }
+}
+
+const taskManager = new TaskManager();
 
 // Rule list for log noise reduction
 const LOG_NOISE_PATTERNS = [
@@ -178,21 +265,7 @@ async function getDependencyInfo(name, versionCommand) {
 
 // Unified IPC handler for cancelling the current action
 ipcMain.handle('cancel-command', async () => {
-    if (activeProcess) {
-        isActionCancelled = true;
-        const pid = activeProcess.pid;
-        console.log(`Cancelling current process with PID: ${pid}`);
-
-        try {
-            process.kill(pid, 'SIGKILL');
-        } catch (e) {
-            console.error("Error killing process:", e);
-        }
-
-        console.log("Process kill signal sent.");
-        return true;
-    }
-    return false;
+    return taskManager.cancelCurrentTask();
 });
 
 ipcMain.handle('check-dependencies', async () => {
@@ -355,14 +428,22 @@ ipcMain.handle('choose-folder', async () => {
 // IPC handler to fetch format metadata for a specific format code
 ipcMain.handle('get-format-info', async (_event, args) => {
     return new Promise((resolve) => {
-        const child = spawn('yt-dlp', args);
-        let stdout = '';
-        let stderr = '';
-        child.stdout.on('data', (d) => stdout += d);
-        child.stderr.on('data', (d) => stderr += d);
-        child.on('close', (code) => {
-            resolve({ ok: code === 0, output: stdout.trim(), error: stderr.trim() });
-        });
+        try {
+            const child = spawn('yt-dlp', args);
+            let stdout = '';
+            let stderr = '';
+            child.stdout.on('data', (d) => stdout += d);
+            child.stderr.on('data', (d) => stderr += d);
+            child.on('error', (err) => {
+                console.error('get-format-info process error:', err);
+                resolve({ ok: false, output: '', error: err.message });
+            });
+            child.on('close', (code) => {
+                resolve({ ok: code === 0, output: stdout.trim(), error: stderr.trim() });
+            });
+        } catch (err) {
+            resolve({ ok: false, output: '', error: err.message });
+        }
     });
 });
 
@@ -371,14 +452,23 @@ ipcMain.handle('run-command', async (event, args) => {
     console.log('Executing:', args);
     console.log('process.env.PATH:', process.env.PATH);
 
-    if (activeProcess) {
-        return 'Error: Another task is already running. Please await completion or cancel it.';
+    let task;
+    try {
+        task = taskManager.startTask('run-command');
+    } catch (err) {
+        return `Error: ${err.message}`;
     }
 
-    isActionCancelled = false;
-
     return new Promise((resolve) => {
-        activeProcess = spawn('yt-dlp', args);
+        let child;
+        try {
+            child = taskManager.spawnProcess(task, 'yt-dlp', args);
+        } catch (err) {
+            taskManager.endTask(task);
+            resolve(err.message);
+            return;
+        }
+
         let outputLines = [];
 
         const handleCleanLine = (line) => {
@@ -396,16 +486,18 @@ ipcMain.handle('run-command', async (event, args) => {
         const stdoutFilter = new LineStreamFilter(handleCleanLine);
         const stderrFilter = new LineStreamFilter(handleCleanLine);
 
-        activeProcess.stdout.on('data', (data) => stdoutFilter.push(data));
-        activeProcess.stderr.on('data', (data) => stderrFilter.push(data));
+        child.stdout.on('data', (data) => stdoutFilter.push(data));
+        child.stderr.on('data', (data) => stderrFilter.push(data));
 
-        activeProcess.on('close', (code) => {
+        child.on('close', (code) => {
             stdoutFilter.flush();
             stderrFilter.flush();
-            activeProcess = null;
+
+            const wasCancelled = task.isCancelled;
+            taskManager.endTask(task);
 
             let output = outputLines.join('\n');
-            if (isActionCancelled) {
+            if (wasCancelled) {
                 resolve('Action cancelled by user.');
             } else {
                 if (code !== 0) {
@@ -421,8 +513,11 @@ ipcMain.handle('run-command', async (event, args) => {
 ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
     console.log("Re-encoding video in folder:", downloadFolder, "for video ID:", videoId);
 
-    if (activeProcess) {
-        return 'Error: Another task is already running. Please await completion or cancel it.';
+    let task;
+    try {
+        task = taskManager.startTask('re-encode');
+    } catch (err) {
+        return `Error: ${err.message}`;
     }
 
     try {
@@ -443,7 +538,6 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
         const fileExt = extname(file);
         const filename = basename(file, fileExt);
         const outputPath = join(downloadFolder, `${filename}_reencoded.mp4`);
-        isActionCancelled = false;
 
         // Find matching thumbnail file
         let thumbnailFile = null;
@@ -458,112 +552,110 @@ ipcMain.handle('re-encode-to-mp4', async (event, downloadFolder, videoId) => {
         console.log(`Re-encoding file: ${file}`);
         event.sender.send('download-progress', `Re-encoding ${file}...`);
 
-        return new Promise((resolve) => {
-            const tryReEncode = (audioCodec) => {
-                const args = [];
-                args.push('-i', filePath);
+        const audioCodecs = ['aac_at', 'libfdk_aac', 'aac'];
+        let success = false;
+        let lastError = '';
 
-                if (thumbnailPath) {
-                    args.push('-i', thumbnailPath);
-                    args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
-                    args.push('-c:v:0', 'libx264', '-crf:0', '22', '-preset', 'veryslow', '-c:a:0', audioCodec, '-tag:v:0', 'avc1');
-                    if (audioCodec === 'aac_at') {
-                        args.push('-aac_at_mode', 'cvbr');
-                    }
-                    args.push('-b:a:0', '128k');
-                    args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
-                } else {
-                    args.push('-c:v', 'libx264', '-crf', '22', '-preset', 'veryslow', '-c:a', audioCodec, '-tag:v', 'avc1');
-                    if (audioCodec === 'aac_at') {
-                        args.push('-aac_at_mode', 'cvbr');
-                    }
-                    args.push('-b:a', '128k');
+        for (const audioCodec of audioCodecs) {
+            if (task.isCancelled) break;
+
+            const args = ['-i', filePath];
+            if (thumbnailPath) {
+                args.push('-i', thumbnailPath);
+                args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
+                args.push('-c:v:0', 'libx264', '-crf:0', '22', '-preset', 'veryslow', '-c:a:0', audioCodec, '-tag:v:0', 'avc1');
+                if (audioCodec === 'aac_at') {
+                    args.push('-aac_at_mode', 'cvbr');
+                }
+                args.push('-b:a:0', '128k');
+                args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
+            } else {
+                args.push('-c:v', 'libx264', '-crf', '22', '-preset', 'veryslow', '-c:a', audioCodec, '-tag:v', 'avc1');
+                if (audioCodec === 'aac_at') {
+                    args.push('-aac_at_mode', 'cvbr');
+                }
+                args.push('-b:a', '128k');
+            }
+            args.push(outputPath);
+
+            const exitCode = await new Promise((resolve) => {
+                let child;
+                try {
+                    child = taskManager.spawnProcess(task, 'ffmpeg', args);
+                } catch {
+                    resolve(-1);
+                    return;
                 }
 
-                args.push(outputPath);
-
-                activeProcess = spawn('ffmpeg', args);
-
-                activeProcess.stdout.on('data', (data) => {
-                    if (isActionCancelled) return;
+                const handleProgress = (data) => {
+                    if (task.isCancelled) return;
                     const str = data.toString();
                     if (str.includes('time=')) {
                         event.sender.send('download-progress', `Re-encoding ${file} (${audioCodec}): ${str.trim()}`);
                     }
+                };
+
+                child.stdout.on('data', handleProgress);
+                child.stderr.on('data', handleProgress);
+
+                child.on('close', (code) => {
+                    resolve(code);
                 });
+            });
 
-                activeProcess.stderr.on('data', (data) => {
-                    if (isActionCancelled) return;
-                    const str = data.toString();
-                    if (str.includes('time=')) {
-                        event.sender.send('download-progress', `Re-encoding ${file} (${audioCodec}): ${str.trim()}`);
-                    }
-                });
+            if (task.isCancelled) {
+                break;
+            }
 
-                activeProcess.on('close', async (code) => {
-                    activeProcess = null;
+            if (exitCode === 0) {
+                success = true;
+                break;
+            } else {
+                // Remove partial output before fallback
+                try { await fs.unlink(outputPath); } catch { /* ignore */ }
+                console.log(`${audioCodec} failed for ${file}, exit code: ${exitCode}`);
+                if (audioCodec === 'aac_at') {
+                    event.sender.send('download-progress', 'aac_at not available, trying with libfdk_aac...');
+                } else if (audioCodec === 'libfdk_aac') {
+                    event.sender.send('download-progress', 'libfdk_aac not available, trying with aac...');
+                }
+                lastError = `Failed to re-encode ${file} with exit code ${exitCode}`;
+            }
+        }
 
-                    if (isActionCancelled) {
-                        console.log("Re-encoding was cancelled. Cleaning up...");
-                        try {
-                            await fs.unlink(outputPath);
-                        } catch { /* ignore if output file doesn't exist */ }
-                        try {
-                            await fs.unlink(filePath);
-                            console.log(`Deleted original file: ${filePath}`);
-                        } catch { /* ignore if input file doesn't exist */ }
+        if (task.isCancelled) {
+            console.log("Re-encoding was cancelled. Cleaning up temporary output only...");
+            try { await fs.unlink(outputPath); } catch { /* ignore */ }
+            // Note: Original filePath and thumbnailPath are preserved on user cancellation!
+            return "Re-encoding cancelled by user. Files cleaned up.";
+        }
 
-                        if (thumbnailPath) {
-                            try { await fs.unlink(thumbnailPath); } catch (e) { if (e.code !== 'ENOENT') console.error('Cleanup error:', e); }
-                        }
+        if (success) {
+            const finalPath = join(downloadFolder, `${filename}.mp4`);
+            await fs.rename(outputPath, finalPath);
+            console.log(`Successfully re-encoded: ${file} to ${finalPath}`);
 
-                        resolve("Re-encoding cancelled by user. Files cleaned up.");
-                        return;
-                    }
+            // Build tmpFiles ensuring finalPath is NEVER marked for deletion
+            const tmpFiles = [];
+            if (filePath !== finalPath) {
+                tmpFiles.push(filePath);
+            }
+            if (thumbnailPath && thumbnailPath !== finalPath) {
+                tmpFiles.push(thumbnailPath);
+            }
 
-                    if (code === 0) {
-                        try {
-                            const finalPath = join(downloadFolder, `${filename}.mp4`);
-                            await fs.rename(outputPath, finalPath);
-
-                            console.log(`Successfully re-encoded: ${file} to ${finalPath}`);
-                            const tmpFiles = [filePath];
-                            if (thumbnailPath) tmpFiles.push(thumbnailPath);
-
-                            resolve(JSON.stringify({
-                                text: `Re-encoding completed successfully. Saved as: ${filename}.mp4`,
-                                tmpFiles: tmpFiles
-                            }));
-                        } catch (err) {
-                            console.error("Error replacing file:", err);
-                            resolve(JSON.stringify({ text: `Re-encoding finished but failed to replace file: ${err.message}` }));
-                        }
-                    } else if (code !== 0 && audioCodec === 'aac_at') {
-                        // Fallback to libfdk_aac
-                        console.log(`aac_at failed for ${file}, trying with libfdk_aac...`);
-                        event.sender.send('download-progress', `aac_at not available, trying with libfdk_aac...`);
-                        tryReEncode('libfdk_aac');
-                    } else if (code !== 0 && audioCodec === 'libfdk_aac') {
-                        // Fallback to built-in aac codec
-                        console.log(`libfdk_aac failed for ${file}, trying with aac...`);
-                        event.sender.send('download-progress', `libfdk_aac not available, trying with aac...`);
-                        tryReEncode('aac');
-                    } else {
-                        console.log(`Failed to re-encode: ${file}`);
-                        try {
-                            await fs.unlink(outputPath);
-                        } catch { /* ignore */ }
-
-                        resolve(`Failed to re-encode ${file}`);
-                    }
-                });
-            };
-
-            tryReEncode('aac_at');
-        });
-
+            return JSON.stringify({
+                text: `Re-encoding completed successfully. Saved as: ${filename}.mp4`,
+                tmpFiles: tmpFiles
+            });
+        } else {
+            try { await fs.unlink(outputPath); } catch { /* ignore */ }
+            return lastError || `Failed to re-encode ${file}`;
+        }
     } catch (error) {
         return `Error during re-encoding: ${error.message}`;
+    } finally {
+        taskManager.endTask(task);
     }
 });
 
@@ -592,76 +684,84 @@ ipcMain.handle('list-subtitles', async (_event, url, browser, proxy) => {
     console.log('Listing subtitles for:', url);
 
     return new Promise((resolve) => {
-        let args = ['-j', '--skip-download'];
-        if (proxy) args.push('--proxy', proxy);
-        if (browser) args.push('--cookies-from-browser', browser);
-        args.push(url);
+        try {
+            let args = ['-j', '--skip-download'];
+            if (proxy) args.push('--proxy', proxy);
+            if (browser) args.push('--cookies-from-browser', browser);
+            args.push(url);
 
-        const child = spawn('yt-dlp', args);
-        let stdout = '';
-        let stderr = '';
+            const child = spawn('yt-dlp', args);
+            let stdout = '';
+            let stderr = '';
 
-        child.stdout.on('data', (data) => stdout += data);
-        child.stderr.on('data', (data) => stderr += data);
+            child.stdout.on('data', (data) => stdout += data);
+            child.stderr.on('data', (data) => stderr += data);
+            child.on('error', (err) => {
+                console.error('list-subtitles process error:', err);
+                resolve({ error: true, message: err.message, subtitles: [], isAutoGenerated: false });
+            });
 
-        child.on('close', (code) => {
-            if (code !== 0) {
-                console.error('Error getting video info:', stderr);
-                resolve({ error: true, message: stderr || 'Unknown error', subtitles: [], isAutoGenerated: false });
-                return;
-            }
+            child.on('close', (code) => {
+                if (code !== 0) {
+                    console.error('Error getting video info:', stderr);
+                    resolve({ error: true, message: stderr || 'Unknown error', subtitles: [], isAutoGenerated: false });
+                    return;
+                }
 
-            try {
-                const info = JSON.parse(stdout);
-                const manualSubtitles = [];
-                const autoGenerated = [];
+                try {
+                    const info = JSON.parse(stdout);
+                    const manualSubtitles = [];
+                    const autoGenerated = [];
 
-                // Get manually uploaded subtitles
-                if (info.subtitles) {
-                    for (const [code, formats] of Object.entries(info.subtitles)) {
-                        if (formats && formats.length > 0) {
-                            const name = formats[0].name || code.toUpperCase();
-                            manualSubtitles.push({ code, name, type: 'manual' });
+                    // Get manually uploaded subtitles
+                    if (info.subtitles) {
+                        for (const [code, formats] of Object.entries(info.subtitles)) {
+                            if (formats && formats.length > 0) {
+                                const name = formats[0].name || code.toUpperCase();
+                                manualSubtitles.push({ code, name, type: 'manual' });
+                            }
                         }
                     }
-                }
 
-                // Get auto-generated caption in the video's original language only
-                if (info.automatic_captions && info.language) {
-                    const lang = info.language;
-                    // Prefer the "-orig" variant, fall back to base language code
-                    const origKey = `${lang}-orig`;
-                    const key = info.automatic_captions[origKey] ? origKey : (info.automatic_captions[lang] ? lang : null);
-                    if (key) {
-                        const formats = info.automatic_captions[key];
-                        const rawName = (formats[0] && formats[0].name) || lang.toUpperCase();
-                        const name = rawName.replace(/\(Original\)/gi, '').trim() || lang.toUpperCase();
-                        autoGenerated.push({ code: key, name, type: 'auto-original' });
+                    // Get auto-generated caption in the video's original language only
+                    if (info.automatic_captions && info.language) {
+                        const lang = info.language;
+                        // Prefer the "-orig" variant, fall back to base language code
+                        const origKey = `${lang}-orig`;
+                        const key = info.automatic_captions[origKey] ? origKey : (info.automatic_captions[lang] ? lang : null);
+                        if (key) {
+                            const formats = info.automatic_captions[key];
+                            const rawName = (formats[0] && formats[0].name) || lang.toUpperCase();
+                            const name = rawName.replace(/\(Original\)/gi, '').trim() || lang.toUpperCase();
+                            autoGenerated.push({ code: key, name, type: 'auto-original' });
+                        }
                     }
+
+                    // Priority: manual subtitles first, then auto-generated
+                    let subtitlesToReturn;
+                    let isAutoGenerated = false;
+
+                    if (manualSubtitles.length > 0) {
+                        subtitlesToReturn = manualSubtitles;
+                        console.log('Found manual subtitles:', subtitlesToReturn);
+                    } else if (autoGenerated.length > 0) {
+                        subtitlesToReturn = autoGenerated;
+                        isAutoGenerated = true;
+                        console.log('No manual subtitles, showing auto-generated:', subtitlesToReturn);
+                    } else {
+                        subtitlesToReturn = [];
+                        console.log('No subtitles available');
+                    }
+
+                    resolve({ error: false, subtitles: subtitlesToReturn, isAutoGenerated });
+                } catch (parseError) {
+                    console.error('Error parsing video info:', parseError);
+                    resolve({ error: true, message: 'Failed to parse video information', subtitles: [], isAutoGenerated: false });
                 }
-
-                // Priority: manual subtitles first, then auto-generated
-                let subtitlesToReturn;
-                let isAutoGenerated = false;
-
-                if (manualSubtitles.length > 0) {
-                    subtitlesToReturn = manualSubtitles;
-                    console.log('Found manual subtitles:', subtitlesToReturn);
-                } else if (autoGenerated.length > 0) {
-                    subtitlesToReturn = autoGenerated;
-                    isAutoGenerated = true;
-                    console.log('No manual subtitles, showing auto-generated:', subtitlesToReturn);
-                } else {
-                    subtitlesToReturn = [];
-                    console.log('No subtitles available');
-                }
-
-                resolve({ error: false, subtitles: subtitlesToReturn, isAutoGenerated });
-            } catch (parseError) {
-                console.error('Error parsing video info:', parseError);
-                resolve({ error: true, message: 'Failed to parse video information', subtitles: [], isAutoGenerated: false });
-            }
-        });
+            });
+        } catch (err) {
+            resolve({ error: true, message: err.message, subtitles: [], isAutoGenerated: false });
+        }
     });
 });
 
@@ -670,8 +770,11 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
     const { url, browser, downloadFolder, subtitleLang, subtitleType, codec, proxy } = options;
     console.log('Download with hardsub:', { url, subtitleLang, subtitleType, codec, downloadFolder });
 
-    if (activeProcess) {
-        return 'Error: Another task is already running. Please await completion or cancel it.';
+    let task;
+    try {
+        task = taskManager.startTask('hardsub');
+    } catch (err) {
+        return `Error: ${err.message}`;
     }
 
     try {
@@ -693,9 +796,14 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         console.log('Download command:', args);
 
         // Execute download
-        await new Promise((resolve, reject) => {
-            isActionCancelled = false;
-            activeProcess = spawn('yt-dlp', args);
+        const downloadCode = await new Promise((resolve) => {
+            let child;
+            try {
+                child = taskManager.spawnProcess(task, 'yt-dlp', args);
+            } catch {
+                resolve(-1);
+                return;
+            }
 
             const handleProgressLine = (line) => {
                 const trimmed = line.trim();
@@ -707,24 +815,28 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             const stdoutFilter = new LineStreamFilter(handleProgressLine);
             const stderrFilter = new LineStreamFilter(handleProgressLine);
 
-            activeProcess.stdout.on('data', (data) => stdoutFilter.push(data));
-            activeProcess.stderr.on('data', (data) => stderrFilter.push(data));
+            child.stdout.on('data', (data) => stdoutFilter.push(data));
+            child.stderr.on('data', (data) => stderrFilter.push(data));
 
-            activeProcess.on('close', (code) => {
+            child.on('close', (code) => {
                 stdoutFilter.flush();
                 stderrFilter.flush();
-                activeProcess = null;
-                if (isActionCancelled) {
-                    reject(new Error('Action cancelled by user.'));
-                } else if (code === 0) {
-                    resolve();
-                } else {
-                    reject(new Error(`Download failed with code ${code}`));
-                }
+                resolve(code);
             });
         });
 
+        if (task.isCancelled) {
+            return 'Hardsub cancelled by user.';
+        }
+        if (downloadCode !== 0) {
+            return `Download failed with code ${downloadCode}`;
+        }
+
         // Step 2: Find downloaded files
+        if (task.isCancelled) {
+            return 'Hardsub cancelled by user.';
+        }
+
         const videoExtensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
         const allFiles = await fs.readdir(downloadFolder);
 
@@ -737,6 +849,10 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             })
         );
         filesWithStats.sort((a, b) => b.mtime - a.mtime);
+
+        if (task.isCancelled) {
+            return 'Hardsub cancelled by user.';
+        }
 
         // Find the most recently downloaded video file
         let videoFile = null;
@@ -798,135 +914,152 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         console.log('Subtitle file:', subtitlePath);
         console.log('Output path:', outputPath);
 
+        if (task.isCancelled) {
+            return 'Hardsub cancelled by user.';
+        }
+
         // Step 3: Run ffmpeg with hardsub
         event.sender.send('download-progress', `Hardcoding subtitles using ${codec.toUpperCase()}...`);
-        isActionCancelled = false;
 
-        return new Promise((resolve) => {
-            const tryHardsub = (audioCodec) => {
-                let args = [];
+        const audioCodecs = ['aac_at', 'libfdk_aac', 'aac'];
+        let success = false;
+        let lastCode = 0;
 
-                // Escape the subtitle path for ffmpeg filter
-                const escapedSubPath = subtitlePath.replace(/'/g, "'\\''").replace(/:/g, '\\:');
+        for (const audioCodec of audioCodecs) {
+            if (task.isCancelled) break;
 
-                args.push('-hwaccel', 'videotoolbox');
-                args.push('-i', videoPath);
+            let ffmpegArgs = [];
+            // Escape the subtitle path for ffmpeg filter
+            const escapedSubPath = subtitlePath.replace(/'/g, "'\\''").replace(/:/g, '\\:');
 
-                if (thumbnailPath) {
-                    args.push('-i', thumbnailPath);
-                    args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
-                    args.push('-filter:v:0', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
-                } else {
-                    args.push('-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
+            ffmpegArgs.push('-hwaccel', 'videotoolbox');
+            ffmpegArgs.push('-i', videoPath);
+
+            if (thumbnailPath) {
+                ffmpegArgs.push('-i', thumbnailPath);
+                ffmpegArgs.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
+                ffmpegArgs.push('-filter:v:0', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
+            } else {
+                ffmpegArgs.push('-vf', `subtitles='${escapedSubPath}':force_style='FontName=Songti SC'`);
+            }
+
+            if (codec === 'hevc') {
+                ffmpegArgs.push(
+                    thumbnailPath ? '-c:v:0' : '-c:v', 'hevc_videotoolbox',
+                    '-pix_fmt', 'p010le',
+                    thumbnailPath ? '-b:v:0' : '-b:v', '2500k',
+                    thumbnailPath ? '-tag:v:0' : '-tag:v', 'hvc1'
+                );
+            } else {
+                // Default to H.264
+                ffmpegArgs.push(
+                    thumbnailPath ? '-c:v:0' : '-c:v', 'h264_videotoolbox',
+                    thumbnailPath ? '-b:v:0' : '-b:v', '4000k',
+                    thumbnailPath ? '-tag:v:0' : '-tag:v', 'avc1'
+                );
+            }
+
+            ffmpegArgs.push(thumbnailPath ? '-c:a:0' : '-c:a', audioCodec);
+            if (audioCodec === 'aac_at') {
+                ffmpegArgs.push('-aac_at_mode', 'cvbr');
+            }
+            ffmpegArgs.push(thumbnailPath ? '-b:a:0' : '-b:a', '128k');
+
+            if (thumbnailPath) {
+                ffmpegArgs.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
+            }
+
+            ffmpegArgs.push(outputPath);
+
+            console.log('FFmpeg args:', ffmpegArgs);
+
+            const ffmpegCode = await new Promise((resolve) => {
+                let child;
+                try {
+                    child = taskManager.spawnProcess(task, 'ffmpeg', ffmpegArgs);
+                } catch {
+                    resolve(-1);
+                    return;
                 }
 
-                if (codec === 'hevc') {
-                    args.push(
-                        thumbnailPath ? '-c:v:0' : '-c:v', 'hevc_videotoolbox',
-                        '-pix_fmt', 'p010le',
-                        thumbnailPath ? '-b:v:0' : '-b:v', '2500k',
-                        thumbnailPath ? '-tag:v:0' : '-tag:v', 'hvc1'
-                    );
-                } else {
-                    // Default to H.264
-                    args.push(
-                        thumbnailPath ? '-c:v:0' : '-c:v', 'h264_videotoolbox',
-                        thumbnailPath ? '-b:v:0' : '-b:v', '4000k',
-                        thumbnailPath ? '-tag:v:0' : '-tag:v', 'avc1'
-                    );
-                }
+                const handleProgress = (data) => {
+                    if (task.isCancelled) return;
+                    const str = data.toString();
+                    if (str.includes('time=') || str.includes('frame=')) {
+                        event.sender.send('download-progress', `Hardcoding (${audioCodec}): ${str.trim()}`);
+                    }
+                };
 
-                args.push(thumbnailPath ? '-c:a:0' : '-c:a', audioCodec);
+                child.stdout.on('data', handleProgress);
+                child.stderr.on('data', handleProgress);
+
+                child.on('close', (code) => {
+                    resolve(code);
+                });
+            });
+
+            if (task.isCancelled) {
+                break;
+            }
+
+            if (ffmpegCode === 0) {
+                success = true;
+                break;
+            } else {
+                try { await fs.unlink(outputPath); } catch { /* ignore */ }
+                console.log(`FFmpeg ${audioCodec} failed with code ${ffmpegCode}`);
                 if (audioCodec === 'aac_at') {
-                    args.push('-aac_at_mode', 'cvbr');
+                    console.log('aac_at failed, trying with libfdk_aac...');
+                    event.sender.send('download-progress', 'aac_at not available, trying with libfdk_aac...');
+                } else if (audioCodec === 'libfdk_aac') {
+                    console.log('libfdk_aac failed, trying with aac...');
+                    event.sender.send('download-progress', 'libfdk_aac not available, trying with aac...');
                 }
-                args.push(thumbnailPath ? '-b:a:0' : '-b:a', '128k');
+                lastCode = ffmpegCode;
+            }
+        }
 
-                if (thumbnailPath) {
-                    args.push('-c:v:1', 'copy', '-disposition:v:1', 'attached_pic');
-                }
+        if (task.isCancelled) {
+            console.log("Hardsub was cancelled. Cleaning up temporary output only...");
+            try { await fs.unlink(outputPath); } catch { /* ignore */ }
+            return "Hardsub cancelled by user.";
+        }
 
-                args.push(outputPath);
+        if (success) {
+            const finalPath = join(downloadFolder, `${videoName}${codecSuffix}.mp4`);
+            await fs.rename(outputPath, finalPath);
 
-                console.log('FFmpeg args:', args);
-                activeProcess = spawn('ffmpeg', args);
+            console.log(`Successfully created hardsub video: ${finalPath}`);
+            const tmpFiles = [];
+            if (videoPath !== finalPath) tmpFiles.push(videoPath);
+            if (subtitlePath && subtitlePath !== finalPath) tmpFiles.push(subtitlePath);
+            if (thumbnailPath && thumbnailPath !== finalPath) tmpFiles.push(thumbnailPath);
 
-                activeProcess.stdout.on('data', (data) => {
-                    if (isActionCancelled) return;
-                    const str = data.toString();
-                    if (str.includes('time=') || str.includes('frame=')) {
-                        event.sender.send('download-progress', `Hardcoding (${audioCodec}): ${str.trim()}`);
-                    }
-                });
-
-                activeProcess.stderr.on('data', (data) => {
-                    if (isActionCancelled) return;
-                    const str = data.toString();
-                    if (str.includes('time=') || str.includes('frame=')) {
-                        event.sender.send('download-progress', `Hardcoding (${audioCodec}): ${str.trim()}`);
-                    }
-                });
-
-                activeProcess.on('close', async (code) => {
-                    activeProcess = null;
-
-                    if (isActionCancelled) {
-                        console.log("Hardsub was cancelled. Cleaning up...");
-                        try { await fs.unlink(outputPath); } catch { /* ignore */ }
-                        resolve("Hardsub cancelled by user.");
-                        return;
-                    }
-
-                    if (code === 0) {
-                        try {
-                            // Rename output to final name
-                            const finalPath = join(downloadFolder, `${videoName}${codecSuffix}.mp4`);
-                            await fs.rename(outputPath, finalPath);
-
-                            console.log(`Successfully created hardsub video: ${finalPath}`);
-                            const tmpFiles = [videoPath, subtitlePath];
-                            if (thumbnailPath) tmpFiles.push(thumbnailPath);
-
-                            resolve(JSON.stringify({
-                                text: `Hardsub completed! Saved as: ${videoName}${codecSuffix}.mp4`,
-                                tmpFiles: tmpFiles
-                            }));
-                        } catch (err) {
-                            console.error("Error handling hardsub wrap up:", err);
-                            resolve(JSON.stringify({ text: `Hardsub finished but failed to clean up: ${err.message}` }));
-                        }
-                    } else if (code !== 0 && audioCodec === 'aac_at') {
-                        // Fallback to libfdk_aac
-                        console.log('aac_at failed, trying with libfdk_aac...');
-                        event.sender.send('download-progress', 'aac_at not available, trying with libfdk_aac...');
-                        tryHardsub('libfdk_aac');
-                    } else if (code !== 0 && audioCodec === 'libfdk_aac') {
-                        // Fallback to built-in aac codec
-                        console.log('libfdk_aac failed, trying with aac...');
-                        event.sender.send('download-progress', 'libfdk_aac not available, trying with aac...');
-                        tryHardsub('aac');
-                    } else {
-                        console.log(`Failed to create hardsub video, exit code: ${code}`);
-                        try { await fs.unlink(outputPath); } catch { /* ignore */ }
-                        resolve(`Failed to create hardsub video. FFmpeg exit code: ${code}`);
-                    }
-                });
-            };
-
-            tryHardsub('aac_at');
-        });
-
+            return JSON.stringify({
+                text: `Hardsub completed! Saved as: ${videoName}${codecSuffix}.mp4`,
+                tmpFiles: tmpFiles
+            });
+        } else {
+            try { await fs.unlink(outputPath); } catch { /* ignore */ }
+            return `Failed to create hardsub video. FFmpeg exit code: ${lastCode}`;
+        }
     } catch (error) {
         console.error('Hardsub error:', error);
         return `Error during hardsub: ${error.message}`;
+    } finally {
+        taskManager.endTask(task);
     }
 });
 
 ipcMain.handle('delete-temporary-files', async (_event, paths) => {
+    if (!Array.isArray(paths)) return;
     for (const p of paths) {
-        if (p) {
-            try { await fs.unlink(p); }
-            catch (e) { if (e.code !== 'ENOENT') console.error('Error cleaning up temp file:', p, e.message); }
+        if (typeof p === 'string' && p.trim()) {
+            try {
+                await fs.unlink(p);
+            } catch (e) {
+                if (e.code !== 'ENOENT') console.error('Error cleaning up temp file:', p, e.message);
+            }
         }
     }
 });
