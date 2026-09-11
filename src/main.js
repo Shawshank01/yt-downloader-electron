@@ -367,7 +367,6 @@ ipcMain.handle('run-command', async (event, args) => {
 
             if (lastProgressLine) {
                 outputLines.push(lastProgressLine);
-                lastProgressLine = null;
             }
 
             const wasCancelled = task.isCancelled;

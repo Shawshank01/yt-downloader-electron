@@ -129,7 +129,6 @@ function cleanYtDlpResult(result) {
 
     if (lastProgressLine) {
         filteredLines.push(lastProgressLine);
-        lastProgressLine = null;
     }
 
     return filteredLines.length > 0 ? filteredLines.join('\n') : result.trim();
