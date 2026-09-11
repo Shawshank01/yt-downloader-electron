@@ -13,7 +13,12 @@ async function runPrestartCheck() {
     // Print status for already installed dependencies
     for (const dep of result.dependencies) {
         if (dep.installed) {
-            console.log(`✅ ${dep.name} is installed`);
+            if (dep.name === 'ffmpeg' && dep.hasSubtitlesFilter === false) {
+                console.log(`⚠️  ffmpeg is installed (missing libass / subtitles filter)`);
+                console.log(`   👉 To enable video hardsubbing on macOS, run: brew install ffmpeg-full`);
+            } else {
+                console.log(`✅ ${dep.name} is installed`);
+            }
         }
     }
 

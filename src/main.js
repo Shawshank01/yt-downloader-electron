@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join, extname, basename, delimiter } from 'path';
 import { promises as fs } from 'fs';
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
-import { checkSystemDependencies, installMissingDependencies } from './dependencies.js';
+import { checkSystemDependencies, installMissingDependencies, checkFfmpegSubtitlesSupport } from './dependencies.js';
 
 // ESM-compatible dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -50,10 +50,12 @@ ipcMain.handle('set-settings', async (_event, updates) => {
     return merged;
 });
 
-// Fix PATH so yt-dlp is found
+// Fix PATH so yt-dlp and ffmpeg (including keg-only ffmpeg-full) are found
 const extraPaths = process.platform === 'win32'
     ? []
     : [
+        '/opt/homebrew/opt/ffmpeg-full/bin',
+        '/usr/local/opt/ffmpeg-full/bin',
         '/usr/local/bin',
         '/opt/homebrew/bin',
         '/opt/homebrew/sbin',
@@ -170,7 +172,10 @@ const LOG_NOISE_PATTERNS = [
     /^\s*(TIT3|id3v2_priv|JSONMetadata|Hydra)/i,            // Twitter HLS ID3 metadata dumps
     /Press \[[q?]\] to stop/i,                              // FFmpeg interactive prompt
     /muxing overhead: unknown/i,                            // FFmpeg muxing summary header
-    /^\s*Duration:\s*[\d:.]+/i                              // FFmpeg stream duration probe header
+    /^\s*Duration:\s*[\d:.]+/i,                             // FFmpeg stream duration probe header
+    /^Extract(?:ing|ed)\s+(?:\d+\s+)?cookies from/i,        // Browser cookie extraction status
+    /\[jsc:[^\]]+\]\s+Solving JS challenges/i,              // yt-dlp JS challenge solver status
+    /^\[SubtitlesConvertor\]/i                              // yt-dlp internal subtitle convertor messages
 ];
 
 function shouldSuppressLogLine(line) {
@@ -179,8 +184,14 @@ function shouldSuppressLogLine(line) {
 
 function isProgressLine(line) {
     const trimmed = line.trim();
-    if (trimmed.startsWith('[download]') && (trimmed.includes('%') || trimmed.includes('ETA'))) {
-        return true;
+    if (trimmed.startsWith('[download]')) {
+        if (trimmed.includes('%') || trimmed.includes('ETA')) {
+            return true;
+        }
+        if (/\s+[\d.]+\s*[kKmMgGtT]?i?B\s+at\s+/i.test(trimmed) || /\bat\s+\S*B\/s/i.test(trimmed)) {
+            return true;
+        }
+        return false;
     }
     if ((/^(?:frame|size)=\s*\S+/i.test(trimmed) && trimmed.includes('time=')) ||
         (/^time=\S+/i.test(trimmed) && trimmed.includes('bitrate='))) {
@@ -329,6 +340,7 @@ ipcMain.handle('run-command', async (event, args) => {
         }
 
         let outputLines = [];
+        let lastProgressLine = null;
 
         const handleCleanLine = (line) => {
             const trimmed = line.trim();
@@ -337,7 +349,13 @@ ipcMain.handle('run-command', async (event, args) => {
             if (isProgress || trimmed.startsWith('[download]')) {
                 event.sender.send('download-progress', trimmed);
             }
-            if (!isProgress) {
+            if (isProgress) {
+                lastProgressLine = line;
+            } else {
+                if (lastProgressLine) {
+                    outputLines.push(lastProgressLine);
+                    lastProgressLine = null;
+                }
                 outputLines.push(line);
             }
         };
@@ -346,6 +364,11 @@ ipcMain.handle('run-command', async (event, args) => {
 
         child.on('close', (code) => {
             flushFilters();
+
+            if (lastProgressLine) {
+                outputLines.push(lastProgressLine);
+                lastProgressLine = null;
+            }
 
             const wasCancelled = task.isCancelled;
             taskManager.endTask(task);
@@ -380,12 +403,12 @@ ipcMain.handle('run-command', async (event, args) => {
     });
 });
 
-// Platform-adaptive default subtitle font
+// Platform-adaptive default subtitle font (single font family name without commas for ASS style)
 const DEFAULT_SUBTITLE_FONT = process.platform === 'darwin'
-    ? 'PingFang SC,Songti SC'
+    ? 'PingFang SC'
     : process.platform === 'win32'
-        ? 'Microsoft YaHei,Arial'
-        : 'DejaVu Sans,sans-serif';
+        ? 'Microsoft YaHei'
+        : 'DejaVu Sans';
 
 // Centralised transcoding and encoding configuration parameters
 const TRANSCODE_CONFIG = {
@@ -492,6 +515,7 @@ async function runFfmpegWithCodecFallback({ task, event, buildArgs, outputPath, 
     const audioCodecs = TRANSCODE_CONFIG.audioCodecs;
     let success = false;
     let lastCode = 0;
+    let lastError = '';
 
     for (const audioCodec of audioCodecs) {
         if (task.isCancelled) break;
@@ -499,6 +523,7 @@ async function runFfmpegWithCodecFallback({ task, event, buildArgs, outputPath, 
         const args = buildArgs(audioCodec);
         console.log(`${logPrefix} FFmpeg args:`, args);
 
+        const stderrLines = [];
         const exitCode = await new Promise((resolve) => {
             let child;
             try {
@@ -508,16 +533,22 @@ async function runFfmpegWithCodecFallback({ task, event, buildArgs, outputPath, 
                 return;
             }
 
-            const handleProgress = (data) => {
+            const handleData = (data) => {
                 if (task.isCancelled) return;
                 const str = data.toString();
                 if (str.includes('time=') || str.includes('frame=')) {
                     event.sender.send('download-progress', `${logPrefix} (${audioCodec}): ${str.trim()}`);
+                } else {
+                    const lines = str.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+                    stderrLines.push(...lines);
+                    if (stderrLines.length > 50) {
+                        stderrLines.splice(0, stderrLines.length - 50);
+                    }
                 }
             };
 
-            child.stdout.on('data', handleProgress);
-            child.stderr.on('data', handleProgress);
+            child.stdout.on('data', handleData);
+            child.stderr.on('data', handleData);
 
             child.on('close', (code) => {
                 resolve(code);
@@ -533,17 +564,29 @@ async function runFfmpegWithCodecFallback({ task, event, buildArgs, outputPath, 
             break;
         } else {
             try { await fs.unlink(outputPath); } catch { /* ignore */ }
-            console.log(`${logPrefix} with ${audioCodec} failed with code ${exitCode}`);
+            const errorSnippet = stderrLines.slice(-15).join('\n');
+            console.error(`${logPrefix} with ${audioCodec} failed with code ${exitCode}:\n${errorSnippet}`);
+            lastCode = exitCode;
+            lastError = errorSnippet;
+
+            // If the failure is due to filtergraph/subtitles, retrying other audio codecs will not help
+            if (
+                errorSnippet.includes('No option name near') ||
+                errorSnippet.includes('Error parsing filterchain') ||
+                errorSnippet.includes('subtitles')
+            ) {
+                break;
+            }
+
             if (audioCodec === 'aac_at') {
                 event.sender.send('download-progress', 'aac_at not available, trying with libfdk_aac...');
             } else if (audioCodec === 'libfdk_aac') {
                 event.sender.send('download-progress', 'libfdk_aac not available, trying with aac...');
             }
-            lastCode = exitCode;
         }
     }
 
-    return { success, lastCode, isCancelled: task.isCancelled };
+    return { success, lastCode, lastError, isCancelled: task.isCancelled };
 }
 
 // Supported video file extensions for transcoding and discovery
@@ -906,6 +949,18 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         };
     }
 
+    const hasSubtitles = await checkFfmpegSubtitlesSupport();
+    if (!hasSubtitles) {
+        taskManager.endTask(task);
+        return {
+            success: false,
+            cancelled: false,
+            message: 'Hardsubbing requires FFmpeg with libass support (missing "subtitles" filter).\n\n👉 On macOS, please install ffmpeg-full via Homebrew:\n   brew install ffmpeg-full',
+            error: 'FFmpeg lacks libass / subtitles filter support.',
+            tmpFiles: []
+        };
+    }
+
     try {
         // Step 1: Download video with subtitle (limit to avc1/H.264)
         const manifestFile = join(app.getPath('temp'), `ytdl-sub-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.txt`);
@@ -1064,11 +1119,12 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             };
         } else {
             try { await fs.unlink(outputPath); } catch { /* ignore */ }
+            const errorDetail = result.lastError || `FFmpeg exit code ${result.lastCode}`;
             return {
                 success: false,
                 cancelled: false,
-                message: `Failed to create hardsub video. FFmpeg exit code: ${result.lastCode}`,
-                error: `FFmpeg exit code ${result.lastCode}`,
+                message: `Failed to create hardsub video. ${errorDetail}`,
+                error: errorDetail,
                 tmpFiles: []
             };
         }

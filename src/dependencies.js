@@ -5,6 +5,8 @@ import { delimiter } from 'path';
 const extraPaths = process.platform === 'win32'
     ? []
     : [
+        '/opt/homebrew/opt/ffmpeg-full/bin',
+        '/usr/local/opt/ffmpeg-full/bin',
         '/usr/local/bin',
         '/opt/homebrew/bin',
         '/opt/homebrew/sbin',
@@ -76,6 +78,15 @@ export async function getDependencyInfo(name, versionCommand) {
 }
 
 /**
+ * Check if the installed FFmpeg binary supports the subtitles filter (built with libass).
+ */
+export async function checkFfmpegSubtitlesSupport() {
+    const result = await runCommandWithOutput('ffmpeg -filters');
+    if (!result.ok || !result.stdout) return false;
+    return /^\s*[.TSRC]{2,3}\s+subtitles\s+/m.test(result.stdout);
+}
+
+/**
  * Check system dependencies (yt-dlp, ffmpeg, and brew on macOS).
  */
 export async function checkSystemDependencies() {
@@ -92,6 +103,11 @@ export async function checkSystemDependencies() {
 
         const dependencies = await Promise.all(checkList);
         const missing = dependencies.filter((dep) => !dep.installed).map((dep) => dep.name);
+
+        const ffmpegDep = dependencies.find((dep) => dep.name === 'ffmpeg');
+        if (ffmpegDep && ffmpegDep.installed) {
+            ffmpegDep.hasSubtitlesFilter = await checkFfmpegSubtitlesSupport();
+        }
 
         return {
             success: true,

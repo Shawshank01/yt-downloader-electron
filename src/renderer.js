@@ -58,8 +58,14 @@ async function isImageFormat(formatCode, browser, url) {
 // Function to check if a line is a progress update
 function isProgressLine(line) {
     const trimmed = line.trim();
-    if (trimmed.startsWith('[download]') && (trimmed.includes('%') || trimmed.includes('ETA'))) {
-        return true;
+    if (trimmed.startsWith('[download]')) {
+        if (trimmed.includes('%') || trimmed.includes('ETA')) {
+            return true;
+        }
+        if (/\s+[\d.]+\s*[kKmMgGtT]?i?B\s+at\s+/i.test(trimmed) || /\bat\s+\S*B\/s/i.test(trimmed)) {
+            return true;
+        }
+        return false;
     }
     if ((/^(?:frame|size)=\s*\S+/i.test(trimmed) && trimmed.includes('time=')) ||
         (/^time=\S+/i.test(trimmed) && trimmed.includes('bitrate='))) {
@@ -80,36 +86,53 @@ function isExtractorOrNoiseLine(line) {
     if (/^\[(?!download\])[^\]]+\]\s+(?:.*:\s+)?Downloading\s+/i.test(trimmed)) {
         return true;
     }
+    if (/^Extract(?:ing|ed)\s+(?:\d+\s+)?cookies from/i.test(trimmed)) {
+        return true;
+    }
+    if (/\[jsc:[^\]]+\]\s+Solving JS challenges/i.test(trimmed)) {
+        return true;
+    }
+    if (/^\[SubtitlesConvertor\]/i.test(trimmed)) {
+        return true;
+    }
     return false;
 }
 
-// Function to clean yt-dlp output by removing progress lines and intermediate noise
+// Function to clean yt-dlp output by removing progress lines and intermediate noise,
+// keeping only the final progress line when progress lines are present
 function cleanYtDlpResult(result) {
     if (!result) return result;
 
     const lines = result.split(/[\r\n]+/);
-    const nonNoiseLines = [];
-    const nonProgressLines = [];
+    const filteredLines = [];
+    let lastProgressLine = null;
 
     for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 
-        if (!isProgressLine(trimmed)) {
-            nonProgressLines.push(trimmed);
-            if (!isExtractorOrNoiseLine(trimmed)) {
-                nonNoiseLines.push(trimmed);
-            }
+        if (isExtractorOrNoiseLine(trimmed)) {
+            continue;
         }
+
+        if (isProgressLine(trimmed)) {
+            lastProgressLine = trimmed;
+            continue;
+        }
+
+        if (lastProgressLine) {
+            filteredLines.push(lastProgressLine);
+            lastProgressLine = null;
+        }
+        filteredLines.push(trimmed);
     }
 
-    if (nonNoiseLines.length > 0) {
-        return nonNoiseLines.join('\n');
+    if (lastProgressLine) {
+        filteredLines.push(lastProgressLine);
+        lastProgressLine = null;
     }
-    if (nonProgressLines.length > 0) {
-        return nonProgressLines.join('\n');
-    }
-    return result.trim();
+
+    return filteredLines.length > 0 ? filteredLines.join('\n') : result.trim();
 }
 
 // Resolve proxy URL if proxy is enabled
@@ -247,6 +270,10 @@ window.checkDependencies = async function () {
                     lines.push(`- ${dep.name}: installed`);
                     lines.push(`  path: ${dep.path}`);
                     lines.push(`  version: ${dep.version}`);
+                    if (dep.name === 'ffmpeg' && dep.hasSubtitlesFilter === false) {
+                        lines.push(`  ⚠️ warning: missing libass / subtitles filter (hardsubbing disabled)`);
+                        lines.push(`  👉 run 'brew install ffmpeg-full' to enable hardsubbing`);
+                    }
                 } else {
                     lines.push(`- ${dep.name}: missing`);
                 }
@@ -806,6 +833,17 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
             url
         );
 
+        const commandLine = 'Running: yt-dlp ' + args.join(' ');
+        output.textContent = commandLine + '\n';
+
+        if (progressHandler) {
+            progressHandler();
+        }
+
+        progressHandler = window.electronAPI.onProgress((progress) => {
+            output.textContent = commandLine + '\n' + progress;
+        });
+
         showCancelButton();
 
         try {
@@ -818,17 +856,22 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
                     output: rawCmdResult || ''
                 };
 
+            const cleanResult = cleanYtDlpResult(res.output);
+
             if (res.cancelled) {
                 output.textContent = 'Subtitle download cancelled.';
                 renderStatusBanner('cancelled', '❌ Download canceled!');
             } else if (!res.success && (res.output || '').includes('There are no subtitles for the requested languages')) {
                 output.textContent = 'No subtitles available for this video.';
+                renderStatusBanner('error', '❌ No subtitles available for this video.');
             } else if (!res.success) {
-                output.textContent = `Subtitle download failed: ${res.error || res.output || 'Unknown error'}`;
+                output.textContent = `${commandLine}\n${res.error || res.output || 'Subtitle download failed.'}`;
                 renderStatusBanner('error', '❌ Download failed!');
             } else {
-                output.textContent = `✅ Subtitle downloaded: ${selectedSubtitle.name} (${selectedSubtitle.code})`;
-                renderStatusBanner('success', '✅ Subtitle downloaded successfully!');
+                output.textContent = cleanResult
+                    ? `${commandLine}\n${cleanResult}`
+                    : `${commandLine}\nLanguage: ${selectedSubtitle.name} (${selectedSubtitle.code})\nFolder: ${downloadFolder}`;
+                renderStatusBanner('success', `✅ Subtitle downloaded: ${selectedSubtitle.name} (${selectedSubtitle.code})`);
             }
         } finally {
             hideCancelButton();
