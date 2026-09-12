@@ -464,9 +464,6 @@ function buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnail
     const args = [];
     const escapedSubPath = subtitlePath.replace(/\\/g, '/').replace(/'/g, "'\\''").replace(/:/g, '\\:');
 
-    if (process.platform === 'darwin') {
-        args.push('-hwaccel', 'videotoolbox');
-    }
     args.push('-i', videoPath);
 
     const subFilter = `subtitles='${escapedSubPath}':force_style='FontName=${DEFAULT_SUBTITLE_FONT}'`;
