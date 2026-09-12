@@ -4,7 +4,6 @@
   "description": "Video downloader using yt-dlp and ffmpeg",
   "main": "src/main.js",
   "type": "module",
-  "packageManager": "pnpm@12.4.0",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prestart": "node src/check-dependencies.js",
