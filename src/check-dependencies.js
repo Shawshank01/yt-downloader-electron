@@ -1,4 +1,5 @@
-import { exit } from 'process';
+import { exit, stdin as input, stdout as output } from 'process';
+import readline from 'readline/promises';
 import { checkSystemDependencies, installMissingDependencies } from './dependencies.js';
 
 async function runPrestartCheck() {
@@ -43,28 +44,48 @@ async function runPrestartCheck() {
         exit(1);
     }
 
-    // Automatically install missing dependencies on macOS
     for (const name of result.missing) {
-        console.log(`\n❌ ${name} is not installed. Installing via Homebrew...`);
+        console.log(`\n❌ ${name} is not installed.`);
     }
 
-    const installResult = await installMissingDependencies({
-        onProgress: (msg) => console.log(msg)
-    });
+    // In a non-interactive shell/CI, don't block on stdin
+    if (!input.isTTY) {
+        console.log('\nNon-interactive terminal detected. Skipping Homebrew installation.');
+        console.log(`To install missing dependencies manually, run:\n   brew install ${result.missing.join(' ')}\n`);
+        return;
+    }
 
-    if (!installResult.success) {
-        console.error('Failed to install dependencies:', installResult.message);
-        if (installResult.failed?.length) {
-            console.error('Failed items:', installResult.failed.join(', '));
+    // Prompt the user for confirmation before installing
+    const rl = readline.createInterface({ input, output });
+    const answer = await rl.question(
+        `\nWould you like to install missing dependencies (${result.missing.join(', ')}) via Homebrew now? [y/N]: `
+    );
+    rl.close();
+
+    if (answer.trim().toLowerCase() === 'y') {
+        console.log('\nInstalling via Homebrew...');
+        const installResult = await installMissingDependencies({
+            onProgress: (msg) => console.log(msg)
+        });
+
+        if (!installResult.success) {
+            console.error('Failed to install dependencies:', installResult.message);
+            if (installResult.failed?.length) {
+                console.error('Failed items:', installResult.failed.join(', '));
+            }
+            exit(1);
         }
-        exit(1);
-    }
 
-    for (const name of installResult.installed) {
-        console.log(`✅ ${name} has been installed`);
-    }
+        for (const name of installResult.installed) {
+            console.log(`✅ ${name} has been installed`);
+        }
 
-    console.log('\nAll dependencies are satisfied! Starting the app...\n');
+        console.log('\nAll dependencies are satisfied! Starting the app...\n');
+    } else {
+        console.log('\nSkipping installation. You can install missing dependencies manually with:');
+        console.log(`   brew install ${result.missing.join(' ')}\n`);
+        console.log('Starting the app...\n');
+    }
 }
 
 runPrestartCheck().catch((error) => {
