@@ -25,7 +25,10 @@ interface ElectronAPI {
         error?: boolean;
         hasUpdate?: boolean;
         version?: string;
+        currentVersion?: string;
         releaseNotes?: string;
+        releaseUrl?: string;
+        downloadUrl?: string;
         message?: string;
     }>;
     getCurrentVersion: () => Promise<string>;

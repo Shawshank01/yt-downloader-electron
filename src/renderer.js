@@ -220,20 +220,21 @@ window.checkUpdate = async function () {
             }
 
             if (openNow) {
-                const releaseUrl =
+                const targetUrl =
+                    appUpdate.releaseUrl ||
                     'https://github.com/Shawshank01/yt-downloader-electron/releases/latest';
 
                 if (window.electronAPI?.openExternal) {
                     try {
-                        const opened = await window.electronAPI.openExternal(releaseUrl);
+                        const opened = await window.electronAPI.openExternal(targetUrl);
                         if (!opened) {
-                            window.open(releaseUrl, '_blank');
+                            window.open(targetUrl, '_blank');
                         }
                     } catch {
-                        window.open(releaseUrl, '_blank');
+                        window.open(targetUrl, '_blank');
                     }
                 } else {
-                    window.open(releaseUrl, '_blank');
+                    window.open(targetUrl, '_blank');
                 }
             }
         } else {
