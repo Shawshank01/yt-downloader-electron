@@ -45,7 +45,13 @@ You must have both `yt-dlp` and `FFmpeg` installed on your system for the app to
     - **Linux:** `.AppImage` or `.deb`
     - **Windows:** `.exe` installer
 3. **First Run:**
-    - On **macOS**, click **"Check for Dependencies"** (bottom-right corner). If dependencies are missing, the app can install Homebrew first and then install `yt-dlp` and `FFmpeg` via Homebrew after you confirm.
+    - On **macOS**, drag `YT Downloader.app` to `/Applications`. If macOS shows *“YT Downloader.app is damaged and can’t be opened. You should move it to the Trash”* (Gatekeeper quarantine for unsigned apps), click Cancel, open Terminal and run:
+
+      ```bash
+      xattr -cr /Applications/"YT Downloader.app"
+      ```
+
+      Then open the app and click **"Check for Dependencies"** (bottom-right corner). If dependencies are missing, the app can install Homebrew first and then install `yt-dlp` and `FFmpeg` via Homebrew after you confirm.
     - On **Linux/Windows**, you must install `yt-dlp` and `FFmpeg` yourself if not already present (see troubleshooting below).
 
 ### Method 2: From Source (For Developers)
