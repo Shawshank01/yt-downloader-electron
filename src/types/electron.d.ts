@@ -41,6 +41,8 @@ interface ElectronAPI {
         error?: string;
     }>;
     openExternal: (url: string) => Promise<boolean>;
+    openFullDiskAccessSettings?: () => Promise<boolean>;
+    platform?: string;
     checkDependencies: () => Promise<{
         success: boolean;
         allInstalled?: boolean;

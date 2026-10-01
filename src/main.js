@@ -977,6 +977,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         console.log('Download command:', args);
 
         let capturedDownloadPath = null;
+        const outputLines = [];
         const downloadCode = await new Promise((resolve) => {
             let child;
             try {
@@ -990,6 +991,8 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
                 const trimmed = line.trim();
                 if (isProgressLine(trimmed) || trimmed.startsWith('[download]')) {
                     event.sender.send('download-progress', trimmed);
+                } else if (trimmed) {
+                    outputLines.push(trimmed);
                 }
                 const mergeMatch = trimmed.match(/^\[Merger\] Merging formats into ["']?(.+?)["']?$/i);
                 if (mergeMatch) capturedDownloadPath = mergeMatch[1];
@@ -1025,11 +1028,12 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
             };
         }
         if (downloadCode !== 0) {
+            const errorDetail = outputLines.join('\n') || `Download failed with code ${downloadCode}`;
             return {
                 success: false,
                 cancelled: false,
-                message: `Download failed with code ${downloadCode}`,
-                error: `Download failed with code ${downloadCode}`,
+                message: errorDetail,
+                error: errorDetail,
                 tmpFiles: []
             };
         }

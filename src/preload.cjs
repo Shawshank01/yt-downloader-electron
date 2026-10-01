@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 console.log('preload.js running!');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+    platform: process.platform,
     chooseFolder: () => ipcRenderer.invoke('choose-folder'),
     runCommand: (cmd) => ipcRenderer.invoke('run-command', cmd),
     onProgress: (callback) => {
@@ -18,6 +19,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reEncodeToMp4: (downloadFolder, videoId) =>
         ipcRenderer.invoke('re-encode-to-mp4', downloadFolder, videoId),
     openExternal: (url) => ipcRenderer.invoke('open-external', url),
+    openFullDiskAccessSettings: () =>
+        ipcRenderer.invoke('open-external', 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'),
     checkDependencies: () => ipcRenderer.invoke('check-dependencies'),
     installMissingDependencies: (options) =>
         ipcRenderer.invoke('install-missing-dependencies', options),
