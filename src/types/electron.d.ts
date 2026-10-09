@@ -3,6 +3,11 @@ interface DependencyInfo {
     installed: boolean;
     path: string;
     version: string;
+    hasSubtitlesFilter?: boolean;
+}
+
+interface PackageManagersInfo {
+    [key: string]: DependencyInfo | undefined;
 }
 
 interface SubtitleInfo {
@@ -48,6 +53,7 @@ interface ElectronAPI {
         allInstalled?: boolean;
         dependencies?: DependencyInfo[];
         missing?: string[];
+        packageManagers?: PackageManagersInfo;
         platform?: string;
         message?: string;
     }>;

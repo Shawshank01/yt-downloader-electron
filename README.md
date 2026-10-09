@@ -29,7 +29,7 @@ This is a modern, user-friendly desktop application for downloading videos from 
 You must have both `yt-dlp` and `FFmpeg` installed on your system for the app to work.
 
 - **On macOS:**  
-  The app does not bundle `yt-dlp` or `FFmpeg`. Use the app's **"Check for Dependencies"** button. If dependencies are missing, the app can ask for confirmation and install Homebrew, `yt-dlp`, and `FFmpeg` for you.
+  The app checks dependencies globally (including MacPorts, Homebrew, and custom PATH locations). Use the app's **"Check for Dependencies"** button. If dependencies are missing, the app can install them via Homebrew or you can install via MacPorts (`sudo port install yt-dlp ffmpeg`).
 - **On Linux:**  
   Please install `yt-dlp` and `FFmpeg` using your package manager before use (see below).
 - **On Windows:**  
@@ -51,7 +51,7 @@ You must have both `yt-dlp` and `FFmpeg` installed on your system for the app to
       xattr -cr /Applications/"YT Downloader.app"
       ```
 
-      Then open the app and click **"Check for Dependencies"** (bottom-right corner). If dependencies are missing, the app can install Homebrew first and then install `yt-dlp` and `FFmpeg` via Homebrew after you confirm.
+      Then open the app and click **"Check for Dependencies"** (bottom-right corner). If dependencies are missing, you can install them via MacPorts (`sudo port install yt-dlp ffmpeg`) or Homebrew (`brew install yt-dlp ffmpeg`).
     - On **Linux/Windows**, you must install `yt-dlp` and `FFmpeg` yourself if not already present (see troubleshooting below).
 
 ### Method 2: From Source (For Developers)
@@ -148,16 +148,22 @@ The app includes a built-in update checker:
 > [!NOTE]
 >
 > - The app cannot update `yt-dlp` or `FFmpeg` automatically on Windows or Linux—you must update them yourself (see Troubleshooting below).
-> - On macOS, the app can help install or update dependencies via Homebrew if needed.
+> - On macOS, the app checks dependencies globally across MacPorts, Homebrew, and your PATH.
 
 ## Troubleshooting
 
 1. **Missing Dependencies**
    - Click **"Check for Dependencies"** to view install status, binary path (`which`/`where`), and version.
-   - On **macOS**, you can choose one-click install when prompted.
+   - On **macOS**, you can choose one-click install via Homebrew when prompted, or install via MacPorts.
    - On **Linux/Windows**, install manually (no one-click installer in app).
    - If manual installation is needed:
-     - **macOS:**  
+     - **macOS (MacPorts):**  
+
+       ```bash
+       sudo port install yt-dlp ffmpeg
+       ```
+
+     - **macOS (Homebrew):**  
 
        ```bash
        brew install yt-dlp ffmpeg

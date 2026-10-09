@@ -272,7 +272,7 @@ window.checkDependencies = async function () {
                     lines.push(`  version: ${dep.version}`);
                     if (dep.name === 'ffmpeg' && dep.hasSubtitlesFilter === false) {
                         lines.push(`  ⚠️ warning: missing libass / subtitles filter (hardsubbing disabled)`);
-                        lines.push(`  👉 run 'brew install ffmpeg-full' to enable hardsubbing`);
+                        lines.push(`  👉 run 'brew install ffmpeg-full' or 'sudo port install ffmpeg' to enable hardsubbing`);
                     }
                 } else {
                     lines.push(`- ${dep.name}: missing`);
@@ -297,34 +297,50 @@ window.checkDependencies = async function () {
         if (isMac) {
             output.textContent = formatReport(result);
 
-            const installableMissing = result.missing.filter((d) => d !== 'brew');
-            const missingBrew = result.missing.includes('brew');
-            const installList = missingBrew ? result.missing : installableMissing;
+            const hasBrew = Boolean(result.packageManagers?.brew?.installed);
+            const hasPort = Boolean(result.packageManagers?.port?.installed);
+
+            let manualHint = '';
+            if (hasPort && !hasBrew) {
+                manualHint = `sudo port install ${result.missing.join(' ')}`;
+            } else if (hasBrew && !hasPort) {
+                manualHint = `brew install ${result.missing.join(' ')}`;
+            } else if (hasPort && hasBrew) {
+                manualHint = `MacPorts: sudo port install ${result.missing.join(' ')}\nHomebrew: brew install ${result.missing.join(' ')}`;
+            } else {
+                manualHint = `brew install ${result.missing.join(' ')}\nor (MacPorts): sudo port install ${result.missing.join(' ')}`;
+            }
+
+            if (hasPort && !hasBrew) {
+                output.textContent += `\n\nMacPorts detected. Install missing dependencies in Terminal:\n   ${manualHint}`;
+                return;
+            }
 
             const shouldInstall = await showConfirmModal({
                 title: 'Install Missing Dependencies',
                 message:
                     `Missing dependencies:\n- ${result.missing.join('\n- ')}\n\n` +
-                    `Would you like to install missing ones now?\n\n` +
-                    (missingBrew
-                        ? `This will run Homebrew installer:\n/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"\n\nThen run:\nbrew install ${installList.filter((d) => d !== 'brew').join(' ')}`
-                        : `This will run:\nbrew install ${installList.join(' ')}`) +
+                    `Would you like to install missing dependencies via Homebrew now?\n\n` +
+                    (hasBrew
+                        ? `This will run:\nbrew install ${result.missing.join(' ')}`
+                        : `This will install Homebrew first, then run:\nbrew install ${result.missing.join(' ')}`) +
+                    (hasPort ? `\n\n(MacPorts is also detected. You can install via Terminal: sudo port install ${result.missing.join(' ')})` : '') +
                     `\n\nYou can cancel and install later.`,
-                confirmText: 'Install Now',
+                confirmText: 'Install via Homebrew',
                 cancelText: 'Install Later'
             });
 
             if (!shouldInstall) {
                 output.textContent +=
-                    '\n\nInstall manually later with:\nbrew install yt-dlp ffmpeg';
+                    `\n\nInstall manually later with:\n${manualHint}`;
                 return;
             }
 
-            output.textContent = missingBrew
+            output.textContent = !hasBrew
                 ? 'Installing Homebrew and missing dependencies...\n'
                 : 'Installing missing dependencies with Homebrew...\n';
             const installResult = await window.electronAPI.installMissingDependencies({
-                installHomebrew: missingBrew
+                installHomebrew: !hasBrew
             });
 
             if (!installResult.success) {
@@ -362,9 +378,6 @@ window.checkDependencies = async function () {
         );
         if (result.missing.includes('yt-dlp') || result.missing.includes('ffmpeg')) {
             lines.push('Hints: Install yt-dlp and ffmpeg using your system package manager.');
-        }
-        if (result.missing.includes('brew')) {
-            lines.push('Note: Homebrew is not available on this platform; use your OS package manager.');
         }
 
         output.textContent = lines.join('\n').trim();

@@ -4,7 +4,12 @@ import { fileURLToPath } from 'url';
 import { dirname, join, extname, basename, delimiter } from 'path';
 import { promises as fs } from 'fs';
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
-import { checkSystemDependencies, installMissingDependencies, checkFfmpegSubtitlesSupport } from './dependencies.js';
+import {
+    checkSystemDependencies,
+    installMissingDependencies,
+    checkFfmpegSubtitlesSupport,
+    setupEnvironmentPaths
+} from './dependencies.js';
 
 // ESM-compatible dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -50,23 +55,8 @@ ipcMain.handle('set-settings', async (_event, updates) => {
     return merged;
 });
 
-// Fix PATH so yt-dlp and ffmpeg (including keg-only ffmpeg-full) are found
-const extraPaths = process.platform === 'win32'
-    ? []
-    : [
-        '/opt/homebrew/opt/ffmpeg-full/bin',
-        '/usr/local/opt/ffmpeg-full/bin',
-        '/usr/local/bin',
-        '/opt/homebrew/bin',
-        '/opt/homebrew/sbin',
-        '/usr/bin',
-        '/bin',
-        '/usr/sbin',
-        '/sbin'
-    ];
-process.env.PATH = [...new Set([...(process.env.PATH || '').split(delimiter), ...extraPaths])]
-    .filter(Boolean)
-    .join(delimiter);
+// Fix PATH globally so yt-dlp and ffmpeg are found across all environments (MacPorts, Homebrew, system)
+setupEnvironmentPaths();
 
 // Task management for long-running processes (yt-dlp or ffmpeg)
 class TaskManager {
@@ -951,7 +941,8 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         return {
             success: false,
             cancelled: false,
-            message: 'Hardsubbing requires FFmpeg with libass support (missing "subtitles" filter).\n\n👉 On macOS, please install ffmpeg-full via Homebrew:\n   brew install ffmpeg-full',
+            message:
+                'Hardsubbing requires FFmpeg with libass support (missing "subtitles" filter).\n\n👉 On macOS, please install FFmpeg with subtitles support:\n   - MacPorts: sudo port install ffmpeg\n   - Homebrew: brew install ffmpeg-full',
             error: 'FFmpeg lacks libass / subtitles filter support.',
             tmpFiles: []
         };
