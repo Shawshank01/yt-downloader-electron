@@ -862,13 +862,18 @@ function updateFormatCodeVisibility() {
     const action = document.getElementById('action').value;
     const formatGroup = document.getElementById('formatCodeGroup');
     const codecGroup = document.getElementById('codecGroup');
+    const subtitlePositionGroup = document.getElementById('subtitlePositionGroup');
 
     if (formatGroup) {
         formatGroup.style.display = action === 'Download (Custom Format)' ? '' : 'none';
     }
+    const isHardsub =
+        action === 'Download & Add Hardsub' || action === 'Download & Add Hardsub (Only Support on macOS)';
     if (codecGroup) {
-        codecGroup.style.display =
-            (action === 'Download & Add Hardsub' || action === 'Download & Add Hardsub (Only Support on macOS)') ? '' : 'none';
+        codecGroup.style.display = isHardsub ? '' : 'none';
+    }
+    if (subtitlePositionGroup) {
+        subtitlePositionGroup.style.display = isHardsub ? '' : 'none';
     }
 }
 
@@ -986,6 +991,7 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
 async function handleHardsubAction(url, browser, downloadFolder) {
     const output = document.getElementById('output');
     const codec = document.getElementById('codec').value;
+    const subtitlePosition = document.getElementById('subtitlePosition')?.value || 'bottom';
 
     if (!downloadFolder) {
         output.textContent = 'Error: Please select a download folder.';
@@ -1037,6 +1043,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
                 subtitleLang: selectedSubtitle.code,
                 subtitleType: selectedSubtitle.type,
                 codec,
+                subtitlePosition,
                 proxy: proxyUrl
             });
 
@@ -1181,6 +1188,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (proxyInputSaved && saved.proxyAddress !== undefined) {
                 proxyInputSaved.value = saved.proxyAddress;
             }
+
+            // Subtitle Position
+            const subtitlePosSaved = document.getElementById('subtitlePosition');
+            if (subtitlePosSaved && saved.subtitlePosition !== undefined) {
+                subtitlePosSaved.value = saved.subtitlePosition;
+            }
         } catch (e) {
             console.warn('Could not load saved settings:', e);
         }
@@ -1203,6 +1216,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         browserEl.addEventListener('change', () => {
             updateMacosCookieHint();
             window.electronAPI?.setSettings({ browser: browserEl.value }).catch(console.error);
+        });
+    }
+
+    // Subtitle Position persistence
+    const subtitlePosEl = document.getElementById('subtitlePosition');
+    if (subtitlePosEl) {
+        subtitlePosEl.addEventListener('change', () => {
+            window.electronAPI?.setSettings({ subtitlePosition: subtitlePosEl.value }).catch(console.error);
         });
     }
 

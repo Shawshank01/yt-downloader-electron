@@ -450,13 +450,15 @@ function buildFfmpegReEncodeArgs({ filePath, outputPath, thumbnailPath, audioCod
 }
 
 // Helper to construct FFmpeg arguments for hardcoding subtitles
-function buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnailPath, codec, audioCodec }) {
+function buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnailPath, codec, audioCodec, subtitlePosition = 'bottom' }) {
     const args = [];
     const escapedSubPath = subtitlePath.replace(/\\/g, '/').replace(/'/g, "'\\''").replace(/:/g, '\\:');
 
     args.push('-i', videoPath);
 
-    const subFilter = `subtitles='${escapedSubPath}':force_style='FontName=${DEFAULT_SUBTITLE_FONT}'`;
+    // Alignment: 2 = Bottom Center (default), 6 = Top Center
+    const alignment = subtitlePosition === 'top' ? '6' : '2';
+    const subFilter = `subtitles='${escapedSubPath}':force_style='FontName=${DEFAULT_SUBTITLE_FONT},Alignment=${alignment}'`;
     if (thumbnailPath) {
         args.push('-i', thumbnailPath);
         args.push('-map', '0:v:0', '-map', '0:a:0', '-map', '1:v:0');
@@ -919,8 +921,8 @@ ipcMain.handle('list-subtitles', async (_event, url, browser, proxy) => {
 
 // IPC handler for downloading video with hardcoded subtitles
 ipcMain.handle('download-with-hardsub', async (event, options) => {
-    const { url, browser, downloadFolder, subtitleLang, subtitleType, codec, proxy } = options;
-    console.log('Download with hardsub:', { url, subtitleLang, subtitleType, codec, downloadFolder });
+    const { url, browser, downloadFolder, subtitleLang, subtitleType, codec, subtitlePosition = 'bottom', proxy } = options;
+    console.log('Download with hardsub:', { url, subtitleLang, subtitleType, codec, subtitlePosition, downloadFolder });
 
     let task;
     try {
@@ -1075,7 +1077,7 @@ ipcMain.handle('download-with-hardsub', async (event, options) => {
         const result = await runFfmpegWithCodecFallback({
             task,
             event,
-            buildArgs: (audioCodec) => buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnailPath, codec, audioCodec }),
+            buildArgs: (audioCodec) => buildFfmpegHardsubArgs({ videoPath, outputPath, subtitlePath, thumbnailPath, codec, audioCodec, subtitlePosition }),
             outputPath,
             logPrefix: 'Hardcoding'
         });

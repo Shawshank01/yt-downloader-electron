@@ -79,6 +79,7 @@ interface ElectronAPI {
         subtitleLang: string;
         subtitleType: string;
         codec: string;
+        subtitlePosition?: 'bottom' | 'top' | string;
         proxy: string;
     }) => Promise<{
         success: boolean;
