@@ -11,7 +11,7 @@ This is a modern, user-friendly desktop application for downloading videos from 
 
 - Download videos in various formats and qualities
 - Smart subtitle downloading with language selection
-- Hardcode subtitles into video using macOS hardware acceleration (H.264 / HEVC)
+- Hardcode subtitles into video with customizable positioning (Bottom or Top) using hardware acceleration (H.264 / HEVC)
 - Automatically extracts and embeds YouTube thumbnails natively into MP4 video containers
 - Safely cancel any ongoing downloads or encoding processes
 - Built-in process concurrency guards and command injection task protections
@@ -120,6 +120,7 @@ This will create a distributable package in the `dist` directory.
    - Enter the video URL
    - Select "Download & Add Hardsub"
    - Choose your preferred codec (H.264 or HEVC)
+   - Choose your preferred subtitle position (**Bottom** or **Top**)
    - Click "Run"
    - Select the subtitle language from the popup dialog
    - The app will securely download the best video quality and automatically hardcode the subtitles using macOS hardware acceleration (`videotoolbox`) or universal encoders on Windows and Linux (`libx264`/`libx265`).
@@ -185,6 +186,7 @@ The app includes a built-in update checker:
 3. **Browser Cookie Issues**
    - Make sure you're logged into YouTube in your selected browser
    - Try a different browser if issues persist
+   - On **macOS**, when reading browser cookies, macOS may block data access until permitted. Follow the in-app prompt or navigate to **System Settings > Privacy & Security > Files & Folders**, enable access for `YT Downloader.app` under the corresponding browser, and restart the app.
 
 4. **start.command Issues (macOS)**
    - If you get a security warning, right-click the file and select "Open"

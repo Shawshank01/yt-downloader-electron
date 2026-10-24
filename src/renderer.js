@@ -626,8 +626,11 @@ function handleFormatListSelection(result, isCancelled, isError) {
     }
 }
 
-// URL for macOS Full Disk Access privacy settings pane
-const MAC_PRIVACY_ALL_FILES_URL = 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles';
+// URLs for macOS Files & Folders privacy settings pane
+const MAC_PRIVACY_FILES_AND_FOLDERS_URL =
+    'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_FilesAndFolders';
+const MAC_PRIVACY_FILES_AND_FOLDERS_LEGACY_URL =
+    'x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders';
 
 // Check if running on macOS
 function isMacOS() {
@@ -646,12 +649,15 @@ function isCookiePermissionError(errorMessage, outputText) {
     );
 }
 
-// Open macOS Full Disk Access settings via shell.openExternal
-async function openFullDiskAccessSettings() {
-    if (window.electronAPI?.openFullDiskAccessSettings) {
-        await window.electronAPI.openFullDiskAccessSettings();
+// Open macOS Files & Folders settings via shell.openExternal
+async function openFilesAndFoldersSettings() {
+    if (window.electronAPI?.openFilesAndFoldersSettings) {
+        await window.electronAPI.openFilesAndFoldersSettings();
     } else if (window.electronAPI?.openExternal) {
-        await window.electronAPI.openExternal(MAC_PRIVACY_ALL_FILES_URL);
+        const opened = await window.electronAPI.openExternal(MAC_PRIVACY_FILES_AND_FOLDERS_URL);
+        if (!opened) {
+            await window.electronAPI.openExternal(MAC_PRIVACY_FILES_AND_FOLDERS_LEGACY_URL);
+        }
     }
 }
 
@@ -664,33 +670,20 @@ async function handleCookiePermissionError(browserName) {
         : 'browser';
 
     const confirmed = await showConfirmModal({
-        title: 'Full Disk Access Required',
+        title: 'Files & Folders Permission Required',
         message:
             `macOS blocked access to ${browserLabel} cookies.\n\n` +
-            `Due to macOS privacy restrictions, reading cookies from ${browserLabel} requires granting "Full Disk Access" to the application in System Settings.\n\n` +
-            `Would you like to open System Settings > Privacy & Security > Full Disk Access now?\n\n` +
+            `Due to macOS privacy restrictions, reading cookies from ${browserLabel} requires granting access in "Files & Folders" settings in System Settings.\n\n` +
+            `Would you like to open System Settings > Privacy & Security > Files & Folders now?\n\n` +
             `(Note: You will need to restart the app after granting access.)`,
         confirmText: 'Open System Settings',
         cancelText: 'Cancel'
     });
 
     if (confirmed) {
-        await openFullDiskAccessSettings();
+        await openFilesAndFoldersSettings();
     }
     return true;
-}
-
-// Toggle macOS cookie hint based on selected browser and platform
-function updateMacosCookieHint() {
-    const hintEl = document.getElementById('macosCookieHint');
-    const browserEl = document.getElementById('browser');
-    if (!hintEl || !browserEl) return;
-
-    if (isMacOS() && browserEl.value) {
-        hintEl.style.display = 'block';
-    } else {
-        hintEl.style.display = 'none';
-    }
 }
 
 // Handle optional re-encode workflow following download
@@ -833,7 +826,7 @@ window.runCommand = async function () {
         }
 
         if (isError && isCookiePermissionError(res.error, res.output)) {
-            renderStatusBanner('error', '❌ Full Disk Access required to read cookies');
+            renderStatusBanner('error', '❌ Files & Folders permission required to read cookies');
             await handleCookiePermissionError(browser);
         } else if (action !== 'List Formats') {
             if (isCancelled) {
@@ -847,7 +840,7 @@ window.runCommand = async function () {
     } catch (e) {
         outputElement.textContent += '\nError: ' + (e?.message || e);
         if (isCookiePermissionError(e?.message || e, '')) {
-            renderStatusBanner('error', '❌ Full Disk Access required to read cookies');
+            renderStatusBanner('error', '❌ Files & Folders permission required to read cookies');
             await handleCookiePermissionError(browser);
         } else if (action !== 'List Formats') {
             renderStatusBanner('error', '❌ Download failed!');
@@ -895,7 +888,7 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
         if (result.error) {
             output.textContent = `Error listing subtitles: ${result.message}`;
             if (isCookiePermissionError(result.message)) {
-                renderStatusBanner('error', '❌ Full Disk Access required to read cookies');
+                renderStatusBanner('error', '❌ Files & Folders permission required to read cookies');
                 await handleCookiePermissionError(browser);
             }
             return;
@@ -962,7 +955,7 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
             } else if (!res.success) {
                 output.textContent = `${commandLine}\n${res.error || res.output || 'Subtitle download failed.'}`;
                 if (isCookiePermissionError(res.error, res.output)) {
-                    renderStatusBanner('error', '❌ Full Disk Access required to read cookies');
+                    renderStatusBanner('error', '❌ Files & Folders permission required to read cookies');
                     await handleCookiePermissionError(browser);
                 } else {
                     renderStatusBanner('error', '❌ Download failed!');
@@ -979,7 +972,7 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
     } catch (error) {
         output.textContent = `Error: ${error.message || error}`;
         if (isCookiePermissionError(error?.message || error)) {
-            renderStatusBanner('error', '❌ Full Disk Access required to read cookies');
+            renderStatusBanner('error', '❌ Files & Folders permission required to read cookies');
             await handleCookiePermissionError(browser);
         } else {
             renderStatusBanner('error', '❌ Download failed!');
@@ -1015,7 +1008,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
         if (result.error) {
             output.textContent = `Error listing subtitles: ${result.message}`;
             if (isCookiePermissionError(result.message)) {
-                renderStatusBanner('error', '❌ Full Disk Access required to read cookies');
+                renderStatusBanner('error', '❌ Files & Folders permission required to read cookies');
                 await handleCookiePermissionError(browser);
             }
             return;
@@ -1080,7 +1073,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
                 renderStatusBanner('success', '✅ Hardsub completed!');
             } else {
                 if (isCookiePermissionError(res.message, res.error)) {
-                    renderStatusBanner('error', '❌ Full Disk Access required to read cookies');
+                    renderStatusBanner('error', '❌ Files & Folders permission required to read cookies');
                     await handleCookiePermissionError(browser);
                 } else {
                     renderStatusBanner('error', '❌ Hardsub failed!');
@@ -1096,7 +1089,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
         } else {
             output.textContent = `Error: ${error?.message || error}`;
             if (isCookiePermissionError(error?.message || error)) {
-                renderStatusBanner('error', '❌ Full Disk Access required to read cookies');
+                renderStatusBanner('error', '❌ Files & Folders permission required to read cookies');
                 await handleCookiePermissionError(browser);
             } else {
                 renderStatusBanner('error', '❌ Hardsub failed!');
@@ -1199,22 +1192,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Initialise macOS cookie hint
-    updateMacosCookieHint();
-
-    const openFdaLink = document.getElementById('openFdaLink');
-    if (openFdaLink) {
-        openFdaLink.addEventListener('click', async (e) => {
-            e.preventDefault();
-            await openFullDiskAccessSettings();
-        });
-    }
-
     // Persist settings on change
     const browserEl = document.getElementById('browser');
     if (browserEl) {
         browserEl.addEventListener('change', () => {
-            updateMacosCookieHint();
             window.electronAPI?.setSettings({ browser: browserEl.value }).catch(console.error);
         });
     }

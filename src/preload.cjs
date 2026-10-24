@@ -19,8 +19,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reEncodeToMp4: (downloadFolder, videoId) =>
         ipcRenderer.invoke('re-encode-to-mp4', downloadFolder, videoId),
     openExternal: (url) => ipcRenderer.invoke('open-external', url),
-    openFullDiskAccessSettings: () =>
-        ipcRenderer.invoke('open-external', 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'),
+    openFilesAndFoldersSettings: () =>
+        ipcRenderer.invoke(
+            'open-external',
+            'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_FilesAndFolders'
+        ),
     checkDependencies: () => ipcRenderer.invoke('check-dependencies'),
     installMissingDependencies: (options) =>
         ipcRenderer.invoke('install-missing-dependencies', options),
