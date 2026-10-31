@@ -1,15 +1,3 @@
-interface DependencyInfo {
-    name: string;
-    installed: boolean;
-    path: string;
-    version: string;
-    hasSubtitlesFilter?: boolean;
-}
-
-interface PackageManagersInfo {
-    [key: string]: DependencyInfo | undefined;
-}
-
 interface SubtitleInfo {
     code: string;
     name: string;
@@ -120,23 +108,6 @@ interface ElectronAPI {
     openExternal: (url: string) => Promise<boolean>;
     openFilesAndFoldersSettings?: () => Promise<boolean>;
     platform?: string;
-    checkDependencies: () => Promise<{
-        success: boolean;
-        allInstalled?: boolean;
-        dependencies?: DependencyInfo[];
-        missing?: string[];
-        packageManagers?: PackageManagersInfo;
-        platform?: string;
-        message?: string;
-    }>;
-    installMissingDependencies: (options?: { installHomebrew?: boolean }) => Promise<{
-        success: boolean;
-        installed?: string[];
-        failed?: string[];
-        message?: string;
-        dependencies?: DependencyInfo[];
-        details?: Record<string, unknown>;
-    }>;
     listSubtitles: (url: string, browser: string, proxy: string) => Promise<{
         success: boolean;
         error: boolean;
@@ -175,6 +146,5 @@ interface Window {
     electronAPI: ElectronAPI;
     chooseFolder: () => Promise<void>;
     checkUpdate: () => Promise<void>;
-    checkDependencies: () => Promise<void>;
     runCommand: () => Promise<void>;
 }

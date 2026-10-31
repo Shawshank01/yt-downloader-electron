@@ -4,8 +4,6 @@ import { dirname, join } from 'path';
 import { promises as fs } from 'fs';
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
 import {
-    checkSystemDependencies,
-    installMissingDependencies,
     setupEnvironmentPaths
 } from './dependencies.js';
 import {
@@ -89,14 +87,6 @@ function progressReporter(event) {
 // Unified IPC handler for cancelling the current action
 ipcMain.handle('cancel-command', async () => {
     return cancelCurrentTask();
-});
-
-ipcMain.handle('check-dependencies', async () => {
-    return checkSystemDependencies();
-});
-
-ipcMain.handle('install-missing-dependencies', async (_event, options = {}) => {
-    return installMissingDependencies(options);
 });
 
 function createWindow() {

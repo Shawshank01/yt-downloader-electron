@@ -53,19 +53,26 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y nasm yasm pkg-config libass-dev
 
-    - name: Install FFmpeg x64 Windows cross-build dependencies
-      if: matrix.target == 'win32-x64'
+    - name: Install Windows FFmpeg build dependencies
+      if: startsWith(matrix.target, 'win32-')
       run: |
         sudo apt-get update
-        sudo apt-get install -y nasm yasm pkg-config libass-dev \
-          gcc-mingw-w64-x86-64 binutils-mingw-w64
+        sudo apt-get install -y autoconf automake autopoint cmake \
+          libtool make meson ninja-build pkg-config nasm yasm
 
     - name: Prepare tool bundle
       env:
         TOOL_TARGET: ${{ matrix.target }}
       run: node scripts/prepare-tools.mjs
 
+    - name: Build Windows FFmpeg with LLVM-MinGW
+      if: startsWith(matrix.target, 'win32-')
+      env:
+        TOOL_TARGET: ${{ matrix.target }}
+      run: bash scripts/build-windows-ffmpeg.sh
+
     - name: Build FFmpeg from official source
+      if: startsWith(matrix.target, 'darwin-') || startsWith(matrix.target, 'linux-')
       shell: bash
       run: |
         set -euo pipefail
@@ -88,16 +95,8 @@ jobs:
 
         if [ "${{ matrix.target }}" = "darwin-x64" ] || [ "${{ matrix.target }}" = "darwin-arm64" ]; then
           ./configure "${CONFIGURE_ARGS[@]}" --cc=clang --disable-indev=jack
-        elif [ "${{ matrix.target }}" = "linux-x64" ] || [ "${{ matrix.target }}" = "linux-arm64" ]; then
-          ./configure "${CONFIGURE_ARGS[@]}"
-        elif [ "${{ matrix.target }}" = "win32-x64" ]; then
-          ./configure "${CONFIGURE_ARGS[@]}" \
-            --target-os=mingw32 --arch=x86_64 --cross-prefix=x86_64-w64-mingw32- \
-            --enable-cross-compile --cc=x86_64-w64-mingw32-gcc
         else
-          ./configure "${CONFIGURE_ARGS[@]}" \
-            --target-os=mingw32 --arch=aarch64 --cross-prefix=aarch64-w64-mingw32- \
-            --enable-cross-compile --cc=aarch64-w64-mingw32-gcc
+          ./configure "${CONFIGURE_ARGS[@]}"
         fi
 
         make -j2

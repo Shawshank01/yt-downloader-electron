@@ -24,9 +24,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
             'open-external',
             'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_FilesAndFolders'
         ),
-    checkDependencies: () => ipcRenderer.invoke('check-dependencies'),
-    installMissingDependencies: (options) =>
-        ipcRenderer.invoke('install-missing-dependencies', options),
     // Hardsub feature APIs
     listSubtitles: (url, browser, proxy) => ipcRenderer.invoke('list-subtitles', url, browser, proxy),
     downloadWithHardsub: (options) => ipcRenderer.invoke('download-with-hardsub', options),

@@ -254,23 +254,6 @@ button.run-button:hover {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
-.dependency-button {
-    background-color: transparent;
-    color: #81c784;
-    padding: 10px 15px;
-    border: 1px solid #81c784;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease;
-}
-
-.dependency-button:hover {
-    background-color: rgba(129, 199, 132, 0.12);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
 /* ---------- Classic / AI mode ---------- */
 .mode-switch {
     display: inline-flex;

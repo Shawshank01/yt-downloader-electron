@@ -52,7 +52,6 @@ Release installers include platform-appropriate copies of `yt-dlp` and `FFmpeg`,
       xattr -cr /Applications/"YT Downloader.app"
       ```
 
-      Then open the app and click **"Check for Dependencies"** (bottom-right corner). If dependencies are missing, you can install them via MacPorts (`sudo port install yt-dlp ffmpeg`) or Homebrew (`brew install yt-dlp ffmpeg`).
     - The installer includes `yt-dlp` and `FFmpeg`; no separate tool installation is required.
 
 ### Method 2: From Source (For Developers)
@@ -195,15 +194,12 @@ The app includes a built-in update checker:
 
 > [!NOTE]
 >
-> - The app cannot update `yt-dlp` or `FFmpeg` automatically on Windows or Linux—you must update them yourself (see Troubleshooting below).
-> - On macOS, the app checks dependencies globally across MacPorts, Homebrew, and your PATH.
+> Release installers use their bundled copies of `yt-dlp` and `FFmpeg`. Development runs use tools installed on your `PATH`.
 
 ## Troubleshooting
 
-1. **Missing Dependencies**
-   - Click **"Check for Dependencies"** to view install status, binary path (`which`/`where`), and version.
-   - On **macOS**, you can choose one-click install via Homebrew when prompted, or install via MacPorts.
-   - On **Linux/Windows**, install manually (no one-click installer in app).
+1. **Development Tools**
+   - `pn start` checks for system-installed `yt-dlp` and `FFmpeg`.
    - If manual installation is needed:
      - **macOS (MacPorts):**  
 
