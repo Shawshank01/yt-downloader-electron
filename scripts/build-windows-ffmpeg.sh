@@ -76,7 +76,7 @@ cpp = '$CXX'
 ar = '$AR'
 strip = '$STRIP'
 windres = '$WINDRES'
-pkgconfig = 'pkg-config'
+pkg-config = 'pkg-config'
 
 [host_machine]
 system = 'windows'
@@ -88,7 +88,7 @@ EOF
 meson setup "$build_dir/fribidi" "$source_dir/fribidi" \
     --cross-file "$build_dir/meson-cross.ini" \
     --prefix "$prefix" --buildtype release \
-    -Dtests=disabled -Ddocs=disabled
+    -Dtests=false -Ddocs=false
 meson compile -C "$build_dir/fribidi"
 meson install -C "$build_dir/fribidi"
 
@@ -112,9 +112,6 @@ meson install -C "$build_dir/harfbuzz"
     make install
 )
 
-mv "$tool_dir/bin/ffmpeg.exe" "$tool_dir/ffmpeg.exe"
-mv "$tool_dir/bin/ffprobe.exe" "$tool_dir/ffprobe.exe"
-
 VERSION="$(node -p "require('./tools-versions.json').ffmpeg")"
 curl --fail --location --retry 5 --retry-all-errors \
     --output "$root_dir/ffmpeg.tar.xz" \
@@ -135,3 +132,6 @@ tar -xf "$root_dir/ffmpeg.tar.xz" -C "$root_dir"
     make -j"$(nproc)"
     make install
 )
+
+mv "$tool_dir/bin/ffmpeg.exe" "$tool_dir/ffmpeg.exe"
+mv "$tool_dir/bin/ffprobe.exe" "$tool_dir/ffprobe.exe"
