@@ -1,5 +1,4 @@
 {
   "yt-dlp": "2026.10.26",
-  "ffmpeg": "latest",
-  "ffmpeg-release": "latest"
+  "ffmpeg": "8.1.3"
 }

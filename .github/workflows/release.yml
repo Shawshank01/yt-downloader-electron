@@ -38,7 +38,7 @@ jobs:
       run: pnpm run lint
 
   release:
-    needs: lint
+    needs: [ lint, tools ]
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -47,22 +47,28 @@ jobs:
         include:
         - os: macos-15
           arch: x64
-          build_script: build:mac
+          target: darwin-x64
+          builder_args: --mac --x64
         - os: macos-26
           arch: arm64
-          build_script: build:mac
+          target: darwin-arm64
+          builder_args: --mac --arm64
         - os: windows-latest
           arch: x64
-          build_script: build:win
+          target: win32-x64
+          builder_args: --win --x64
         - os: windows-11-arm
           arch: arm64
-          build_script: build:win:arm64
+          target: win32-arm64
+          builder_args: --win --arm64
         - os: ubuntu-latest
           arch: x64
-          build_script: build:linux:x64
+          target: linux-x64
+          builder_args: --linux AppImage --x64
         - os: ubuntu-24.04-arm
           arch: arm64
-          build_script: build:linux:arm64
+          target: linux-arm64
+          builder_args: --linux AppImage --arm64
 
     steps:
     - name: Check out Git repository
@@ -82,8 +88,14 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
 
+    - name: Download verified tool bundle
+      uses: actions/download-artifact@v8
+      with:
+        name: ${{ matrix.target }}-tools
+        path: build-tools/${{ matrix.target }}
+
     - name: Build Electron app
-      run: pnpm run ${{ matrix.build_script }}
+      run: pnpm exec electron-builder build ${{ matrix.builder_args }} --publish never
 
     - name: List build artifacts
       shell: bash
@@ -152,3 +164,6 @@ jobs:
         generate_release_notes: false
         body_path: release_notes.txt
         files: release_assets/*
+
+  tools:
+    uses: ./.github/workflows/build-tools.yml

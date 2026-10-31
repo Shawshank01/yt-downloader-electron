@@ -10,33 +10,28 @@ import { promisify } from 'node:util';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const execFileAsync = promisify(execFile);
 const versions = JSON.parse(await readFile(join(root, 'tools-versions.json'), 'utf8'));
-const target = `${platform}-${arch}`;
+const target = process.env.TOOL_TARGET || `${platform}-${arch}`;
 const outputDir = join(root, 'build-tools', target);
+const isWindowsTarget = target.startsWith('win32-');
 
 const targets = {
     'darwin-arm64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos',
-        ffmpeg: 'https://evermeet.cx/ffmpeg/getrelease/zip'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos'
     },
     'darwin-x64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos',
-        ffmpeg: 'https://evermeet.cx/ffmpeg/getrelease/zip'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos'
     },
     'linux-arm64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_linux_aarch64',
-        ffmpeg: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_linux_aarch64'
     },
     'linux-x64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_linux',
-        ffmpeg: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_linux'
     },
     'win32-x64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe',
-        ffmpeg: 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe'
     },
     'win32-arm64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe',
-        ffmpeg: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-winarm64-gpl.zip'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe'
     }
 };
 
@@ -67,50 +62,14 @@ async function download(url, destination) {
 await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
 
-const ytDlpPath = join(outputDir, platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+const ytDlpPath = join(outputDir, isWindowsTarget ? 'yt-dlp.exe' : 'yt-dlp');
 await download(targetInfo.ytDlp.replace('{yt}', versions['yt-dlp']), ytDlpPath);
 
-const archiveExtension = platform === 'linux' ? '.tar.xz' : '.zip';
-const archivePath = join(outputDir, `ffmpeg-archive${archiveExtension}`);
-await download(targetInfo.ffmpeg, archivePath);
-const extract = platform === 'win32'
-    ? ['-Command', `Expand-Archive -LiteralPath '${archivePath}' -DestinationPath '${outputDir}' -Force`]
-    : platform === 'darwin'
-        ? ['-q', archivePath, '-d', outputDir]
-        : ['-xf', archivePath, '-C', outputDir];
-const command = platform === 'win32' ? 'powershell' : platform === 'darwin' ? 'unzip' : 'tar';
-const { spawn } = await import('node:child_process');
-await new Promise((resolve, reject) => {
-    const child = spawn(command, extract, { stdio: 'inherit' });
-    child.on('error', reject);
-    child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`${command} exited with ${code}`)));
-});
-await rm(archivePath);
-
-const ffmpegName = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-const findBinary = async (directory) => {
-    const { readdir } = await import('node:fs/promises');
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
-        const path = join(directory, entry.name);
-        if (entry.isDirectory()) {
-            const result = await findBinary(path);
-            if (result) return result;
-        } else if (entry.name === ffmpegName) {
-            return path;
-        }
-    }
-    return null;
-};
-const extractedFfmpeg = await findBinary(outputDir);
-if (!extractedFfmpeg) throw new Error(`Could not find ${ffmpegName} in downloaded archive`);
-const finalFfmpegPath = join(outputDir, ffmpegName);
-if (extractedFfmpeg !== finalFfmpegPath) {
-    const { rename } = await import('node:fs/promises');
-    await rename(extractedFfmpeg, finalFfmpegPath);
-}
-if (platform !== 'win32') {
+if (!isWindowsTarget) {
     await chmod(ytDlpPath, 0o755);
-    await chmod(finalFfmpegPath, 0o755);
 }
-await writeFile(join(outputDir, 'manifest.json'), JSON.stringify({ ...versions, target }, null, 2));
+await writeFile(join(outputDir, 'yt-dlp-manifest.json'), JSON.stringify({
+    'yt-dlp': versions['yt-dlp'],
+    target
+}, null, 2));
 process.stdout.write(`Prepared ${target} tool bundle in ${outputDir}\n`);

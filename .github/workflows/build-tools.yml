@@ -1,0 +1,146 @@
+name: Build tool bundles
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-15
+          arch: x64
+          target: darwin-x64
+        - os: macos-26
+          arch: arm64
+          target: darwin-arm64
+        - os: ubuntu-latest
+          arch: x64
+          target: win32-x64
+        - os: ubuntu-latest
+          arch: arm64
+          target: win32-arm64
+        - os: ubuntu-latest
+          arch: x64
+          target: linux-x64
+        - os: ubuntu-24.04-arm
+          arch: arm64
+          target: linux-arm64
+
+    steps:
+    - name: Check out Git repository
+      uses: actions/checkout@v7
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 26
+
+    - name: Install FFmpeg build dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: brew install nasm pkg-config libass
+
+    - name: Install FFmpeg build dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nasm yasm pkg-config libass-dev
+
+    - name: Install FFmpeg cross-build dependencies (Windows)
+      if: runner.os == 'Linux' && startsWith(matrix.target, 'win32-')
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nasm yasm pkg-config libass-dev \
+          gcc-mingw-w64-x86-64 gcc-mingw-w64-aarch64 binutils-mingw-w64
+
+    - name: Prepare tool bundle
+      env:
+        TOOL_TARGET: ${{ matrix.target }}
+      run: node scripts/prepare-tools.mjs
+
+    - name: Build FFmpeg from official source
+      shell: bash
+      run: |
+        set -euo pipefail
+        VERSION="$(node -p "require('./tools-versions.json').ffmpeg")"
+        curl --fail --location --retry 5 --retry-all-errors \
+          --output ffmpeg.tar.xz "https://ffmpeg.org/releases/ffmpeg-${VERSION}.tar.xz"
+        tar -xf ffmpeg.tar.xz
+        cd "ffmpeg-${VERSION}"
+
+        CONFIGURE_ARGS=(
+          --prefix="$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}"
+          --enable-gpl
+          --enable-libass
+          --enable-filter=subtitles
+          --enable-static
+          --disable-shared
+          --disable-debug
+          --disable-doc
+        )
+
+        if [ "${{ matrix.target }}" = "darwin-x64" ] || [ "${{ matrix.target }}" = "darwin-arm64" ]; then
+          ./configure "${CONFIGURE_ARGS[@]}" --cc=clang --disable-indev=jack
+        elif [ "${{ matrix.target }}" = "linux-x64" ] || [ "${{ matrix.target }}" = "linux-arm64" ]; then
+          ./configure "${CONFIGURE_ARGS[@]}"
+        elif [ "${{ matrix.target }}" = "win32-x64" ]; then
+          ./configure "${CONFIGURE_ARGS[@]}" \
+            --target-os=mingw32 --arch=x86_64 --cross-prefix=x86_64-w64-mingw32- \
+            --enable-cross-compile --cc=x86_64-w64-mingw32-gcc
+        else
+          ./configure "${CONFIGURE_ARGS[@]}" \
+            --target-os=mingw32 --arch=aarch64 --cross-prefix=aarch64-w64-mingw32- \
+            --enable-cross-compile --cc=aarch64-w64-mingw32-gcc
+        fi
+
+        make -j2
+        make install
+        mkdir -p "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}"
+        cp "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/bin/ffmpeg" \
+          "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/ffmpeg" 2>/dev/null || true
+        cp "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/bin/ffprobe" \
+          "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/ffprobe" 2>/dev/null || true
+        if [[ "${{ matrix.target }}" == win32-* ]]; then
+          mv "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/bin/ffmpeg.exe" \
+            "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/ffmpeg.exe"
+          mv "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/bin/ffprobe.exe" \
+            "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/ffprobe.exe"
+        fi
+
+    - name: Verify tool bundle
+      shell: bash
+      run: |
+        TOOL_DIR="build-tools/${{ matrix.target }}"
+        if [[ "${{ matrix.target }}" == win32-* ]]; then
+          "$TOOL_DIR/yt-dlp.exe" --version
+          "$TOOL_DIR/ffmpeg.exe" -version
+          "$TOOL_DIR/ffmpeg.exe" -filters 2>&1 | grep -E '[[:space:]]subtitles[[:space:]]'
+        else
+          "$TOOL_DIR/yt-dlp" --version
+          "$TOOL_DIR/ffmpeg" -version
+          "$TOOL_DIR/ffmpeg" -filters 2>&1 | grep -E '[[:space:]]subtitles[[:space:]]'
+        fi
+
+    - name: Generate checksums
+      shell: bash
+      run: |
+        cd "build-tools/${{ matrix.target }}"
+        if command -v sha256sum >/dev/null 2>&1; then
+          sha256sum yt-dlp* ffmpeg* > SHA256SUMS
+        else
+          shasum -a 256 yt-dlp* ffmpeg* > SHA256SUMS
+        fi
+
+    - name: Upload verified tool bundle
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ matrix.target }}-tools
+        path: build-tools/${{ matrix.target }}/
+        if-no-files-found: error
