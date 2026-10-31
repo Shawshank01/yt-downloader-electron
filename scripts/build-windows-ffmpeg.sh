@@ -135,7 +135,8 @@ libass_libs="$(pkg-config --static --libs libass)"
         --enable-static --disable-shared --disable-debug --disable-doc \
         --pkg-config-flags="--static" \
         --extra-cflags="$libass_cflags -I$prefix/include" \
-        --extra-ldflags="-L$prefix/lib $libass_libs"
+        --extra-ldflags="-L$prefix/lib" \
+        --extra-libs="$libass_libs -ldwrite -lole32 -luuid -luser32 -ladvapi32"
     make -j"$(nproc)"
     make install
 )
