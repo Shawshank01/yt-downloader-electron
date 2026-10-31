@@ -1,12 +1,14 @@
+/* global process */
+
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { createWriteStream } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
-import { request } from 'node:https';
 import { platform, arch } from 'node:process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const execFileAsync = promisify(execFile);
 const versions = JSON.parse(await readFile(join(root, 'tools-versions.json'), 'utf8'));
 const target = `${platform}-${arch}`;
 const outputDir = join(root, 'build-tools', target);
@@ -41,51 +43,25 @@ const targets = {
 const targetInfo = targets[target];
 if (!targetInfo) throw new Error(`Unsupported tool bundle target: ${target}`);
 
-const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-
 async function download(url, destination) {
-    let lastError;
-    for (let attempt = 1; attempt <= 4; attempt++) {
-        try {
-            await rm(destination, { force: true });
-            await new Promise((resolve, reject) => {
-                const follow = (currentUrl, redirects = 0) => {
-                    if (redirects > 10) {
-                        reject(new Error(`Too many redirects while downloading ${currentUrl}`));
-                        return;
-                    }
-
-                    const req = request(currentUrl, {
-                        headers: { 'User-Agent': 'yt-downloader-electron-build' },
-                        timeout: 120000
-                    }, (response) => {
-                        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-                            response.resume();
-                            follow(new URL(response.headers.location, currentUrl), redirects + 1);
-                            return;
-                        }
-                        if (response.statusCode !== 200) {
-                            response.resume();
-                            reject(new Error(`Download failed (${response.statusCode}): ${currentUrl}`));
-                            return;
-                        }
-                        pipeline(response, createWriteStream(destination)).then(resolve, reject);
-                    });
-                    req.on('timeout', () => req.destroy(new Error(`Download timed out: ${currentUrl}`)));
-                    req.on('error', reject);
-                };
-                follow(url);
-            });
-            return;
-        } catch (error) {
-            lastError = error;
-            if (attempt < 4) {
-                console.warn(`Download attempt ${attempt} failed (${error.message}); retrying...`);
-                await wait(attempt * 2000);
-            }
-        }
+    await rm(destination, { force: true });
+    try {
+        await execFileAsync('curl', [
+            '--fail',
+            '--location',
+            '--retry', '5',
+            '--retry-delay', '3',
+            '--retry-all-errors',
+            '--connect-timeout', '30',
+            '--max-time', '600',
+            '--user-agent', 'yt-downloader-electron-build',
+            '--output', destination,
+            url
+        ], { maxBuffer: 1024 * 1024 });
+    } catch (error) {
+        const detail = error.stderr?.trim() || error.message;
+        throw new Error(`Failed to download ${url}: ${detail}`, { cause: error });
     }
-    throw new Error(`Failed to download after 4 attempts: ${lastError.message}`);
 }
 
 await rm(outputDir, { recursive: true, force: true });
@@ -137,4 +113,4 @@ if (platform !== 'win32') {
     await chmod(finalFfmpegPath, 0o755);
 }
 await writeFile(join(outputDir, 'manifest.json'), JSON.stringify({ ...versions, target }, null, 2));
-console.log(`Prepared ${target} tool bundle in ${outputDir}`);
+process.stdout.write(`Prepared ${target} tool bundle in ${outputDir}\n`);
