@@ -35,12 +35,17 @@ async function getSettingsPath() {
 }
 
 async function readSettings() {
+    const filePath = await getSettingsPath();
     try {
-        const filePath = await getSettingsPath();
         const data = await fs.readFile(filePath, 'utf-8');
         return JSON.parse(data);
     } catch {
-        return {};
+        try {
+            await fs.access(filePath);
+            return {};
+        } catch {
+            return { aiMode: 'ai' };
+        }
     }
 }
 

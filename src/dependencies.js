@@ -125,6 +125,21 @@ export function setupEnvironmentPaths() {
     return process.env.PATH;
 }
 
+export function getBundledExecutablePath(name) {
+    if (process.defaultApp !== false || !process.resourcesPath) return null;
+    const executableName = process.platform === 'win32' ? `${name}.exe` : name;
+    const candidate = join(process.resourcesPath, 'tools', executableName);
+    try {
+        if (fs.existsSync(candidate)) {
+            if (process.platform !== 'win32') fs.accessSync(candidate, fs.constants.X_OK);
+            return candidate;
+        }
+    } catch {
+        return null;
+    }
+    return null;
+}
+
 // Initialize PATH immediately on module load
 setupEnvironmentPaths();
 
@@ -162,6 +177,8 @@ export function runCommandWithOutput(command) {
  */
 export async function findExecutable(name) {
     setupEnvironmentPaths();
+    const bundledPath = getBundledExecutablePath(name);
+    if (bundledPath) return bundledPath;
 
     // 1. Try 'which' (or 'where' on Windows)
     const checkCommand = process.platform === 'win32' ? `where ${name}` : `which ${name}`;

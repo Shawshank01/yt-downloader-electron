@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { getBundledExecutablePath } from '../dependencies.js';
 
 // Task management for long-running processes (yt-dlp or ffmpeg)
 class TaskManager {
@@ -31,7 +32,7 @@ class TaskManager {
             throw new Error('Action cancelled by user.');
         }
 
-        const child = spawn(command, args, options);
+        const child = spawn(getBundledExecutablePath(command) || command, args, options);
         task.activeProcess = child;
 
         child.on('error', (err) => {

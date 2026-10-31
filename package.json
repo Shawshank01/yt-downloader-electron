@@ -11,12 +11,14 @@
     "lint": "eslint \"src/**/*.js\" \"test/**/*.js\"",
     "format": "prettier --write \"src/**/*.{js,html,css}\"",
     "postinstall": "electron-builder install-app-deps",
-    "build": "electron-builder",
-    "build:mac": "electron-builder build --mac --x64 --arm64 --publish never",
-    "build:win": "electron-builder build --win --publish never",
-    "build:linux": "electron-builder build --linux AppImage --publish never",
-    "build:linux:x64": "electron-builder build --linux AppImage --x64 --publish never",
-    "build:linux:arm64": "electron-builder build --linux AppImage --arm64 --publish never"
+    "prepare-tools": "node scripts/prepare-tools.mjs",
+    "build": "pnpm prepare-tools && electron-builder --publish never",
+    "build:mac": "pnpm prepare-tools && electron-builder build --mac --publish never",
+    "build:win": "pnpm prepare-tools && electron-builder build --win --publish never",
+    "build:win:arm64": "pnpm prepare-tools && electron-builder build --win --arm64 --publish never",
+    "build:linux": "pnpm prepare-tools && electron-builder build --linux AppImage --publish never",
+    "build:linux:x64": "pnpm prepare-tools && electron-builder build --linux AppImage --x64 --publish never",
+    "build:linux:arm64": "pnpm prepare-tools && electron-builder build --linux AppImage --arm64 --publish never"
   },
   "repository": {
     "type": "git",
@@ -78,12 +80,7 @@
     "win": {
       "icon": "build/icon.png",
       "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
+        "nsis"
       ],
       "signAndEditExecutable": false
     },
@@ -103,10 +100,17 @@
     "directories": {
       "output": "dist"
     },
+    "extraResources": [
+      {
+        "from": "build-tools/${os}-${arch}",
+        "to": "tools"
+      }
+    ],
     "files": [
       "**/*",
       "!test{,/**}",
       "!docs{,/**}",
+      "!build-tools{,/**}",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
       "!**/node_modules/*.d.ts",

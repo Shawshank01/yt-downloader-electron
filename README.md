@@ -29,18 +29,12 @@ It has two interfaces that you can switch between at any time:
 - MP4 re-encoding with H.264/AAC codecs for maximum compatibility
 - SOCKS5 Proxy support (default listening address `127.0.0.1:1080`, with manual custom override)
 
-> [!IMPORTANT]
-> **yt-dlp and FFmpeg Are Not Bundled**
+> [!NOTE]
+> **Released installers include yt-dlp and FFmpeg.**
 
-**This app does NOT bundle `yt-dlp` or `FFmpeg` inside the installer.**  
-You must have both `yt-dlp` and `FFmpeg` installed on your system for the app to work.
+Release installers include platform-appropriate copies of `yt-dlp` and `FFmpeg`, so end users do not need to install them separately. Development runs (`pn start`) intentionally continue to use tools installed on the developer's `PATH`.
 
-- **On macOS:**  
-  The app checks dependencies globally (including MacPorts, Homebrew, and custom PATH locations). Use the app's **"Check for Dependencies"** button. If dependencies are missing, the app can install them via Homebrew or you can install via MacPorts (`sudo port install yt-dlp ffmpeg`).
-- **On Linux:**  
-  Please install `yt-dlp` and `FFmpeg` using your package manager before use (see below).
-- **On Windows:**  
-  Please install [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) and [FFmpeg](https://ffmpeg.org/download.html) manually and make sure they are available in your PATH.
+- **For development:** install [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) and [FFmpeg](https://ffmpeg.org/download.html) and make sure they are available in your `PATH`.
 
 ## Installation
 
@@ -50,7 +44,7 @@ You must have both `yt-dlp` and `FFmpeg` installed on your system for the app to
 2. Extract the downloaded file and run the installer for your OS:
     - **macOS:** `.dmg`
     - **Linux:** `.AppImage` or `.deb`
-    - **Windows:** `.exe` installer
+    - **Windows:** `.exe` installer (x64 or ARM64)
 3. **First Run:**
     - On **macOS**, drag `YT Downloader.app` to `/Applications`. If macOS shows *“YT Downloader.app is damaged and can’t be opened. You should move it to the Trash”* (Gatekeeper quarantine for unsigned apps), click Cancel, open Terminal and run:
 
@@ -59,7 +53,7 @@ You must have both `yt-dlp` and `FFmpeg` installed on your system for the app to
       ```
 
       Then open the app and click **"Check for Dependencies"** (bottom-right corner). If dependencies are missing, you can install them via MacPorts (`sudo port install yt-dlp ffmpeg`) or Homebrew (`brew install yt-dlp ffmpeg`).
-    - On **Linux/Windows**, you must install `yt-dlp` and `FFmpeg` yourself if not already present (see troubleshooting below).
+    - The installer includes `yt-dlp` and `FFmpeg`; no separate tool installation is required.
 
 ### Method 2: From Source (For Developers)
 
