@@ -1,6 +1,6 @@
-const { contextBridge, ipcRenderer } = require('electron');
+/* global process */
 
-console.log('preload.js running!');
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
     platform: process.platform,
