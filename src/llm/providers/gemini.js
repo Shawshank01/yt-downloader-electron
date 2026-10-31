@@ -282,14 +282,20 @@ export class GeminiProvider {
         const decoder = new TextDecoder();
         let buffer = '';
         let finalData = null;
+        let streamedText = '';
+        const streamedParts = [];
         const process = (raw) => {
             const line = raw.split(/\r?\n/).find((item) => item.startsWith('data:'));
             if (!line) return;
             try {
                 const data = JSON.parse(line.slice(5).trim());
                 const parts = data.candidates?.[0]?.content?.parts || [];
+                streamedParts.push(...parts);
                 for (const part of parts) {
-                    if (typeof part.text === 'string' && !part.thought) onTextDelta(part.text);
+                    if (typeof part.text === 'string' && !part.thought) {
+                        streamedText += part.text;
+                        onTextDelta(part.text);
+                    }
                 }
                 finalData = data;
             } catch {
@@ -306,10 +312,15 @@ export class GeminiProvider {
         }
         if (buffer) process(buffer);
         if (!finalData) throw new ProviderError('Gemini ended the stream without a response.', { kind: 'bad_response' });
-        return this.#parseStreamData(finalData, undefined, startedAt);
+        return this.#parseStreamData(
+            { ...finalData, candidates: [{ ...finalData.candidates?.[0], content: { parts: streamedParts } }] },
+            undefined,
+            startedAt,
+            streamedText
+        );
     }
 
-    #parseStreamData(finalData, onTextDelta, startedAt = Date.now()) {
+    #parseStreamData(finalData, onTextDelta, startedAt = Date.now(), streamedText = '') {
         const candidate = finalData.candidates?.[0];
         const parts = candidate?.content?.parts || [];
         if (onTextDelta) {
@@ -324,7 +335,7 @@ export class GeminiProvider {
             args: part.functionCall.args || {}
         }));
         return {
-            text: parts.filter((part) => typeof part.text === 'string' && !part.thought).map((part) => part.text).join('').trim(),
+            text: (streamedText || parts.filter((part) => typeof part.text === 'string' && !part.thought).map((part) => part.text).join('')).trim(),
             toolCalls,
             raw: { provider: this.id, parts },
             stats: {

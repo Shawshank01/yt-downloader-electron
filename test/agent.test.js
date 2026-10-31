@@ -15,11 +15,12 @@ function scriptedProvider(replies) {
     return {
         id: 'scripted',
         seen,
-        async chat({ messages }) {
+        async chat({ messages, onTextDelta }) {
             seen.push(JSON.parse(JSON.stringify(messages)));
             const next = queue.shift();
             if (!next) throw new Error('script exhausted');
             if (next instanceof Error) throw next;
+            for (const delta of next.deltas || []) onTextDelta?.(delta);
             return { text: '', toolCalls: [], raw: null, ...next };
         }
     };
@@ -61,6 +62,22 @@ test('plain answer with no tool calls ends the loop', async () => {
     assert.equal(res.stoppedBecause, 'done');
     assert.equal(res.steps, 1);
     assert.deepEqual(history.map((m) => m.role), ['user', 'assistant']);
+});
+
+test('streamed text is retained when the provider final answer is empty', async () => {
+    const provider = scriptedProvider([{ deltas: ['hello ', 'world'] }]);
+    const events = [];
+    const res = await runAgent({
+        provider,
+        system: 's',
+        history: [],
+        userText: 'hi',
+        ctx: {},
+        onEvent: (event) => events.push(event)
+    });
+    assert.equal(res.text, 'hello world');
+    assert.equal(events.filter((event) => event.type === 'assistant_delta').length, 2);
+    assert.equal(events.at(-1).text, 'hello world');
 });
 
 test('tool call → result fed back → final answer (list_downloads against a real folder)', async () => {

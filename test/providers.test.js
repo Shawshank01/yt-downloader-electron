@@ -237,6 +237,57 @@ test('Gemini: network failure and abort', async () => {
     assert.equal(err2.kind, 'aborted');
 });
 
+test('Gemini streaming keeps accumulated text when the final chunk has no text', async () => {
+    const chunks = [
+        'data: {"candidates":[{"content":{"parts":[{"text":"hello "}]},"finishReason":"STOP"}]}\n\n',
+        'data: {"candidates":[{"content":{"parts":[]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1}}\n\n'
+    ];
+    const fetchImpl = async () => ({
+        ok: true,
+        body: new ReadableStream({
+            start(controller) {
+                for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+                controller.close();
+            }
+        })
+    });
+    const deltas = [];
+    const provider = new GeminiProvider({ apiKey: 'k', fetchImpl });
+    const reply = await provider.chat({
+        system: '',
+        messages: [{ role: 'user', text: 'hi' }],
+        onTextDelta: (delta) => deltas.push(delta)
+    });
+    assert.deepEqual(deltas, ['hello ']);
+    assert.equal(reply.text, 'hello');
+});
+
+test('Gemini streaming keeps tool calls when the final chunk has no content', async () => {
+    const chunks = [
+        'data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"list_formats","args":{"url":"https://x.test/v"}}}]}}]}\n\n',
+        'data: {"candidates":[{"content":{"parts":[]},"finishReason":"STOP"}]}\n\n'
+    ];
+    const fetchImpl = async () => ({
+        ok: true,
+        body: new ReadableStream({
+            start(controller) {
+                for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+                controller.close();
+            }
+        })
+    });
+    const provider = new GeminiProvider({ apiKey: 'k', fetchImpl });
+    const reply = await provider.chat({
+        system: '',
+        messages: [{ role: 'user', text: 'list formats' }],
+        onTextDelta: () => { }
+    });
+    assert.equal(reply.text, '');
+    assert.equal(reply.toolCalls.length, 1);
+    assert.equal(reply.toolCalls[0].name, 'list_formats');
+    assert.deepEqual(reply.toolCalls[0].args, { url: 'https://x.test/v' });
+});
+
 test('Gemini: testConnection uses a free GET on the model', async () => {
     const fetchImpl = fakeFetch([{ json: { name: 'models/gemini-3.8-flash', displayName: 'Gemini 3.8 Flash' } }]);
     const provider = new GeminiProvider({ apiKey: 'k', fetchImpl });
@@ -392,7 +443,7 @@ test('retry: only temporary errors are retried', async () => {
     ]) {
         const fetchImpl = fakeFetch([response, okReply]);
         const provider = new GeminiProvider({ apiKey: 'k', retryDelayMs: 1, fetchImpl });
-        await provider.chat({ system: '', messages: userMessages }).catch(() => {});
+        await provider.chat({ system: '', messages: userMessages }).catch(() => { });
         assert.equal(fetchImpl.calls.length, 1, `HTTP ${response.status} must not be retried`);
     }
 });

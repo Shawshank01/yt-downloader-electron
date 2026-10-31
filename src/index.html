@@ -15,95 +15,101 @@
                 <div class="header-controls">
                     <span id="modeNotice" class="mode-notice" role="status"></span>
                     <div class="mode-switch" role="group" aria-label="Interface mode">
-                        <button type="button" id="modeClassicBtn" class="mode-btn active" aria-pressed="true">Classic</button>
+                        <button type="button" id="modeClassicBtn" class="mode-btn active"
+                            aria-pressed="true">Classic</button>
                         <button type="button" id="modeAiBtn" class="mode-btn" aria-pressed="false">AI</button>
                     </div>
-                    <button type="button" id="aiSettingsBtn" class="ai-settings-btn" style="display: none">AI Settings</button>
+                    <button type="button" id="aiSettingsBtn" class="ai-settings-btn" style="display: none">AI
+                        Settings</button>
                 </div>
             </div>
 
-            <div class="input-row">
-                <div class="input-group url-input classic-only">
-                    <label for="url">Video URL:</label>
-                    <input type="url" id="url" placeholder="Enter video URL" />
-                </div>
+            <div class="download-controls">
+                <div class="input-row">
+                    <div class="input-group url-input classic-only">
+                        <label for="url">Video URL:</label>
+                        <input type="url" id="url" placeholder="Enter video URL" />
+                    </div>
 
-                <div class="input-group short-input">
-                    <label for="browser">Browser for Cookies:</label>
-                    <select id="browser">
-                        <option value="" selected>No cookies</option>
-                        <option value="brave">Brave</option>
-                        <option value="chrome">Chrome</option>
-                        <option value="firefox">Firefox</option>
-                        <option value="safari">Safari (Not Recommended)</option>
-                    </select>
-                </div>
-            </div>
+                    <div class="input-group short-input browser-group">
+                        <label for="browser">Browser for Cookies:</label>
+                        <select id="browser">
+                            <option value="" selected>No cookies</option>
+                            <option value="brave">Brave</option>
+                            <option value="chrome">Chrome</option>
+                            <option value="firefox">Firefox</option>
+                            <option value="safari">Safari (Not Recommended)</option>
+                        </select>
+                    </div>
 
-            <div class="input-row">
-                <div class="input-group classic-only">
-                    <label for="action">Action:</label>
-                    <select id="action">
-                        <option value="Download Video (Best Quality)">
-                            Download Video (Best Quality)
-                        </option>
-                        <option value="List Formats">List Formats</option>
-                        <option value="Download (Custom Format)">Download (Custom Format)</option>
-                        <option value="Download Thumbnail">Download Thumbnail</option>
-                        <option value="Download Subtitles">Download Subtitles</option>
-                        <option value="Download & Re-encode as high quality MP4 (H.264/AAC)">
-                            Download & Re-encode as high quality MP4 (H.264/AAC)
-                        </option>
-                        <option value="Download & Add Hardsub">
-                            Download & Add Hardsub
-                        </option>
-                    </select>
-                </div>
-
-                <div class="input-group">
-                    <label for="downloadFolder">Download Folder:</label>
-                    <div class="folder-input">
-                        <input type="text" id="downloadFolder" readonly />
-                        <button onclick="window.chooseFolder()">Choose</button>
+                    <div class="input-group proxy-group">
+                        <div class="proxy-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="proxyEnabled" />
+                                <span class="slider"></span>
+                            </label>
+                            <label for="proxyEnabled" class="proxy-label">SOCKS5 Proxy:</label>
+                        </div>
+                        <input type="text" id="proxyAddress" placeholder="127.0.0.1:1080" value="127.0.0.1:1080"
+                            disabled />
                     </div>
                 </div>
 
-                <div class="input-group run-button-group classic-only">
-                    <button class="run-button" onclick="window.runCommand()">Run</button>
-                </div>
-            </div>
-
-            <div class="input-row">
-                <div class="input-group short-input classic-only" id="formatCodeGroup" style="display: none">
-                    <label for="formatCode">Format Code:</label>
-                    <input type="text" id="formatCode" placeholder="e.g., 140, 356, or 140+356" />
-                </div>
-
-                <div class="input-group short-input classic-only" id="codecGroup" style="display: none">
-                    <label for="codec">Video Codec:</label>
-                    <select id="codec">
-                        <option value="h264">H.264 (Better Compatibility)</option>
-                        <option value="hevc">HEVC (Better Quality)</option>
-                    </select>
-                </div>
-
-                <div class="input-group short-input classic-only" id="subtitlePositionGroup" style="display: none">
-                    <label for="subtitlePosition">Subtitle Position:</label>
-                    <select id="subtitlePosition">
-                        <option value="bottom">Bottom (Default)</option>
-                        <option value="top">Top</option>
-                    </select>
-                </div>
-
-                <div class="input-group proxy-group">
-                    <div class="proxy-toggle">
-                        <label class="switch">
-                            <input type="checkbox" id="proxyEnabled" />
-                            <span class="slider"></span>
-                        </label>
-                        <label for="proxyEnabled" class="proxy-label">SOCKS5 Proxy</label>
+                <div class="input-row">
+                    <div class="input-group classic-only">
+                        <label for="action">Action:</label>
+                        <select id="action">
+                            <option value="Download Video (Best Quality)">
+                                Download Video (Best Quality)
+                            </option>
+                            <option value="List Formats">List Formats</option>
+                            <option value="Download (Custom Format)">Download (Custom Format)</option>
+                            <option value="Download Thumbnail">Download Thumbnail</option>
+                            <option value="Download Subtitles">Download Subtitles</option>
+                            <option value="Download & Re-encode as high quality MP4 (H.264/AAC)">
+                                Download & Re-encode as high quality MP4 (H.264/AAC)
+                            </option>
+                            <option value="Download & Add Hardsub">
+                                Download & Add Hardsub
+                            </option>
+                        </select>
                     </div>
-                    <input type="text" id="proxyAddress" placeholder="127.0.0.1:1080" value="127.0.0.1:1080" disabled />
+
+                    <div class="input-group download-folder-group">
+                        <label for="downloadFolder">Download Folder:</label>
+                        <div class="folder-input">
+                            <input type="text" id="downloadFolder" readonly />
+                            <button onclick="window.chooseFolder()">Choose</button>
+                        </div>
+                    </div>
+
+                    <div class="input-group run-button-group classic-only">
+                        <button class="run-button" onclick="window.runCommand()">Run</button>
+                    </div>
+                </div>
+
+                <div class="input-row">
+                    <div class="input-group short-input classic-only" id="formatCodeGroup" style="display: none">
+                        <label for="formatCode">Format Code:</label>
+                        <input type="text" id="formatCode" placeholder="e.g., 140, 356, or 140+356" />
+                    </div>
+
+                    <div class="input-group short-input classic-only" id="codecGroup" style="display: none">
+                        <label for="codec">Video Codec:</label>
+                        <select id="codec">
+                            <option value="h264">H.264 (Better Compatibility)</option>
+                            <option value="hevc">HEVC (Better Quality)</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group short-input classic-only" id="subtitlePositionGroup" style="display: none">
+                        <label for="subtitlePosition">Subtitle Position:</label>
+                        <select id="subtitlePosition">
+                            <option value="bottom">Bottom (Default)</option>
+                            <option value="top">Top</option>
+                        </select>
+                    </div>
+
                 </div>
             </div>
 
@@ -168,7 +174,8 @@
                         <option value="high">Thorough: much slower</option>
                         <option value="xhigh">Extra thorough: slowest</option>
                     </select>
-                    <div class="ai-hint" id="aiThinkingHint">How long Gemini thinks before answering. Fast is enough for downloads and conversions.</div>
+                    <div class="ai-hint" id="aiThinkingHint">How long Gemini thinks before answering. Fast is enough for
+                        downloads and conversions.</div>
                 </div>
 
                 <div class="ai-field" id="aiKeyField">
@@ -188,7 +195,8 @@
                 <div class="ai-field">
                     <label for="aiConfirmSelect">Ask me before running</label>
                     <select id="aiConfirmSelect">
-                        <option value="risky">Risky actions only: re-encode, hardsub, delete, playlists (recommended)</option>
+                        <option value="risky">Risky actions only: re-encode, hardsub, delete, playlists (recommended)
+                        </option>
                         <option value="always">Every action</option>
                         <option value="never">Never (the assistant runs everything)</option>
                     </select>

@@ -89,13 +89,17 @@ export async function runAgent({
 
         steps += 1;
         let reply;
+        let streamedText = '';
         try {
             reply = await provider.chat({
                 system,
                 messages: history,
                 tools,
                 signal,
-                onTextDelta: (text) => onEvent({ type: 'assistant_delta', text }),
+                onTextDelta: (text) => {
+                    streamedText += text;
+                    onEvent({ type: 'assistant_delta', text });
+                },
                 onRetry: (info) => onEvent({ type: 'retrying', provider: provider.displayName || provider.id, ...info })
             });
         } catch (err) {
@@ -106,20 +110,21 @@ export async function runAgent({
         if (reply.stats) onEvent({ type: 'model_call', step: steps, ...reply.stats });
 
         const toolCalls = reply.toolCalls.filter((c) => c.name);
+        const replyText = reply.text || streamedText;
         history.push({
             role: 'assistant',
-            text: reply.text,
+            text: replyText,
             toolCalls,
             ...(reply.raw ? { raw: reply.raw } : {})
         });
 
         if (toolCalls.length === 0) {
-            const text = reply.text || '(The assistant returned an empty answer.)';
+            const text = replyText || '(The assistant returned an empty answer.)';
             onEvent({ type: 'assistant_text', text });
             return { text, steps, stoppedBecause: 'done' };
         }
 
-        if (reply.text) onEvent({ type: 'assistant_text', text: reply.text });
+        if (replyText) onEvent({ type: 'assistant_text', text: replyText });
 
         for (const call of toolCalls) {
             let result;

@@ -79,6 +79,7 @@
     let pendingConfirmId = null;
     let assistantBubblesThisTurn = 0;
     let streamingBubble = null;
+    let lastAssistantText = '';
     const steps = new Map(); // tool call id -> { el, detailEl, description }
 
     // ------------------------------------------------------------------ helpers
@@ -125,15 +126,14 @@
         return Boolean(controls && controls.style.display !== 'none');
     }
 
-    function nearBottom(el) {
-        return el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    function scrollMessagesToBottom() {
+        els.messages.scrollTop = els.messages.scrollHeight;
     }
 
     function append(el) {
-        const stick = nearBottom(els.messages);
         clearEmptyHint();
         els.messages.appendChild(el);
-        if (stick) els.messages.scrollTop = els.messages.scrollHeight;
+        scrollMessagesToBottom();
     }
 
     function openLink(url) {
@@ -173,12 +173,14 @@
             append(streamingBubble);
         }
         streamingBubble.textContent = text;
+        scrollMessagesToBottom();
         if (done) {
             const finalText = streamingBubble.textContent;
             streamingBubble.textContent = '';
             fillMessage(streamingBubble, 'assistant', finalText);
             assistantBubblesThisTurn += 1;
             streamingBubble = null;
+            scrollMessagesToBottom();
         }
     }
 
@@ -310,6 +312,7 @@
         addMessage('user', text);
         els.input.value = '';
         assistantBubblesThisTurn = 0;
+        lastAssistantText = '';
         setBusy(true);
         els.progress.textContent = 'Thinking…';
         try {
@@ -370,8 +373,11 @@
                 if (event.text) {
                     if (streamingBubble) {
                         updateStreamingMessage(event.text, true);
+                        lastAssistantText = event.text;
                         break;
                     }
+                    if (event.text === lastAssistantText) break;
+                    lastAssistantText = event.text;
                     assistantBubblesThisTurn += 1;
                     addMessage('assistant', event.text);
                 }
