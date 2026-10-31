@@ -6,6 +6,7 @@ import { runAgent } from './agent.js';
 import { cancelCurrentTask } from '../core/tools.js';
 import { buildSystemPrompt } from './prompt.js';
 import { createProvider, PROVIDER_TYPES } from './providers/index.js';
+import { XAI_REASONING_EFFORTS } from './providers/xai.js';
 import { ProviderError } from './errors.js';
 
 export const MODES = ['classic', 'ai'];
@@ -48,14 +49,25 @@ export function sanitizeProviderConfig(type, update = {}) {
         }
         out.model = model;
     }
-    if (update.thinkingLevel !== undefined) {
-        if (type !== 'gemini') throw new AiSettingsError('Thinking level is only available for Gemini.');
-        if (!THINKING_LEVEL_CHOICES.includes(update.thinkingLevel)) {
-            throw new AiSettingsError('Thinking level must be low, medium or high.');
+    if (update.thinkingLevel !== undefined || update.reasoningEffort !== undefined) {
+        if (type === 'gemini') {
+            if (update.reasoningEffort !== undefined || !THINKING_LEVEL_CHOICES.includes(update.thinkingLevel)) {
+                throw new AiSettingsError('Gemini thinking level must be low, medium or high.');
+            }
+            out.thinkingLevel = update.thinkingLevel;
+        } else if (type === 'xai') {
+            if (update.thinkingLevel !== undefined || !XAI_REASONING_EFFORTS.includes(update.reasoningEffort)) {
+                throw new AiSettingsError('xAI reasoning effort must be none, low, medium, high or xhigh.');
+            }
+            out.reasoningEffort = update.reasoningEffort;
+        } else {
+            throw new AiSettingsError('Reasoning effort is not available for this provider.');
         }
-        out.thinkingLevel = update.thinkingLevel;
     }
     // Gemini always uses Google's endpoint so the API key can never be redirected elsewhere.
+    if (update.baseUrl !== undefined && type === 'xai') {
+        throw new AiSettingsError('The xAI server URL is fixed.');
+    }
     if (update.baseUrl !== undefined && type !== 'gemini') {
         const baseUrl = String(update.baseUrl).trim();
         out.baseUrl = baseUrl ? assertHttpUrl(baseUrl, 'The server URL') : '';
@@ -115,9 +127,11 @@ export class ChatService {
             providers[id] = {
                 label: info.label,
                 needsApiKey: info.needsApiKey === true,
-                editableBaseUrl: id !== 'gemini',
+                editableBaseUrl: id !== 'gemini' && id !== 'xai',
                 supportsThinkingLevel: id === 'gemini',
+                supportsReasoningEffort: id === 'xai',
                 thinkingLevel: id === 'gemini' && THINKING_LEVEL_CHOICES.includes(cfg.thinkingLevel) ? cfg.thinkingLevel : 'low',
+                reasoningEffort: id === 'xai' && XAI_REASONING_EFFORTS.includes(cfg.reasoningEffort) ? cfg.reasoningEffort : 'none',
                 model: cfg.model || info.defaultModel || '',
                 baseUrl: cfg.baseUrl || info.defaultBaseUrl || '',
                 defaultModel: info.defaultModel || '',
@@ -195,7 +209,8 @@ export class ChatService {
         const cfg = (saved.aiProviderConfigs || {})[type] || {};
         const clean = sanitizeProviderConfig(type, {
             ...(overrides.model !== undefined ? { model: overrides.model } : {}),
-            ...(overrides.baseUrl !== undefined ? { baseUrl: overrides.baseUrl } : {})
+            ...(overrides.baseUrl !== undefined ? { baseUrl: overrides.baseUrl } : {}),
+            ...(overrides.reasoningEffort !== undefined ? { reasoningEffort: overrides.reasoningEffort } : {})
         });
 
         const apiKey =
@@ -212,7 +227,8 @@ export class ChatService {
                 apiKey,
                 model: model || info.defaultModel || undefined,
                 baseUrl: type === 'gemini' ? undefined : baseUrl || info.defaultBaseUrl || undefined,
-                ...(type === 'gemini' ? { thinkingLevel: clean.thinkingLevel ?? cfg.thinkingLevel } : {})
+                ...(type === 'gemini' ? { thinkingLevel: clean.thinkingLevel ?? cfg.thinkingLevel } : {}),
+                ...(type === 'xai' ? { reasoningEffort: clean.reasoningEffort ?? cfg.reasoningEffort } : {})
             },
             { fetchImpl: this.fetchImpl }
         );

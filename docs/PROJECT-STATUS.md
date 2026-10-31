@@ -99,7 +99,7 @@ Call model, run requested tools **one at a time** (the app allows one yt-dlp/ffm
 - Free tier returns **HTTP 503 "high demand"** at times and 429 when out of quota.
 - Google now calls `generateContent` "legacy" and recommends the **Interactions API** (`/v1beta/interactions`). `generateContent` is still supported. Migration is on the roadmap.
 
-**xAI** is a preset on `OpenAICompatibleProvider` (type `xai`): base URL `https://api.x.ai/v1`, default model `grok-4.7`, its own key slot, key required. It uses the Chat Completions endpoint, which xAI also labels legacy (they recommend the Responses API).
+**xAI** is a preset on `XaiProvider` (type `xai`): base URL `https://api.x.ai/v1`, default model `grok-4.3`, its own key slot, key required. It uses xAI's Responses API (`/responses`) with native function calling.
 
 **Ollama**: `/api/chat`, requires a tool-capable model. Default model `qwen3:4b` is only a placeholder and has not been evaluated.
 

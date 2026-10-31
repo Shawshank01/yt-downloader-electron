@@ -450,20 +450,43 @@ test('retry: also applies to Ollama and OpenAI-compatible servers', async () => 
     assert.equal(p.text, 'yo');
 });
 
-test('xAI is a preset on the OpenAI-compatible adapter with its own identity and defaults', async () => {
-    const fetchImpl = fakeFetch([{ json: { choices: [{ message: { content: 'hello from grok' } }] } }]);
+test('xAI uses the Responses API with native tool calling and fixed endpoint', async () => {
+    const fetchImpl = fakeFetch([{
+        json: {
+            status: 'completed',
+            output: [
+                { type: 'message', content: [{ type: 'output_text', text: 'hello from grok' }] },
+                { type: 'function_call', call_id: 'call_1', name: 'list_formats', arguments: '{"url":"https://x.test/v"}' }
+            ]
+        }
+    }]);
     const provider = createProvider({ type: 'xai', apiKey: 'xai-secret' }, { fetchImpl });
     assert.equal(provider.id, 'xai');
     assert.equal(provider.displayName, 'xAI');
-    assert.equal(provider.model, 'grok-4.7');
+    assert.equal(provider.model, 'grok-4.3');
 
-    const reply = await provider.chat({ system: 'sys', messages: userMessages, tools: TOOLS });
+    const reply = await provider.chat({
+        system: 'sys',
+        messages: [
+            { role: 'user', text: 'hi' },
+            { role: 'assistant', text: '', toolCalls: [{ id: 'call_0', name: 'list_formats', args: { url: 'u' } }] },
+            { role: 'tool', toolCallId: 'call_0', name: 'list_formats', result: { ok: true } }
+        ],
+        tools: TOOLS
+    });
     assert.equal(reply.text, 'hello from grok');
+    assert.equal(reply.toolCalls[0].id, 'call_1');
+    assert.deepEqual(reply.toolCalls[0].args, { url: 'https://x.test/v' });
     const call = fetchImpl.calls[0];
-    assert.equal(call.url, 'https://api.x.ai/v1/chat/completions');
+    assert.equal(call.url, 'https://api.x.ai/v1/responses');
     assert.equal(call.init.headers.Authorization, 'Bearer xai-secret');
-    assert.equal(call.body.model, 'grok-4.7');
-    assert.equal(call.body.tools[0].function.name, 'list_formats');
+    assert.equal(call.body.model, 'grok-4.3');
+    assert.equal(call.body.tools[0].name, 'list_formats');
+    assert.deepEqual(call.body.input[2], {
+        type: 'function_call_output',
+        call_id: 'call_0',
+        output: '{"ok":true}'
+    });
 
     // Errors are labelled with the right provider name.
     const failing = createProvider({ type: 'xai', apiKey: 'k' }, { fetchImpl: fakeFetch([{ status: 401, json: { error: 'bad key' } }]) });
@@ -471,9 +494,16 @@ test('xAI is a preset on the OpenAI-compatible adapter with its own identity and
     assert.match(err.message, /^xAI rejected the API key/);
 
     // A custom model or URL overrides the defaults.
-    const custom = createProvider({ type: 'xai', apiKey: 'k', model: 'grok-4.7-fast', baseUrl: 'https://eu.api.x.ai/v1' });
-    assert.equal(custom.model, 'grok-4.7-fast');
-    assert.equal(custom.baseUrl, 'https://eu.api.x.ai/v1');
+    const custom = createProvider({
+        type: 'xai',
+        apiKey: 'k',
+        model: 'grok-4.3-fast',
+        baseUrl: 'https://eu.api.x.ai/v1',
+        reasoningEffort: 'high'
+    });
+    assert.equal(custom.model, 'grok-4.3-fast');
+    assert.equal(custom.baseUrl, 'https://api.x.ai/v1');
+    assert.equal(custom.reasoningEffort, 'high');
 });
 
 test('createProvider picks the right class and rejects unknown types', () => {

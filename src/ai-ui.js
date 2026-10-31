@@ -427,8 +427,31 @@
         els.baseUrlField.style.display = info.editableBaseUrl ? '' : 'none';
         els.baseUrlInput.value = info.baseUrl || '';
         els.baseUrlInput.placeholder = info.defaultBaseUrl || 'http://...';
-        els.thinkingField.style.display = info.supportsThinkingLevel ? '' : 'none';
-        els.thinkingSelect.value = info.thinkingLevel || 'low';
+        els.thinkingField.style.display = info.supportsThinkingLevel || info.supportsReasoningEffort ? '' : 'none';
+        els.thinkingSelect.textContent = '';
+        const efforts = info.supportsReasoningEffort
+            ? [
+                ['none', 'None (fastest)'],
+                ['low', 'Low'],
+                ['medium', 'Medium'],
+                ['high', 'High'],
+                ['xhigh', 'Extra high']
+            ]
+            : [
+                ['low', 'Fast (recommended)'],
+                ['medium', 'Balanced: slower, more careful'],
+                ['high', 'Thorough: much slower']
+            ];
+        for (const [value, label] of efforts) {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            els.thinkingSelect.appendChild(option);
+        }
+        els.thinkingSelect.value = info.supportsReasoningEffort ? info.reasoningEffort : info.thinkingLevel;
+        $('aiThinkingHint').textContent = info.supportsReasoningEffort
+            ? 'The available effort depends on the selected xAI model.'
+            : 'How long Gemini thinks before answering. Fast is enough for downloads and conversions.';
 
         const usesKey = !KEYLESS_PROVIDERS.has(id);
         els.keyField.style.display = usesKey ? '' : 'none';
@@ -495,6 +518,7 @@
         const info = settings.providers[id];
         const overrides = { type: id, model: els.modelInput.value.trim() };
         if (info.editableBaseUrl) overrides.baseUrl = els.baseUrlInput.value.trim();
+        if (info.supportsReasoningEffort) overrides.reasoningEffort = els.thinkingSelect.value;
         const typedKey = els.keyInput.value.trim();
         if (typedKey) overrides.apiKey = typedKey;
         return overrides;
@@ -565,6 +589,7 @@
         const providerConfig = { type: id, model };
         if (info.editableBaseUrl) providerConfig.baseUrl = els.baseUrlInput.value.trim();
         if (info.supportsThinkingLevel) providerConfig.thinkingLevel = els.thinkingSelect.value;
+        if (info.supportsReasoningEffort) providerConfig.reasoningEffort = els.thinkingSelect.value;
 
         const res = await api.setSettings({
             provider: id,

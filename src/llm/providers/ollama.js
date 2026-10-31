@@ -2,7 +2,7 @@ import { ProviderError } from '../errors.js';
 import { requestJson, DEFAULT_RETRIES } from './http.js';
 
 export const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
-export const DEFAULT_OLLAMA_MODEL = 'qwen3:4b';
+export const DEFAULT_OLLAMA_MODEL = 'lfm3:1.7b';
 
 /** Local models through Ollama's /api/chat endpoint (requires a model that supports tool calling). */
 export class OllamaProvider {

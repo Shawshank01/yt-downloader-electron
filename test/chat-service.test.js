@@ -288,17 +288,24 @@ test('send: a busy server is retried, the UI is told, and the user gets the answ
 }, { timeout: 15000 });
 
 test('xAI: appears as a provider with its own key slot, defaults, and works end to end', async () => {
-    const fetchImpl = fakeFetch([{ json: { choices: [{ message: { content: 'grok here' } }] } }]);
+    const fetchImpl = fakeFetch([{
+        json: {
+            status: 'completed',
+            output: [{ type: 'message', content: [{ type: 'output_text', text: 'grok here' }] }]
+        }
+    }]);
     const { service, events } = await makeService({ fetchImpl });
 
     let s = await service.getSettings();
     assert.deepEqual(Object.keys(s.providers), ['gemini', 'xai', 'ollama', 'openai-compatible']);
     assert.equal(s.providers.xai.label, 'xAI (Grok)');
     assert.equal(s.providers.xai.needsApiKey, true);
-    assert.equal(s.providers.xai.model, 'grok-4.7');
+    assert.equal(s.providers.xai.model, 'grok-4.3');
     assert.equal(s.providers.xai.baseUrl, 'https://api.x.ai/v1');
     assert.equal(s.providers.xai.hasApiKey, false);
     assert.equal(s.providers.xai.supportsThinkingLevel, false);
+    assert.equal(s.providers.xai.supportsReasoningEffort, true);
+    assert.equal(s.providers.xai.reasoningEffort, 'none');
     assert.equal(s.providers.gemini.hasApiKey, true, 'the Gemini key is separate');
 
     // No key yet: a clear error, and nothing is sent.
@@ -315,16 +322,16 @@ test('xAI: appears as a provider with its own key slot, defaults, and works end 
     const res = await service.send('hi', { downloadFolder: await tempDir() });
     assert.equal(res.ok, true);
     assert.equal(res.text, 'grok here');
-    assert.equal(fetchImpl.calls[0].url, 'https://api.x.ai/v1/chat/completions');
+    assert.equal(fetchImpl.calls[0].url, 'https://api.x.ai/v1/responses');
     assert.equal(fetchImpl.calls[0].init.headers.Authorization, 'Bearer xai-test-key-123456');
     assert.ok(events.some((e) => e.type === 'assistant_text'));
 
     // Gemini-only setting is rejected for xAI.
     await assert.rejects(service.setSettings({ providerConfig: { type: 'xai', thinkingLevel: 'low' } }), AiSettingsError);
-    // The URL can be changed (unlike Gemini's), but only to http(s).
-    await service.setSettings({ providerConfig: { type: 'xai', baseUrl: 'https://eu.api.x.ai/v1/' } });
-    assert.equal((await service.getSettings()).providers.xai.baseUrl, 'https://eu.api.x.ai/v1');
-    await assert.rejects(service.setSettings({ providerConfig: { type: 'xai', baseUrl: 'ftp://x' } }), AiSettingsError);
+    await service.setSettings({ providerConfig: { type: 'xai', reasoningEffort: 'high' } });
+    assert.equal((await service.getSettings()).providers.xai.reasoningEffort, 'high');
+    await assert.rejects(service.setSettings({ providerConfig: { type: 'xai', reasoningEffort: 'minimal' } }), AiSettingsError);
+    await assert.rejects(service.setSettings({ providerConfig: { type: 'xai', baseUrl: 'https://eu.api.x.ai/v1/' } }), AiSettingsError);
 });
 
 test('send: rejects empty and oversized messages', async () => {

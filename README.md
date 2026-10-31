@@ -120,7 +120,7 @@ The assistant can use these tools: video info, list formats, download video, dow
 | Provider | Needs | Notes |
 | --- | --- | --- |
 | **Google Gemini** (default, model `gemini-3.8-flash`) | Free API key from [Google AI Studio](https://aistudio.google.com/apikey) | Free tier can be busy (HTTP 503) or rate limited; the app retries automatically. Your messages go to Google. |
-| **xAI (Grok)** (model `grok-4.7`) | API key from the [xAI console](https://console.x.ai) | Uses the OpenAI-compatible endpoint `https://api.x.ai/v1`. |
+| **xAI (Grok)** (model `grok-4.3`) | API key from the [xAI console](https://console.x.ai) | Uses xAI's Responses API at `https://api.x.ai/v1/responses`. |
 | **Ollama (local)** | [Ollama](https://ollama.com) running locally and a model with tool support (for example `qwen3` or `llama3.1`) | Everything stays on your computer. Small models are less reliable. |
 | **OpenAI-compatible** | Server URL, model name, usually an API key | Works with OpenAI, OpenRouter, Groq, LM Studio and similar. |
 
