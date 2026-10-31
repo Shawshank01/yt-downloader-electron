@@ -24,7 +24,6 @@ permissions:
 
 jobs:
   build:
-    if: inputs.scope == 'all' || inputs.scope == '' || (inputs.scope == 'windows' && startsWith(matrix.target, 'win32-'))
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -59,11 +58,11 @@ jobs:
         node-version: 26
 
     - name: Install FFmpeg build dependencies (macOS)
-      if: runner.os == 'macOS'
+      if: runner.os == 'macOS' && inputs.scope != 'windows'
       run: brew install nasm pkg-config libass
 
     - name: Install FFmpeg build dependencies (Linux)
-      if: runner.os == 'Linux' && !startsWith(matrix.target, 'win32-')
+      if: runner.os == 'Linux' && !startsWith(matrix.target, 'win32-') && inputs.scope != 'windows'
       run: |
         sudo apt-get update
         sudo apt-get install -y nasm yasm pkg-config libass-dev
@@ -76,6 +75,7 @@ jobs:
           libtool make meson ninja-build pkg-config nasm yasm
 
     - name: Prepare tool bundle
+      if: inputs.scope != 'windows' || startsWith(matrix.target, 'win32-')
       env:
         TOOL_TARGET: ${{ matrix.target }}
       run: node scripts/prepare-tools.mjs
@@ -87,7 +87,7 @@ jobs:
       run: bash scripts/build-windows-ffmpeg.sh
 
     - name: Build FFmpeg from official source
-      if: startsWith(matrix.target, 'darwin-') || startsWith(matrix.target, 'linux-')
+      if: (startsWith(matrix.target, 'darwin-') || startsWith(matrix.target, 'linux-')) && inputs.scope != 'windows'
       shell: bash
       run: |
         set -euo pipefail
@@ -129,6 +129,7 @@ jobs:
         fi
 
     - name: Verify tool bundle
+      if: inputs.scope != 'windows' || startsWith(matrix.target, 'win32-')
       shell: bash
       run: |
         TOOL_DIR="build-tools/${{ matrix.target }}"
@@ -143,6 +144,7 @@ jobs:
         fi
 
     - name: Generate checksums
+      if: inputs.scope != 'windows' || startsWith(matrix.target, 'win32-')
       shell: bash
       run: |
         cd "build-tools/${{ matrix.target }}"
@@ -153,6 +155,7 @@ jobs:
         fi
 
     - name: Upload verified tool bundle
+      if: inputs.scope != 'windows' || startsWith(matrix.target, 'win32-')
       uses: actions/upload-artifact@v7
       with:
         name: ${{ matrix.target }}-tools
