@@ -41,25 +41,51 @@ const targets = {
 const targetInfo = targets[target];
 if (!targetInfo) throw new Error(`Unsupported tool bundle target: ${target}`);
 
-function download(url, destination) {
-    return new Promise((resolve, reject) => {
-        const follow = (currentUrl) => {
-            request(currentUrl, (response) => {
-                if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-                    response.resume();
-                    follow(new URL(response.headers.location, currentUrl));
-                    return;
-                }
-                if (response.statusCode !== 200) {
-                    response.resume();
-                    reject(new Error(`Download failed (${response.statusCode}): ${currentUrl}`));
-                    return;
-                }
-                pipeline(response, createWriteStream(destination)).then(resolve, reject);
-            }).on('error', reject);
-        };
-        follow(url);
-    });
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function download(url, destination) {
+    let lastError;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+        try {
+            await rm(destination, { force: true });
+            await new Promise((resolve, reject) => {
+                const follow = (currentUrl, redirects = 0) => {
+                    if (redirects > 10) {
+                        reject(new Error(`Too many redirects while downloading ${currentUrl}`));
+                        return;
+                    }
+
+                    const req = request(currentUrl, {
+                        headers: { 'User-Agent': 'yt-downloader-electron-build' },
+                        timeout: 120000
+                    }, (response) => {
+                        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+                            response.resume();
+                            follow(new URL(response.headers.location, currentUrl), redirects + 1);
+                            return;
+                        }
+                        if (response.statusCode !== 200) {
+                            response.resume();
+                            reject(new Error(`Download failed (${response.statusCode}): ${currentUrl}`));
+                            return;
+                        }
+                        pipeline(response, createWriteStream(destination)).then(resolve, reject);
+                    });
+                    req.on('timeout', () => req.destroy(new Error(`Download timed out: ${currentUrl}`)));
+                    req.on('error', reject);
+                };
+                follow(url);
+            });
+            return;
+        } catch (error) {
+            lastError = error;
+            if (attempt < 4) {
+                console.warn(`Download attempt ${attempt} failed (${error.message}); retrying...`);
+                await wait(attempt * 2000);
+            }
+        }
+    }
+    throw new Error(`Failed to download after 4 attempts: ${lastError.message}`);
 }
 
 await rm(outputDir, { recursive: true, force: true });

@@ -42,12 +42,13 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
+      fail-fast: false
       matrix:
         include:
         - os: macos-13
           arch: x64
           build_script: build:mac
-        - os: macos-14
+        - os: macos-15
           arch: arm64
           build_script: build:mac
         - os: windows-latest
