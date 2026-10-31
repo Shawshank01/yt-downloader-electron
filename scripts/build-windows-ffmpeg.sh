@@ -76,7 +76,7 @@ cpp = '$CXX'
 ar = '$AR'
 strip = '$STRIP'
 windres = '$WINDRES'
-pkg-config = 'pkg-config'
+pkgconfig = 'pkg-config'
 
 [host_machine]
 system = 'windows'
@@ -117,6 +117,11 @@ curl --fail --location --retry 5 --retry-all-errors \
     --output "$root_dir/ffmpeg.tar.xz" \
     "https://ffmpeg.org/releases/ffmpeg-${VERSION}.tar.xz"
 tar -xf "$root_dir/ffmpeg.tar.xz" -C "$root_dir"
+export PKG_CONFIG_PATH="$prefix/lib/pkgconfig"
+export PKG_CONFIG_LIBDIR="$prefix/lib/pkgconfig"
+export PKG_CONFIG_SYSROOT_DIR=
+pkg-config --modversion libass
+pkg-config --static --libs libass
 (
     cd "$root_dir/ffmpeg-${VERSION}"
     ./configure \
