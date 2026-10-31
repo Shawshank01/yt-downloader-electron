@@ -2,7 +2,21 @@ name: Build tool bundles
 
 on:
   workflow_call:
+    inputs:
+      scope:
+        required: false
+        type: string
+        default: all
   workflow_dispatch:
+    inputs:
+      scope:
+        description: Tool platforms to build
+        required: true
+        type: choice
+        options:
+        - all
+        - windows
+        default: all
 
 
 permissions:
@@ -10,6 +24,7 @@ permissions:
 
 jobs:
   build:
+    if: inputs.scope == 'all' || inputs.scope == '' || (inputs.scope == 'windows' && startsWith(matrix.target, 'win32-'))
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

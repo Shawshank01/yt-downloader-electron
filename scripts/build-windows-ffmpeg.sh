@@ -122,6 +122,8 @@ export PKG_CONFIG_LIBDIR="$prefix/lib/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR=
 pkg-config --modversion libass
 pkg-config --static --libs libass
+libass_cflags="$(pkg-config --cflags libass)"
+libass_libs="$(pkg-config --static --libs libass)"
 (
     cd "$root_dir/ffmpeg-${VERSION}"
     ./configure \
@@ -132,8 +134,8 @@ pkg-config --static --libs libass
         --enable-gpl --enable-libass --enable-filter=subtitles \
         --enable-static --disable-shared --disable-debug --disable-doc \
         --pkg-config-flags="--static" \
-        --extra-cflags="-I$prefix/include" \
-        --extra-ldflags="-L$prefix/lib"
+        --extra-cflags="$libass_cflags -I$prefix/include" \
+        --extra-ldflags="-L$prefix/lib $libass_libs"
     make -j"$(nproc)"
     make install
 )
