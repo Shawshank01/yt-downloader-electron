@@ -135,7 +135,7 @@ EOF
     $libass_libs -lstdc++ -o "$build_dir/libass-probe.exe"
 (
     cd "$root_dir/ffmpeg-${VERSION}"
-    ./configure \
+    if ! ./configure \
         --prefix="$tool_dir" \
         --target-os=mingw32 --arch="$ffmpeg_arch" \
         --cross-prefix="$target-" \
@@ -145,7 +145,11 @@ EOF
         --pkg-config-flags="--static" \
         --extra-cflags="$libass_cflags -I$prefix/include" \
         --extra-ldflags="-L$prefix/lib" \
-        --extra-libs="$libass_libs -lstdc++"
+        --extra-libs="-Wl,--start-group $libass_libs -lstdc++ -Wl,--end-group"; then
+        echo 'FFmpeg configure failed; relevant configuration log:' >&2
+        grep -n -A12 -B12 -E 'libass|error:|undefined reference|cannot find' ffbuild/config.log >&2 || cat ffbuild/config.log >&2
+        exit 1
+    fi
     make -j"$(nproc)"
     make install
 )
