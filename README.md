@@ -9,13 +9,13 @@ This is a modern, user-friendly desktop application for downloading videos from 
 It has two interfaces that you can switch between at any time:
 
 - **Classic**: a form with a URL box, an action list and a Run button. Works offline and needs no account or API key.
-- **AI (optional)**: describe what you want in plain language, for example *"Download this video as MP3: https://..."*, and an AI assistant carries it out with yt-dlp and FFmpeg.
+- **AI Mode (🆕)**: describe what you want in plain language, for example *"Download this video: https://..."*, and an AI assistant carries it out with yt-dlp and FFmpeg.
 
 ![YT Downloader Electron UI](public/YT-Downloader-UI.png)
 
 ## Features
 
-- **Classic / AI mode switch**: use the form, or just describe what you want (see [AI mode](#ai-mode-optional) below)
+- **Classic / AI mode switch**: use the form, or just describe what you want (see [AI mode](#ai-mode) below)
 - Download videos in various formats and qualities
 - Smart subtitle downloading with language selection
 - Hardcode subtitles into video with customizable positioning (Bottom or Top) using hardware acceleration (H.264 / HEVC)
@@ -92,12 +92,13 @@ pnpm run build
 
 This will create a distributable package in the `dist` directory.
 
-## AI mode (optional)
+## AI mode
 
-Click **AI** in the top-right corner to switch from the form to a chat. Your choice is remembered. Classic mode keeps working exactly as before, so you can always switch back, and AI mode never replaces it.
+Click **AI** in the top-right corner to switch from the form to a chat. Use natural language to perform a variety of functions.
 
 ### What you can ask for
 
+- *"Download this video: https://..."*
 - *"Download this video in 720p: https://..."*
 - *"Get the audio of this video as an MP3"*
 - *"What subtitle languages does this video have?"* then *"Hardcode the English ones at the top"*
@@ -117,7 +118,7 @@ The assistant can use these tools: video info, list formats, download video, dow
 4. Choose a download folder (the same field as in Classic mode) and start chatting.
 
 | Provider | Needs | Notes |
-|---|---|---|
+| --- | --- | --- |
 | **Google Gemini** (default, model `gemini-3.8-flash`) | Free API key from [Google AI Studio](https://aistudio.google.com/apikey) | Free tier can be busy (HTTP 503) or rate limited; the app retries automatically. Your messages go to Google. |
 | **xAI (Grok)** (model `grok-4.7`) | API key from the [xAI console](https://console.x.ai) | Uses the OpenAI-compatible endpoint `https://api.x.ai/v1`. |
 | **Ollama (local)** | [Ollama](https://ollama.com) running locally and a model with tool support (for example `qwen3` or `llama3.1`) | Everything stays on your computer. Small models are less reliable. |
@@ -268,7 +269,7 @@ The tests (in `test/`) need no network access and no API key: they use mock HTTP
 
 ### Project layout
 
-```
+```text
 src/
   main.js              Electron main process: window, settings, thin IPC handlers
   preload.cjs          Safe bridge between the window and the main process (window.electronAPI)
