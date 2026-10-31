@@ -16,7 +16,79 @@ interface SubtitleInfo {
     type: 'manual' | 'auto';
 }
 
+interface AiProviderSettings {
+    label: string;
+    needsApiKey: boolean;
+    editableBaseUrl: boolean;
+    supportsThinkingLevel: boolean;
+    thinkingLevel: 'low' | 'medium' | 'high';
+    model: string;
+    baseUrl: string;
+    defaultModel: string;
+    defaultBaseUrl: string;
+    hasApiKey: boolean;
+}
+
+interface AiSettings {
+    mode: 'classic' | 'ai';
+    provider: 'gemini' | 'xai' | 'ollama' | 'openai-compatible';
+    confirmMode: 'always' | 'risky' | 'never';
+    /** False when API keys can only be kept in memory for this session (no OS keychain). */
+    keyStorageSecure: boolean;
+    providers: Record<string, AiProviderSettings>;
+}
+
+interface AiContext {
+    downloadFolder: string;
+    browser: string;
+    /** Full proxy URL such as socks5://127.0.0.1:1080/, or empty. */
+    proxy: string;
+}
+
+type AiEvent =
+    | { type: 'assistant_text'; text: string }
+    | { type: 'progress'; text: string }
+    | { type: 'retrying'; provider: string; attempt: number; retries: number; delayMs: number; reason: string }
+    | { type: 'tool_start'; id: string; name: string; args: Record<string, unknown>; description: string; risk: 'low' | 'high' }
+    | { type: 'tool_result'; id: string; name: string; ok: boolean; cancelled: boolean; result: Record<string, unknown> }
+    | { type: 'tool_denied'; id: string; name: string; description: string }
+    | {
+        type: 'confirm_request';
+        requestId: string;
+        name: string;
+        description: string;
+        risk: 'low' | 'high';
+        args: Record<string, unknown>;
+    };
+
+interface AiApi {
+    getSettings: () => Promise<{ ok: boolean; settings?: AiSettings; error?: string }>;
+    setSettings: (update: {
+        mode?: 'classic' | 'ai';
+        provider?: string;
+        confirmMode?: string;
+        providerConfig?: { type: string; model?: string; baseUrl?: string; thinkingLevel?: 'low' | 'medium' | 'high' };
+    }) => Promise<{ ok: boolean; settings?: AiSettings; error?: string }>;
+    setApiKey: (type: string, apiKey: string) => Promise<{ ok: boolean; persisted?: boolean; settings?: AiSettings; error?: string }>;
+    removeApiKey: (type: string) => Promise<{ ok: boolean; settings?: AiSettings; error?: string }>;
+    testConnection: (overrides?: {
+        type?: string;
+        model?: string;
+        baseUrl?: string;
+        apiKey?: string;
+    }) => Promise<{ ok: boolean; message: string }>;
+    send: (message: string, context: AiContext) => Promise<
+        | { ok: true; text: string; stoppedBecause: 'done' | 'max_steps' | 'aborted'; steps: number }
+        | { ok: false; error: { kind: string; message: string } }
+    >;
+    cancel: () => Promise<boolean>;
+    reset: () => Promise<boolean>;
+    confirm: (requestId: string, approved: boolean) => Promise<boolean>;
+    onEvent: (callback: (event: AiEvent) => void) => () => void;
+}
+
 interface ElectronAPI {
+    ai: AiApi;
     chooseFolder: () => Promise<string | null>;
     runCommand: (args: string[]) => Promise<{
         success: boolean;

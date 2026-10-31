@@ -5,10 +5,10 @@
   "main": "src/main.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test test/",
     "prestart": "node src/check-dependencies.js",
     "start": "electron .",
-    "lint": "eslint src/**/*.js",
+    "lint": "eslint \"src/**/*.js\" \"test/**/*.js\"",
     "format": "prettier --write \"src/**/*.{js,html,css}\"",
     "postinstall": "electron-builder install-app-deps",
     "build": "electron-builder",
@@ -105,6 +105,8 @@
     },
     "files": [
       "**/*",
+      "!test{,/**}",
+      "!docs{,/**}",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
       "!**/node_modules/*.d.ts",

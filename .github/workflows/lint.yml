@@ -6,6 +6,7 @@ on:
     - main
     paths:
     - 'src/**'
+    - 'test/**'
     - '*.js'
     - 'package.json'
     - 'pnpm-lock.yaml'
@@ -15,6 +16,7 @@ on:
     - main
     paths:
     - 'src/**'
+    - 'test/**'
     - '*.js'
     - 'package.json'
     - 'pnpm-lock.yaml'
@@ -48,3 +50,6 @@ jobs:
 
     - name: Run lint
       run: pnpm run lint
+
+    - name: Run tests
+      run: pnpm test

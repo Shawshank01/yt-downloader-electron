@@ -5,10 +5,17 @@
 # YT Downloader Electron
 
 This is a modern, user-friendly desktop application for downloading videos from YouTube and other supported platforms. It uses yt-dlp for download, and FFmpeg to change the format or add subtitles.
+
+It has two interfaces that you can switch between at any time:
+
+- **Classic**: a form with a URL box, an action list and a Run button. Works offline and needs no account or API key.
+- **AI (optional)**: describe what you want in plain language, for example *"Download this video as MP3: https://..."*, and an AI assistant carries it out with yt-dlp and FFmpeg.
+
 ![YT Downloader Electron UI](public/YT-Downloader-UI.png)
 
 ## Features
 
+- **Classic / AI mode switch**: use the form, or just describe what you want (see [AI mode](#ai-mode-optional) below)
 - Download videos in various formats and qualities
 - Smart subtitle downloading with language selection
 - Hardcode subtitles into video with customizable positioning (Bottom or Top) using hardware acceleration (H.264 / HEVC)
@@ -84,6 +91,51 @@ pnpm run build
 ```
 
 This will create a distributable package in the `dist` directory.
+
+## AI mode (optional)
+
+Click **AI** in the top-right corner to switch from the form to a chat. Your choice is remembered. Classic mode keeps working exactly as before, so you can always switch back, and AI mode never replaces it.
+
+### What you can ask for
+
+- *"Download this video in 720p: https://..."*
+- *"Get the audio of this video as an MP3"*
+- *"What subtitle languages does this video have?"* then *"Hardcode the English ones at the top"*
+- *"Download it, then re-encode it to a compatible MP4"* (multi-step requests work)
+- *"Show me the files in my download folder"* / *"Delete the leftover subtitle files"*
+
+The assistant can use these tools: video info, list formats, download video, download audio (MP3, M4A, Opus, FLAC, WAV), download thumbnail, list and download subtitles, hardsub, re-encode to MP4, list and delete files in the download folder, and cancel the running task.
+
+> [!NOTE]
+> The assistant can only do what those tools allow. For example it cannot trim a video yet; it will say so and suggest an `ffmpeg` command instead. Everything it does uses the same download folder, browser-cookie and proxy settings as Classic mode.
+
+### Setting it up
+
+1. Click **AI**, then **AI Settings**.
+2. Choose a provider, check the model name, paste your API key (if the provider needs one) and click **Save key**.
+3. Click **Test connection**, then **Save**.
+4. Choose a download folder (the same field as in Classic mode) and start chatting.
+
+| Provider | Needs | Notes |
+|---|---|---|
+| **Google Gemini** (default, model `gemini-3.8-flash`) | Free API key from [Google AI Studio](https://aistudio.google.com/apikey) | Free tier can be busy (HTTP 503) or rate limited; the app retries automatically. Your messages go to Google. |
+| **xAI (Grok)** (model `grok-4.7`) | API key from the [xAI console](https://console.x.ai) | Uses the OpenAI-compatible endpoint `https://api.x.ai/v1`. |
+| **Ollama (local)** | [Ollama](https://ollama.com) running locally and a model with tool support (for example `qwen3` or `llama3.1`) | Everything stays on your computer. Small models are less reliable. |
+| **OpenAI-compatible** | Server URL, model name, usually an API key | Works with OpenAI, OpenRouter, Groq, LM Studio and similar. |
+
+Other settings:
+
+- **Response speed** (Gemini only): *Fast* (default) is quick and enough for downloads; *Balanced* and *Thorough* think longer and are much slower.
+- **Ask me before running**: *Risky actions only* (default: re-encode, hardsub, deleting files, downloading playlists), *Every action*, or *Never*. When a confirmation is needed you get an Allow / Deny dialog; Deny is the default button.
+
+### Privacy and security
+
+- **What is sent to the AI provider:** your messages, the assistant's replies, and tool results (video titles, file names, folder listings). It is sent again with every request while a chat is open. Check your provider's data terms; some free tiers may use data to improve their products. Choose Ollama if everything must stay on your computer.
+- **API keys** are stored encrypted with Electron's `safeStorage` (macOS Keychain, Windows DPAPI, Linux keyring) in `ai-keys.json` inside the app's data folder. They never reach the interface part of the app. If your system has no secure storage (some Linux setups), keys are kept in memory for the current session only and you are told so.
+- **Conversations are not saved.** They live in memory only. **New chat** or closing the app discards them.
+- **The assistant cannot run arbitrary commands.** It picks from a fixed set of tools, and the app validates every value (URLs must be `http(s)`, file names cannot contain paths, and so on) and builds the `yt-dlp` / `ffmpeg` arguments itself. Files can only be written inside your chosen download folder. Browser cookies and proxy settings are never changed by the assistant.
+- **Treat website text as untrusted.** Video titles and descriptions are passed to the model as data; the assistant is instructed never to follow instructions found in them. Replies are rendered as formatted text, never as HTML, and links open in your browser only for `http(s)` URLs.
+- The terminal output (`pnpm start`) prints diagnostic lines starting with `[ai]` (timing, token counts, errors). They never contain your key, your messages or the replies. Nothing is written to a log file.
 
 ## Usage
 
@@ -188,7 +240,14 @@ The app includes a built-in update checker:
    - Try a different browser if issues persist
    - On **macOS**, when reading browser cookies, macOS may block data access until permitted. Follow the in-app prompt or navigate to **System Settings > Privacy & Security > Files & Folders**, enable access for `YT Downloader.app` under the corresponding browser, and restart the app.
 
-4. **start.command Issues (macOS)**
+4. **AI Mode Issues**
+   - **"Gemini is having problems (HTTP 503)"**: Google's servers are overloaded, which happens on the free tier. The app already retries three times. Try again in a minute, switch provider, or use Classic mode.
+   - **"Rate limit or quota reached" (HTTP 429)**: you used up the free quota. Wait, switch provider, or use Classic mode.
+   - **"rejected the API key"** or **"could not find model"**: open **AI Settings**, re-paste the key, check the model name, and use **Test connection**.
+   - **Slow answers**: keep **Response speed** on *Fast*. With Ollama, the first answer after starting a model is slower.
+   - **A download fails with a cookie error**: AI mode uses the browser selected in the *Browser for Cookies* box, exactly like Classic mode. Choose the right browser (or *No cookies*) and ask again.
+
+5. **start.command Issues (macOS)**
    - If you get a security warning, right-click the file and select "Open"
    - Make sure the file has execute permissions:
 
@@ -196,16 +255,57 @@ The app includes a built-in update checker:
      chmod +x start.command
      ```
 
+## Development
+
+```bash
+pnpm install
+pnpm start        # run the app
+pnpm run lint     # ESLint over src/ and test/
+pnpm test         # automated tests (Node's built-in test runner, no extra dependencies)
+```
+
+The tests (in `test/`) need no network access and no API key: they use mock HTTP responses and scripted fake models. They cover input validation, the tool layer, the AI providers, the agent loop, key storage, settings, the Markdown renderer and static checks of the interface wiring. They do **not** open the app window, so after changing the interface run `pnpm start` and try it by hand. The `test/` folder is excluded from the packaged installer.
+
+### Project layout
+
+```
+src/
+  main.js              Electron main process: window, settings, thin IPC handlers
+  preload.cjs          Safe bridge between the window and the main process (window.electronAPI)
+  renderer.js          Classic interface
+  ai-ui.js             AI mode interface: mode switch, chat, settings dialog, confirmation dialog
+  markdown.js          Small safe Markdown renderer for assistant replies
+  index.html, styles.css
+  core/                Electron-free yt-dlp / ffmpeg operations shared by Classic and AI mode
+    tools.js             runYtDlp, listSubtitles, reEncodeToMp4, downloadWithHardsub, ...
+    task-manager.js      one running task at a time, cancellation
+    ffmpeg.js, media-files.js, log-filter.js
+  llm/                 AI mode backend (also Electron-free)
+    agent.js             the loop: model call -> tool calls -> results -> answer
+    tool-registry.js     the 12 tools the model may call (schemas, validation, argument building)
+    validate.js          validation of every model-supplied value
+    chat-service.js      settings, conversation, confirmations, cancel, error handling
+    key-store.js         encrypted API key storage
+    prompt.js            system prompt
+    providers/           gemini.js, ollama.js, openai-compatible.js (also used for xAI), http.js (retries)
+test/                  automated tests
+docs/PROJECT-STATUS.md  status, decisions and roadmap (good starting point for new contributors)
+```
+
+See [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md) for the architecture, design decisions, what has and has not been verified, and the roadmap.
+
 ## Contributing
 
 1. Fork the repository
 2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+3. Make your changes and run `pnpm run lint` and `pnpm test`
+4. Commit your changes
+5. Push to the branch
+6. Create a Pull Request
 
 ## Acknowledgments
 
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) - The core download engine
 - [FFmpeg](https://ffmpeg.org/) - For video processing
 - [Electron](https://www.electronjs.org/) - For the desktop application framework
+- [Google Gemini](https://ai.google.dev/), [xAI](https://x.ai/api) and [Ollama](https://ollama.com) - Optional AI providers for AI mode

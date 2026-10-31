@@ -36,5 +36,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getFormatInfo: (args) => ipcRenderer.invoke('get-format-info', args),
     // Persistent user settings
     getSettings: () => ipcRenderer.invoke('get-settings'),
-    setSettings: (updates) => ipcRenderer.invoke('set-settings', updates)
+    setSettings: (updates) => ipcRenderer.invoke('set-settings', updates),
+    // AI mode. API keys can be set or removed but are never readable from the renderer.
+    ai: {
+        getSettings: () => ipcRenderer.invoke('ai-get-settings'),
+        setSettings: (update) => ipcRenderer.invoke('ai-set-settings', update),
+        setApiKey: (type, apiKey) => ipcRenderer.invoke('ai-set-api-key', type, apiKey),
+        removeApiKey: (type) => ipcRenderer.invoke('ai-remove-api-key', type),
+        testConnection: (overrides) => ipcRenderer.invoke('ai-test-connection', overrides),
+        send: (message, context) => ipcRenderer.invoke('ai-send', message, context),
+        cancel: () => ipcRenderer.invoke('ai-cancel'),
+        reset: () => ipcRenderer.invoke('ai-reset'),
+        confirm: (requestId, approved) => ipcRenderer.invoke('ai-confirm-response', requestId, approved),
+        onEvent: (callback) => {
+            const listener = (_, payload) => callback(payload);
+            ipcRenderer.on('ai-event', listener);
+            return () => {
+                ipcRenderer.removeListener('ai-event', listener);
+            };
+        }
+    }
 });

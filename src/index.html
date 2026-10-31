@@ -10,10 +10,20 @@
 <body>
     <div class="container">
         <div class="app-header">
-            <h1>YT-DLP Downloader</h1>
+            <div class="header-top">
+                <h1>YT-DLP Downloader</h1>
+                <div class="header-controls">
+                    <span id="modeNotice" class="mode-notice" role="status"></span>
+                    <div class="mode-switch" role="group" aria-label="Interface mode">
+                        <button type="button" id="modeClassicBtn" class="mode-btn active" aria-pressed="true">Classic</button>
+                        <button type="button" id="modeAiBtn" class="mode-btn" aria-pressed="false">AI</button>
+                    </div>
+                    <button type="button" id="aiSettingsBtn" class="ai-settings-btn" style="display: none">AI Settings</button>
+                </div>
+            </div>
 
             <div class="input-row">
-                <div class="input-group url-input">
+                <div class="input-group url-input classic-only">
                     <label for="url">Video URL:</label>
                     <input type="url" id="url" placeholder="Enter video URL" />
                 </div>
@@ -31,7 +41,7 @@
             </div>
 
             <div class="input-row">
-                <div class="input-group">
+                <div class="input-group classic-only">
                     <label for="action">Action:</label>
                     <select id="action">
                         <option value="Download Video (Best Quality)">
@@ -58,18 +68,18 @@
                     </div>
                 </div>
 
-                <div class="input-group run-button-group">
+                <div class="input-group run-button-group classic-only">
                     <button class="run-button" onclick="window.runCommand()">Run</button>
                 </div>
             </div>
 
             <div class="input-row">
-                <div class="input-group short-input" id="formatCodeGroup" style="display: none">
+                <div class="input-group short-input classic-only" id="formatCodeGroup" style="display: none">
                     <label for="formatCode">Format Code:</label>
                     <input type="text" id="formatCode" placeholder="e.g., 140, 356, or 140+356" />
                 </div>
 
-                <div class="input-group short-input" id="codecGroup" style="display: none">
+                <div class="input-group short-input classic-only" id="codecGroup" style="display: none">
                     <label for="codec">Video Codec:</label>
                     <select id="codec">
                         <option value="h264">H.264 (Better Compatibility)</option>
@@ -77,7 +87,7 @@
                     </select>
                 </div>
 
-                <div class="input-group short-input" id="subtitlePositionGroup" style="display: none">
+                <div class="input-group short-input classic-only" id="subtitlePositionGroup" style="display: none">
                     <label for="subtitlePosition">Subtitle Position:</label>
                     <select id="subtitlePosition">
                         <option value="bottom">Bottom (Default)</option>
@@ -97,14 +107,114 @@
                 </div>
             </div>
 
-            <div id="cancelActionControls" style="display: none; margin-bottom: 10px;">
+            <div id="cancelActionControls" class="classic-only" style="display: none; margin-bottom: 10px;">
                 <button id="cancelActionBtn"
                     style="background-color: #d32f2f; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">Cancel
                     Action</button>
             </div>
         </div>
 
-        <div id="output" role="log" aria-label="Command output"></div>
+        <div id="output" class="classic-only" role="log" aria-label="Command output"></div>
+
+        <!-- AI assistant panel (shown in AI mode) -->
+        <section id="aiPanel" class="ai-panel" aria-label="AI assistant">
+            <div id="aiSetupBanner" class="ai-banner" style="display: none">
+                <span id="aiSetupText"></span>
+                <button type="button" id="aiSetupBtn">Open AI Settings</button>
+            </div>
+            <div id="aiMessages" class="ai-messages" role="log" aria-live="polite" aria-label="Conversation"></div>
+            <div id="aiProgress" class="ai-progress" aria-live="off"></div>
+            <div class="ai-composer">
+                <textarea id="aiInput" rows="2"
+                    placeholder="Describe what you want, e.g. &quot;Download this video as MP3: https://...&quot; (Enter to send, Shift+Enter for a new line)"></textarea>
+                <div class="ai-composer-buttons">
+                    <button type="button" id="aiSendBtn" class="run-button">Send</button>
+                    <button type="button" id="aiStopBtn" class="ai-stop-btn" style="display: none">Stop</button>
+                    <button type="button" id="aiNewChatBtn">New chat</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Settings Modal -->
+        <div id="aiSettingsModal" class="modal" style="display: none;" role="dialog" aria-modal="true"
+            aria-labelledby="aiSettingsTitle">
+            <div class="modal-content ai-settings">
+                <h2 id="aiSettingsTitle">AI Settings</h2>
+
+                <div class="ai-field">
+                    <label for="aiProviderSelect">Provider</label>
+                    <select id="aiProviderSelect"></select>
+                </div>
+
+                <div class="ai-field">
+                    <label for="aiModelInput">Model</label>
+                    <input type="text" id="aiModelInput" autocomplete="off" spellcheck="false" />
+                </div>
+
+                <div class="ai-field" id="aiBaseUrlField">
+                    <label for="aiBaseUrlInput">Server URL</label>
+                    <input type="text" id="aiBaseUrlInput" autocomplete="off" spellcheck="false" />
+                </div>
+
+                <div class="ai-field" id="aiThinkingField">
+                    <label for="aiThinkingSelect">Response speed</label>
+                    <select id="aiThinkingSelect">
+                        <option value="low">Fast (recommended)</option>
+                        <option value="medium">Balanced: slower, more careful</option>
+                        <option value="high">Thorough: much slower</option>
+                    </select>
+                    <div class="ai-hint">How long Gemini thinks before answering. Fast is enough for downloads and conversions.</div>
+                </div>
+
+                <div class="ai-field" id="aiKeyField">
+                    <label for="aiKeyInput">API key</label>
+                    <div class="folder-input">
+                        <input type="password" id="aiKeyInput" autocomplete="off" spellcheck="false"
+                            placeholder="Paste a new key to replace the saved one" />
+                        <button type="button" id="aiKeySaveBtn">Save key</button>
+                        <button type="button" id="aiKeyRemoveBtn">Remove</button>
+                    </div>
+                    <div class="ai-hint" id="aiKeyStatus"></div>
+                    <div class="ai-hint" id="aiKeyHelp" style="display: none">
+                        <a href="#" id="aiKeyHelpLink">Get a free Gemini API key from Google AI Studio</a>
+                    </div>
+                </div>
+
+                <div class="ai-field">
+                    <label for="aiConfirmSelect">Ask me before running</label>
+                    <select id="aiConfirmSelect">
+                        <option value="risky">Risky actions only: re-encode, hardsub, delete, playlists (recommended)</option>
+                        <option value="always">Every action</option>
+                        <option value="never">Never (the assistant runs everything)</option>
+                    </select>
+                </div>
+
+                <div class="ai-hint" id="aiPrivacyNote"></div>
+                <div id="aiTestResult" class="ai-test-result" role="status"></div>
+
+                <div class="modal-buttons">
+                    <button type="button" id="aiTestBtn">Test connection</button>
+                    <button type="button" id="aiSettingsCancelBtn">Cancel</button>
+                    <button type="button" id="aiSettingsSaveBtn" class="run-button"
+                        style="padding: 10px 20px; font-weight: 500;">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI action confirmation modal -->
+        <div id="aiConfirmModal" class="modal" style="display: none;" role="alertdialog" aria-modal="true"
+            aria-labelledby="aiConfirmTitle" aria-describedby="aiConfirmDescription">
+            <div class="modal-content">
+                <h2 id="aiConfirmTitle">Allow this action?</h2>
+                <div id="aiConfirmDescription" class="ai-confirm-desc"></div>
+                <div id="aiConfirmRisk" class="ai-confirm-risk"></div>
+                <div class="modal-buttons">
+                    <button type="button" class="cancel-btn" id="aiConfirmDenyBtn">Deny</button>
+                    <button type="button" class="run-button" id="aiConfirmAllowBtn"
+                        style="padding: 10px 20px; font-weight: 500;">Allow</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Subtitle Selection Modal -->
         <div id="subtitleModal" class="modal" style="display: none;">
@@ -154,6 +264,8 @@
         </footer>
     </div>
     <script src="renderer.js"></script>
+    <script src="markdown.js"></script>
+    <script src="ai-ui.js"></script>
 </body>
 
 </html>
