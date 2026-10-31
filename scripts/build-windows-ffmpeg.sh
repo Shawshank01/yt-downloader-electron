@@ -125,6 +125,14 @@ pkg-config --modversion libass
 pkg-config --static --libs libass
 libass_cflags="$(pkg-config --cflags libass)"
 libass_libs="$(pkg-config --static --libs libass)"
+cat > "$build_dir/libass-probe.c" <<'EOF'
+#include <ass/ass.h>
+int main(void) {
+    return ass_library_init() == 0;
+}
+EOF
+"$CC" $libass_cflags "$build_dir/libass-probe.c" \
+    $libass_libs -lstdc++ -o "$build_dir/libass-probe.exe"
 (
     cd "$root_dir/ffmpeg-${VERSION}"
     ./configure \
@@ -137,7 +145,7 @@ libass_libs="$(pkg-config --static --libs libass)"
         --pkg-config-flags="--static" \
         --extra-cflags="$libass_cflags -I$prefix/include" \
         --extra-ldflags="-L$prefix/lib" \
-        --extra-libs="$libass_libs"
+        --extra-libs="$libass_libs -lstdc++"
     make -j"$(nproc)"
     make install
 )
