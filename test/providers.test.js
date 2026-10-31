@@ -506,6 +506,32 @@ test('xAI uses the Responses API with native tool calling and fixed endpoint', a
     assert.equal(custom.reasoningEffort, 'high');
 });
 
+test('xAI streams response text deltas from the Responses API', async () => {
+    const chunks = [
+        'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"hello "}\n\n',
+        'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"world"}\n\n',
+        'event: response.completed\ndata: {"type":"response.completed","response":{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"hello world"}]}]}}\n\n'
+    ];
+    const fetchImpl = async () => ({
+        ok: true,
+        body: new ReadableStream({
+            start(controller) {
+                for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+                controller.close();
+            }
+        })
+    });
+    const deltas = [];
+    const provider = createProvider({ type: 'xai', apiKey: 'key' }, { fetchImpl });
+    const reply = await provider.chat({
+        system: '',
+        messages: [{ role: 'user', text: 'hi' }],
+        onTextDelta: (delta) => deltas.push(delta)
+    });
+    assert.deepEqual(deltas, ['hello ', 'world']);
+    assert.equal(reply.text, 'hello world');
+});
+
 test('createProvider picks the right class and rejects unknown types', () => {
     assert.equal(createProvider({ type: 'gemini', apiKey: 'k' }).id, 'gemini');
     assert.equal(createProvider({ type: 'ollama' }).id, 'ollama');

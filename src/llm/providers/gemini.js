@@ -1,4 +1,4 @@
-import { ProviderError } from '../errors.js';
+import { ProviderError, errorFromResponse } from '../errors.js';
 import { requestJson, DEFAULT_RETRIES } from './http.js';
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
@@ -132,7 +132,7 @@ export class GeminiProvider {
      * @param {(info: object) => void} [req.onRetry]  Called before each automatic retry.
      * @returns {Promise<{text: string, toolCalls: Array, raw: object}>}
      */
-    async chat({ system, messages, tools = [], signal, onRetry }) {
+    async chat({ system, messages, tools = [], signal, onTextDelta, onRetry }) {
         this.#requireKey();
 
         const body = {
@@ -140,6 +140,10 @@ export class GeminiProvider {
             ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
             ...(tools.length > 0 ? { tools: [{ functionDeclarations: tools.map(toGeminiDeclaration) }] } : {})
         };
+
+        if (onTextDelta) {
+            return this.#stream(body, onTextDelta, signal, onRetry);
+        }
 
         const send = (requestBody) =>
             requestJson({
@@ -218,6 +222,117 @@ export class GeminiProvider {
                 promptTokens: usage.promptTokenCount,
                 thoughtTokens: usage.thoughtsTokenCount,
                 outputTokens: usage.candidatesTokenCount
+            }
+        };
+    }
+
+    async #stream(body, onTextDelta, signal, onRetry) {
+        for (let attempt = 0; ; attempt += 1) {
+            try {
+                return await this.#streamOnce(body, onTextDelta, signal);
+            } catch (err) {
+                const retryable = err instanceof ProviderError &&
+                    (err.kind === 'network' || (err.kind === 'server' && [500, 502, 503, 504].includes(err.status)));
+                if (!retryable || attempt >= this.retries || signal?.aborted) throw err;
+                const delayMs = this.retryDelayMs * 2 ** attempt;
+                onRetry?.({ attempt: attempt + 1, retries: this.retries, delayMs, reason: err.status ? `HTTP ${err.status}` : 'connection problem' });
+                await new Promise((resolve, reject) => {
+                    const timer = setTimeout(resolve, delayMs);
+                    signal?.addEventListener('abort', () => {
+                        clearTimeout(timer);
+                        reject(new ProviderError('Request cancelled.', { kind: 'aborted' }));
+                    }, { once: true });
+                });
+            }
+        }
+    }
+
+    async #streamOnce(body, onTextDelta, signal) {
+        const startedAt = Date.now();
+        const url = `${this.#modelUrl()}:streamGenerateContent?alt=sse`;
+        const timeoutSignal = AbortSignal.timeout(240000);
+        const combined = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+        let response;
+        try {
+            response = await this.fetchImpl(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...this.#headers() },
+                body: JSON.stringify({
+                    ...body,
+                    ...(this.thinkingLevel ? { generationConfig: { thinkingConfig: { thinkingLevel: this.thinkingLevel } } } : {})
+                }),
+                signal: combined
+            });
+        } catch (err) {
+            if (signal?.aborted) throw new ProviderError('Request cancelled.', { kind: 'aborted' });
+            throw new ProviderError(`Cannot reach ${this.displayName} (${err.cause?.code || err.message}).`, { kind: 'network' });
+        }
+        if (!response.ok) {
+            const text = await response.text();
+            throw errorFromResponse(this.displayName, response.status, text, { model: this.model });
+        }
+        if (!response.body?.getReader) {
+            try {
+                return this.#parseStreamData(JSON.parse(await response.text()), undefined, startedAt);
+            } catch {
+                throw new ProviderError('Gemini did not return a streaming response.', { kind: 'bad_response' });
+            }
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalData = null;
+        const process = (raw) => {
+            const line = raw.split(/\r?\n/).find((item) => item.startsWith('data:'));
+            if (!line) return;
+            try {
+                const data = JSON.parse(line.slice(5).trim());
+                const parts = data.candidates?.[0]?.content?.parts || [];
+                for (const part of parts) {
+                    if (typeof part.text === 'string' && !part.thought) onTextDelta(part.text);
+                }
+                finalData = data;
+            } catch {
+                // Incomplete SSE records are retained by the buffer.
+            }
+        };
+        while (true) {
+            const { done, value } = await reader.read();
+            buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+            const records = buffer.split(/\r?\n\r?\n/);
+            buffer = records.pop() || '';
+            records.forEach(process);
+            if (done) break;
+        }
+        if (buffer) process(buffer);
+        if (!finalData) throw new ProviderError('Gemini ended the stream without a response.', { kind: 'bad_response' });
+        return this.#parseStreamData(finalData, undefined, startedAt);
+    }
+
+    #parseStreamData(finalData, onTextDelta, startedAt = Date.now()) {
+        const candidate = finalData.candidates?.[0];
+        const parts = candidate?.content?.parts || [];
+        if (onTextDelta) {
+            for (const part of parts) {
+                if (typeof part.text === 'string' && !part.thought) onTextDelta(part.text);
+            }
+        }
+        const toolCalls = parts.filter((part) => part.functionCall).map((part, index) => ({
+            id: part.functionCall.id || `gemini-call-${Date.now()}-${index}`,
+            providerCallId: part.functionCall.id,
+            name: part.functionCall.name,
+            args: part.functionCall.args || {}
+        }));
+        return {
+            text: parts.filter((part) => typeof part.text === 'string' && !part.thought).map((part) => part.text).join('').trim(),
+            toolCalls,
+            raw: { provider: this.id, parts },
+            stats: {
+                ms: Date.now() - startedAt,
+                thinkingLevel: this.thinkingLevel || 'default',
+                promptTokens: finalData.usageMetadata?.promptTokenCount,
+                thoughtTokens: finalData.usageMetadata?.thoughtsTokenCount,
+                outputTokens: finalData.usageMetadata?.candidatesTokenCount
             }
         };
     }

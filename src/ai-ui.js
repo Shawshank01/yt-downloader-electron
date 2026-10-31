@@ -39,6 +39,7 @@
         bannerBtn: $('aiSetupBtn'),
         messages: $('aiMessages'),
         progress: $('aiProgress'),
+        modelHint: $('aiModelHint'),
         input: $('aiInput'),
         sendBtn: $('aiSendBtn'),
         stopBtn: $('aiStopBtn'),
@@ -77,6 +78,7 @@
     let noticeTimer = null;
     let pendingConfirmId = null;
     let assistantBubblesThisTurn = 0;
+    let streamingBubble = null;
     const steps = new Map(); // tool call id -> { el, detailEl, description }
 
     // ------------------------------------------------------------------ helpers
@@ -89,6 +91,22 @@
 
     function currentProvider() {
         return settings ? settings.providers[settings.provider] : null;
+    }
+
+    function refreshModelHint() {
+        const provider = currentProvider();
+        if (!provider?.model) {
+            els.modelHint.textContent = '';
+            return;
+        }
+        const effort = provider.supportsReasoningEffort
+            ? provider.reasoningEffort
+            : provider.supportsThinkingLevel
+                ? provider.thinkingLevel
+                : null;
+        els.modelHint.textContent = effort
+            ? `Using ${provider.label}: ${provider.model} (reasoning effort: ${effort})`
+            : `Using ${provider.label}: ${provider.model}`;
     }
 
     function getContext() {
@@ -148,6 +166,22 @@
         return el;
     }
 
+    function updateStreamingMessage(text, done = false) {
+        if (!streamingBubble) {
+            streamingBubble = document.createElement('div');
+            streamingBubble.className = 'ai-msg assistant';
+            append(streamingBubble);
+        }
+        streamingBubble.textContent = text;
+        if (done) {
+            const finalText = streamingBubble.textContent;
+            streamingBubble.textContent = '';
+            fillMessage(streamingBubble, 'assistant', finalText);
+            assistantBubblesThisTurn += 1;
+            streamingBubble = null;
+        }
+    }
+
     function clearEmptyHint() {
         const hint = els.messages.querySelector('.ai-empty-hint');
         if (hint) hint.remove();
@@ -205,7 +239,10 @@
         }
         applyMode(next);
         const res = await api.setSettings({ mode: next });
-        if (res.ok) settings = res.settings;
+        if (res.ok) {
+            settings = res.settings;
+            refreshModelHint();
+        }
     }
 
     function refreshBanner() {
@@ -220,6 +257,7 @@
         }
         els.banner.style.display = mode === 'ai' && text ? 'flex' : 'none';
         els.bannerText.textContent = text;
+        refreshModelHint();
     }
 
     // ------------------------------------------------------------------ chat
@@ -303,6 +341,7 @@
         const ok = await api.reset();
         if (ok) {
             steps.clear();
+            streamingBubble = null;
             renderEmptyHint();
         }
     }
@@ -329,9 +368,16 @@
         switch (event.type) {
             case 'assistant_text':
                 if (event.text) {
+                    if (streamingBubble) {
+                        updateStreamingMessage(event.text, true);
+                        break;
+                    }
                     assistantBubblesThisTurn += 1;
                     addMessage('assistant', event.text);
                 }
+                break;
+            case 'assistant_delta':
+                if (event.text) updateStreamingMessage((streamingBubble?.textContent || '') + event.text);
                 break;
             case 'progress':
                 els.progress.textContent = event.text;
@@ -502,6 +548,7 @@
         populateProviderSelect();
         els.confirmSelect.value = settings.confirmMode;
         renderProviderFields();
+        refreshModelHint();
         settingsReturnFocus = document.activeElement;
         els.settingsModal.style.display = 'flex';
         els.providerSelect.focus();
@@ -602,6 +649,7 @@
             return;
         }
         settings = res.settings;
+        refreshModelHint();
         closeSettings();
         refreshBanner();
     }
@@ -676,5 +724,6 @@
         if (!res.ok) return;
         settings = res.settings;
         applyMode(settings.mode);
+        refreshModelHint();
     });
 })();

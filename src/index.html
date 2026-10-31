@@ -125,12 +125,15 @@
             <div id="aiMessages" class="ai-messages" role="log" aria-live="polite" aria-label="Conversation"></div>
             <div id="aiProgress" class="ai-progress" aria-live="off"></div>
             <div class="ai-composer">
+                <div class="ai-composer-side">
+                    <button type="button" id="aiNewChatBtn">New chat</button>
+                    <div id="aiModelHint" class="ai-hint" aria-live="polite"></div>
+                </div>
                 <textarea id="aiInput" rows="2"
                     placeholder="Describe what you want, e.g. &quot;Download this video: https://...&quot; (Enter to send, Shift+Enter for a new line)"></textarea>
                 <div class="ai-composer-buttons">
                     <button type="button" id="aiSendBtn" class="run-button">Send</button>
                     <button type="button" id="aiStopBtn" class="ai-stop-btn" style="display: none">Stop</button>
-                    <button type="button" id="aiNewChatBtn">New chat</button>
                 </div>
             </div>
         </section>

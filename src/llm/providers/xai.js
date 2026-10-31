@@ -1,4 +1,4 @@
-import { ProviderError } from '../errors.js';
+import { ProviderError, errorFromResponse } from '../errors.js';
 import { requestJson, DEFAULT_RETRIES } from './http.js';
 
 export const DEFAULT_XAI_BASE_URL = 'https://api.x.ai/v1';
@@ -97,12 +97,12 @@ export class XaiProvider {
         return input;
     }
 
-    async chat({ system, messages, tools = [], signal, onRetry }) {
+    async chat({ system, messages, tools = [], signal, onTextDelta, onRetry }) {
         if (!this.model) {
             throw new ProviderError('No model is configured for the xAI provider.', { kind: 'bad_request' });
         }
 
-        const data = await requestJson({
+        const request = {
             fetchImpl: this.fetchImpl,
             providerName: this.displayName,
             url: `${this.baseUrl}/responses`,
@@ -129,7 +129,72 @@ export class XaiProvider {
             retries: this.retries,
             retryDelayMs: this.retryDelayMs,
             onRetry
-        });
+        };
+        if (onTextDelta) {
+            request.body.stream = true;
+            return this.#streamResponse(request, onTextDelta, signal);
+        }
+        const data = await requestJson(request);
+        return this.#parseResponse(data);
+    }
+
+    async #streamResponse(request, onTextDelta, signal) {
+        const timeoutSignal = AbortSignal.timeout(request.timeoutMs);
+        const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+        let response;
+        try {
+            response = await request.fetchImpl(request.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...request.headers },
+                body: JSON.stringify(request.body),
+                signal: combinedSignal
+            });
+        } catch (err) {
+            if (signal?.aborted) throw new ProviderError('Request cancelled.', { kind: 'aborted' });
+            throw new ProviderError(`Cannot reach ${this.displayName} (${err.cause?.code || err.message}).`, { kind: 'network' });
+        }
+        if (!response.ok) {
+            const text = await response.text();
+            throw errorFromResponse(this.displayName, response.status, text, { model: this.model });
+        }
+        if (!response.body?.getReader) {
+            try {
+                return this.#parseResponse(JSON.parse(await response.text()));
+            } catch {
+                throw new ProviderError(`${this.displayName} did not return a streaming response.`, { kind: 'bad_response' });
+            }
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let completed;
+        const processEvent = (raw) => {
+            const data = raw.split('\n')
+                .filter((line) => line.startsWith('data:'))
+                .map((line) => line.slice(5).trim())
+                .join('\n');
+            if (!data || data === '[DONE]') return;
+            let event;
+            try { event = JSON.parse(data); } catch { return; }
+            if (event.type === 'response.output_text.delta' && event.delta) onTextDelta(event.delta);
+            if (event.type === 'response.completed' && event.response) completed = event.response;
+        };
+
+        while (true) {
+            const { done, value } = await reader.read();
+            buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+            const events = buffer.split(/\r?\n\r?\n/);
+            buffer = events.pop() || '';
+            for (const event of events) processEvent(event);
+            if (done) break;
+        }
+        if (buffer) processEvent(buffer);
+        if (!completed) throw new ProviderError(`${this.displayName} ended the stream without a completed response.`, { kind: 'bad_response' });
+        return this.#parseResponse(completed);
+    }
+
+    #parseResponse(data) {
 
         const output = Array.isArray(data.output) ? data.output : [];
         const toolCalls = output

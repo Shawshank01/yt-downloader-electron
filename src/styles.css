@@ -550,6 +550,17 @@ body[data-mode='ai'] .ai-panel {
     align-items: flex-end;
 }
 
+.ai-composer-side {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: stretch;
+}
+
+.ai-composer-side .ai-hint {
+    white-space: nowrap;
+}
+
 #aiInput {
     flex: 1;
     resize: vertical;

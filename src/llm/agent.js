@@ -95,6 +95,7 @@ export async function runAgent({
                 messages: history,
                 tools,
                 signal,
+                onTextDelta: (text) => onEvent({ type: 'assistant_delta', text }),
                 onRetry: (info) => onEvent({ type: 'retrying', provider: provider.displayName || provider.id, ...info })
             });
         } catch (err) {

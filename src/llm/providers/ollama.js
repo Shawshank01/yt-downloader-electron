@@ -68,9 +68,10 @@ export class OllamaProvider {
         return out;
     }
 
-    async chat({ system, messages, tools = [], signal, onRetry }) {
+    async chat({ system, messages, tools = [], signal, onTextDelta, onRetry }) {
         let data;
         try {
+            if (onTextDelta) return this.#stream(system, messages, tools, signal, onTextDelta);
             data = await requestJson({
                 fetchImpl: this.fetchImpl,
                 providerName: this.displayName,
@@ -78,7 +79,7 @@ export class OllamaProvider {
                 body: {
                     model: this.model,
                     messages: this.#toMessages(system, messages),
-                    stream: false,
+                    stream: Boolean(onTextDelta),
                     options: { temperature: 0.2 },
                     ...(tools.length > 0
                         ? {
@@ -126,5 +127,51 @@ export class OllamaProvider {
         });
 
         return { text: (message.content || '').trim(), toolCalls, raw: null };
+    }
+
+    async #stream(system, messages, tools, signal, onTextDelta) {
+        const response = await this.fetchImpl(`${this.baseUrl}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: this.model,
+                messages: this.#toMessages(system, messages),
+                stream: true,
+                options: { temperature: 0.2 },
+                ...(tools.length > 0 ? { tools: tools.map((t) => ({ type: 'function', function: t })) } : {})
+            }),
+            signal
+        });
+        if (!response.ok) throw new ProviderError(`Ollama returned HTTP ${response.status}.`, { kind: 'server', status: response.status });
+        const reader = response.body?.getReader();
+        if (!reader) throw new ProviderError('Ollama did not return a streaming response.', { kind: 'bad_response' });
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let text = '';
+        let toolCalls = [];
+        const process = (line) => {
+            if (!line.trim()) return;
+            const data = JSON.parse(line);
+            const message = data.message || {};
+            if (message.content) {
+                text += message.content;
+                onTextDelta(message.content);
+            }
+            if (message.tool_calls) toolCalls = message.tool_calls.map((call, index) => ({
+                id: `ollama-call-${Date.now()}-${index}`,
+                name: call.function?.name,
+                args: typeof call.function?.arguments === 'string' ? JSON.parse(call.function.arguments) : call.function?.arguments || {}
+            }));
+        };
+        while (true) {
+            const { done, value } = await reader.read();
+            buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop() || '';
+            lines.forEach(process);
+            if (done) break;
+        }
+        if (buffer) process(buffer);
+        return { text: text.trim(), toolCalls, raw: null };
     }
 }
