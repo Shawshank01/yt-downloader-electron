@@ -106,7 +106,8 @@ meson install -C "$build_dir/harfbuzz"
     autoreconf -fiv
     ./configure --host="$target" --prefix="$prefix" \
         --enable-static --disable-shared \
-        --disable-fontconfig --disable-require-system-font-provider \
+        --disable-fontconfig --disable-directwrite \
+        --disable-require-system-font-provider \
         --disable-asm
     make -j"$(nproc)"
     make install
@@ -136,7 +137,7 @@ libass_libs="$(pkg-config --static --libs libass)"
         --pkg-config-flags="--static" \
         --extra-cflags="$libass_cflags -I$prefix/include" \
         --extra-ldflags="-L$prefix/lib" \
-        --extra-libs="$libass_libs -ldwrite -lole32 -luuid -luser32 -ladvapi32"
+        --extra-libs="$libass_libs"
     make -j"$(nproc)"
     make install
 )
