@@ -7,6 +7,10 @@ on:
     tags:
     - 'v*'
 
+concurrency:
+  group: mirror-to-gitlab
+  cancel-in-progress: false
+
 jobs:
   mirror:
     runs-on: ubuntu-latest
@@ -20,4 +24,8 @@ jobs:
     - name: Push to GitLab
       run: |
         git remote add gitlab https://oauth2:${{ secrets.GITLAB_TOKEN }}@gitlab.com/michifumi/yt-downloader-electron.git
-        git push gitlab --force --prune 'refs/remotes/origin/*:refs/heads/*' 'refs/tags/*:refs/tags/*'
+        if [ "${{ github.ref_type }}" = "branch" ]; then
+          git push gitlab "refs/remotes/origin/${{ github.ref_name }}:refs/heads/${{ github.ref_name }}"
+        else
+          git push gitlab "refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }}"
+        fi
