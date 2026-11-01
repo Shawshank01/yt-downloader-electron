@@ -107,7 +107,7 @@ The assistant can use these tools: video info, list formats, download video, dow
 > [!NOTE]
 > The assistant can only do what those tools allow. For example it cannot trim a video yet; it will say so and suggest an `ffmpeg` command instead. Everything it does uses the same download folder, browser-cookie and proxy settings as Classic mode.
 
-### 🛡️ Built with Harness Engineering
+### Built with Harness Engineering
 
 Rather than relying on fragile prompt engineering or bloated frameworks, the AI subsystem is built from the ground up using **Harness Engineering** principles (`Agent = Model + Harness`). The harness serves as a deterministic, defensive control plane and operating system around non-deterministic LLMs:
 
