@@ -44,15 +44,15 @@ test('Gemini: request shape, key in header (not URL), tool declarations, functio
     const fetchImpl = fakeFetch([
         {
             json: {
-                candidates: [
+                id: 'int_call_1',
+                status: 'requires_action',
+                model: 'gemini-3.8-flash',
+                steps: [
                     {
-                        content: {
-                            role: 'model',
-                            parts: [
-                                { functionCall: { name: 'list_formats', args: { url: 'https://x.test/v' } }, thoughtSignature: 'SIG123' }
-                            ]
-                        },
-                        finishReason: 'STOP'
+                        type: 'function_call',
+                        id: 'call_1',
+                        name: 'list_formats',
+                        arguments: { url: 'https://x.test/v' }
                     }
                 ]
             }
@@ -68,13 +68,15 @@ test('Gemini: request shape, key in header (not URL), tool declarations, functio
     const call = fetchImpl.calls[0];
     assert.equal(
         call.url,
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent'
+        'https://generativelanguage.googleapis.com/v1beta/interactions'
     );
     assert.ok(!call.url.includes('SECRET'), 'API key must not be in the URL');
     assert.equal(call.init.headers['x-goog-api-key'], 'SECRET');
-    assert.deepEqual(call.body.systemInstruction, { parts: [{ text: 'be helpful' }] });
-    assert.deepEqual(call.body.contents, [{ role: 'user', parts: [{ text: 'formats please' }] }]);
-    assert.equal(call.body.tools[0].functionDeclarations[0].name, 'list_formats');
+    assert.equal(call.body.model, 'gemini-3.8-flash');
+    assert.equal(call.body.system_instruction, 'be helpful');
+    assert.equal(call.body.input, 'formats please');
+    assert.equal(call.body.tools[0].type, 'function');
+    assert.equal(call.body.tools[0].name, 'list_formats');
 
     assert.equal(reply.toolCalls.length, 1);
     assert.equal(reply.toolCalls[0].name, 'list_formats');
@@ -82,13 +84,13 @@ test('Gemini: request shape, key in header (not URL), tool declarations, functio
     assert.equal(reply.text, '');
 });
 
-test('Gemini: thinking level defaults to low and is sent as generationConfig.thinkingConfig', async () => {
-    const reply = { json: { candidates: [{ content: { parts: [{ text: 'hi' }] } }], usageMetadata: { promptTokenCount: 120, thoughtsTokenCount: 7, candidatesTokenCount: 3 } } };
+test('Gemini: thinking level defaults to low and is sent as generation_config', async () => {
+    const reply = { json: { id: 'int_1', status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'hi' }] }], usage: { total_input_tokens: 120, total_thought_tokens: 7, total_output_tokens: 3 } } };
     const messages = [{ role: 'user', text: 'x' }];
 
     const fetchDefault = fakeFetch([reply]);
     const result = await new GeminiProvider({ apiKey: 'k', fetchImpl: fetchDefault }).chat({ system: '', messages });
-    assert.deepEqual(fetchDefault.calls[0].body.generationConfig, { thinkingConfig: { thinkingLevel: 'low' } });
+    assert.deepEqual(fetchDefault.calls[0].body.generation_config, { thinking_level: 'low' });
     assert.equal(result.stats.thinkingLevel, 'low');
     assert.equal(result.stats.thoughtTokens, 7);
     assert.equal(result.stats.promptTokens, 120);
@@ -96,30 +98,30 @@ test('Gemini: thinking level defaults to low and is sent as generationConfig.thi
 
     const fetchHigh = fakeFetch([reply]);
     await new GeminiProvider({ apiKey: 'k', thinkingLevel: 'high', fetchImpl: fetchHigh }).chat({ system: '', messages });
-    assert.equal(fetchHigh.calls[0].body.generationConfig.thinkingConfig.thinkingLevel, 'high');
+    assert.equal(fetchHigh.calls[0].body.generation_config.thinking_level, 'high');
 
     // 'minimal' is rejected by Gemini 3.8 Flash, so unknown values fall back to the default.
     const fetchBad = fakeFetch([reply]);
     await new GeminiProvider({ apiKey: 'k', thinkingLevel: 'minimal', fetchImpl: fetchBad }).chat({ system: '', messages });
-    assert.equal(fetchBad.calls[0].body.generationConfig.thinkingConfig.thinkingLevel, 'low');
+    assert.equal(fetchBad.calls[0].body.generation_config.thinking_level, 'low');
 
     // An empty string means "use the model's own default": nothing is sent.
     const fetchNone = fakeFetch([reply]);
     await new GeminiProvider({ apiKey: 'k', thinkingLevel: '', fetchImpl: fetchNone }).chat({ system: '', messages });
-    assert.equal('generationConfig' in fetchNone.calls[0].body, false);
+    assert.equal('generation_config' in fetchNone.calls[0].body, false);
 });
 
 test('Gemini: a model that rejects thinkingLevel is retried once without it', async () => {
     const fetchImpl = fakeFetch([
         { status: 400, json: { error: { message: 'Thinking level is not supported for this model.' } } },
-        { json: { candidates: [{ content: { parts: [{ text: 'ok' }] } }] } }
+        { json: { id: 'int_retry', status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'ok' }] }] } }
     ]);
     const provider = new GeminiProvider({ apiKey: 'k', model: 'gemini-2.5-flash', fetchImpl });
     const reply = await provider.chat({ system: '', messages: [{ role: 'user', text: 'x' }] });
     assert.equal(reply.text, 'ok');
     assert.equal(fetchImpl.calls.length, 2);
-    assert.ok('generationConfig' in fetchImpl.calls[0].body);
-    assert.ok(!('generationConfig' in fetchImpl.calls[1].body));
+    assert.ok('generation_config' in fetchImpl.calls[0].body);
+    assert.ok(!('generation_config' in fetchImpl.calls[1].body));
 
     // Unrelated 400 errors are not retried.
     const other = fakeFetch([{ status: 400, json: { error: { message: 'Invalid JSON payload' } } }]);
@@ -133,20 +135,21 @@ test('Gemini: a model that rejects thinkingLevel is retried once without it', as
 test('Gemini: tools without parameters are declared without a parameters object', async () => {
     assert.deepEqual(
         toGeminiDeclaration({ name: 'x', description: 'd', parameters: { type: 'object', properties: {} } }),
-        { name: 'x', description: 'd' }
+        { type: 'function', name: 'x', description: 'd' }
     );
     const withParams = { name: 'y', description: 'd', parameters: { type: 'object', properties: { a: { type: 'string' } } } };
-    assert.deepEqual(toGeminiDeclaration(withParams), withParams);
+    assert.deepEqual(toGeminiDeclaration(withParams), { type: 'function', ...withParams });
 
-    const fetchImpl = fakeFetch([{ json: { candidates: [{ content: { parts: [{ text: 'hi' }] } }] } }]);
+    const fetchImpl = fakeFetch([{ json: { id: 'int_tools', status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'hi' }] }] } }]);
     await new GeminiProvider({ apiKey: 'k', fetchImpl }).chat({
         system: '',
         messages: [{ role: 'user', text: 'x' }],
         tools: getToolDeclarations()
     });
-    const declared = fetchImpl.calls[0].body.tools[0].functionDeclarations;
+    const declared = fetchImpl.calls[0].body.tools;
     assert.equal(declared.length, getToolDeclarations().length);
     for (const d of declared) {
+        assert.equal(d.type, 'function');
         if ('parameters' in d) {
             assert.ok(Object.keys(d.parameters.properties).length > 0, `${d.name} has empty properties`);
         }
@@ -154,14 +157,10 @@ test('Gemini: tools without parameters are declared without a parameters object'
     assert.ok(!('parameters' in declared.find((d) => d.name === 'list_downloads')));
 });
 
-test('Gemini: thought signatures are replayed verbatim and tool results are grouped', async () => {
-    const fetchImpl = fakeFetch([{ json: { candidates: [{ content: { parts: [{ text: 'done' }] } }] } }]);
+test('Gemini: multi-turn chains with previous_interaction_id and tool results', async () => {
+    const fetchImpl = fakeFetch([{ json: { id: 'int_turn2', status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'done' }] }] } }]);
     const provider = new GeminiProvider({ apiKey: 'k', fetchImpl });
 
-    const rawParts = [
-        { functionCall: { name: 'a', args: {}, id: 'id-a' }, thoughtSignature: 'SIG-A' },
-        { functionCall: { name: 'b', args: {}, id: 'id-b' } }
-    ];
     await provider.chat({
         system: '',
         messages: [
@@ -173,7 +172,7 @@ test('Gemini: thought signatures are replayed verbatim and tool results are grou
                     { id: 'id-a', providerCallId: 'id-a', name: 'a', args: {} },
                     { id: 'id-b', providerCallId: 'id-b', name: 'b', args: {} }
                 ],
-                raw: { provider: 'gemini', parts: rawParts }
+                raw: { provider: 'gemini', interactionId: 'int_turn1' }
             },
             { role: 'tool', toolCallId: 'id-a', providerCallId: 'id-a', name: 'a', result: { ok: true } },
             { role: 'tool', toolCallId: 'id-b', providerCallId: 'id-b', name: 'b', result: { ok: false, error: 'x' } }
@@ -181,13 +180,17 @@ test('Gemini: thought signatures are replayed verbatim and tool results are grou
         tools: TOOLS
     });
 
-    const contents = fetchImpl.calls[0].body.contents;
-    assert.equal(contents.length, 3);
-    assert.deepEqual(contents[1], { role: 'model', parts: rawParts });
-    assert.equal(contents[1].parts[0].thoughtSignature, 'SIG-A');
-    assert.equal(contents[2].role, 'user');
-    assert.equal(contents[2].parts.length, 2);
-    assert.deepEqual(contents[2].parts[0].functionResponse, { name: 'a', response: { ok: true }, id: 'id-a' });
+    const call = fetchImpl.calls[0];
+    assert.equal(call.body.previous_interaction_id, 'int_turn1');
+    assert.equal(call.body.input.length, 2);
+    assert.equal(call.body.input[0].type, 'function_result');
+    assert.equal(call.body.input[0].name, 'a');
+    assert.equal(call.body.input[0].call_id, 'id-a');
+    assert.deepEqual(call.body.input[0].result, [{ type: 'text', text: '{"ok":true}' }]);
+    assert.equal(call.body.input[1].type, 'function_result');
+    assert.equal(call.body.input[1].name, 'b');
+    assert.equal(call.body.input[1].call_id, 'id-b');
+    assert.deepEqual(call.body.input[1].result, [{ type: 'text', text: '{"ok":false,"error":"x"}' }]);
 });
 
 test('Gemini: error mapping (404 model, 429 quota, bad key, no key)', async () => {

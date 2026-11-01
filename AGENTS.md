@@ -117,16 +117,16 @@ Call model, run requested tools **one at a time** (the app allows one yt-dlp/ffm
 
 **Gemini** (`providers/gemini.js`)
 
-- REST `generateContent` (non-streaming) and `streamGenerateContent?alt=sse` (streaming), header `x-goog-api-key` (never in the URL). Default model `gemini-3.8-flash`; the ID is editable.
-- Gemini 3.8 Flash defaults to `thinkingLevel: medium`, which was slow. The app sends `low` by default (low / medium / high). **`minimal` is rejected.** If a model rejects the thinking config (HTTP 400 mentioning "thinking"), the request is retried once without it; this works for streaming too.
+- REST Interactions API (`POST /v1beta/interactions` with `stream: true` for SSE streaming), header `x-goog-api-key` (never in the URL). Default model `gemini-3.8-flash`; the ID is editable.
+- Multi-turn state is managed server-side via `previous_interaction_id`, with function calls returning `function_result` inputs.
+- Gemini 3.8 Flash defaults to `thinkingLevel: medium`, which was slow. The app sends `low` by default (low / medium / high) in `generation_config.thinking_level`. **`minimal` is rejected.** If a model rejects the thinking config (HTTP 400 mentioning "thinking"), the request is retried once without it; this works for streaming too.
 - Function declarations with empty `parameters.properties` have been rejected (400). Parameter-less tools are declared with only name and description (`toGeminiDeclaration`).
-- Streaming keeps text and function-call parts from all SSE chunks even when the final chunk has only metadata. Invalid stream data is reported as an error rather than skipped.
+- Streaming parses SSE `step.start`, `step.delta`, and `interaction.completed` events. Invalid stream data is reported as an error rather than skipped.
 - Free tier returns **HTTP 503 "high demand"** at times and 429 when out of quota.
-- Google calls `generateContent` "legacy" and recommends the **Interactions API**. `generateContent` still works. Migration is on the roadmap.
 
 **xAI** (`XaiProvider`, type `xai`): `https://api.x.ai/v1`, default model `grok-4.3`, own key slot, key required, Responses API (`/responses`) with native function calling and SSE streaming. The endpoint is fixed; the UI exposes reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`).
 
-**Ollama**: `/api/chat`, needs a tool-capable model, streamed NDJSON. Unsupported-tools and unreachable-server errors are turned into actionable messages for both streaming and non-streaming calls. The configured default model is a placeholder and has not been evaluated.
+**Ollama**: `/api/chat`, needs a tool-capable model, streamed NDJSON. Unsupported-tools and unreachable-server errors are turned into actionable messages for both streaming and non-streaming calls. lfm3:1.7b has passed testing.
 
 **Retries** (`providers/http.js`): `DEFAULT_RETRIES` is **2** (up to 3 attempts), 1.5 s doubling, only for HTTP 500/502/503/504 and connection errors; not for 4xx, 429 or a request that already hit its timeout. They apply to requests before a streamed response starts. Cancelling during the wait stops immediately. The UI shows "retrying". Tests derive their expectations from `DEFAULT_RETRIES`.
 
@@ -184,7 +184,7 @@ Show the command a step ran (collapsible), "Reveal in Finder / Open folder" butt
 
 ### C. Providers
 
-Migrate Gemini to the Interactions API; add a model dropdown from each provider's list-models endpoint; honour `Retry-After`; optional automatic fallback to another model or provider after repeated 503; Anthropic adapter (add it to `PROVIDER_TYPES`); token and cost display; evaluate and document recommended Ollama models.
+Add a model dropdown from each provider's list-models endpoint; honour `Retry-After`; optional automatic fallback to another model or provider after repeated 503; Anthropic adapter (add it to `PROVIDER_TYPES`); token and cost display; evaluate and document recommended Ollama models.
 
 ### D. Quality and security
 

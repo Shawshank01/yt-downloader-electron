@@ -35,9 +35,23 @@ function fakeFetch(responses) {
     return impl;
 }
 
-const geminiText = (text) => ({ json: { candidates: [{ content: { role: 'model', parts: [{ text }] } }] } });
+const geminiText = (text) => ({
+    json: {
+        id: 'int_text',
+        status: 'completed',
+        model: 'gemini-3.8-flash',
+        steps: [{ type: 'model_output', content: [{ type: 'text', text }] }],
+        usage: { total_input_tokens: 10, total_output_tokens: 5 }
+    }
+});
 const geminiCall = (name, args = {}) => ({
-    json: { candidates: [{ content: { role: 'model', parts: [{ functionCall: { name, args }, thoughtSignature: 'SIG' }] } }] }
+    json: {
+        id: 'int_call',
+        status: 'requires_action',
+        model: 'gemini-3.8-flash',
+        steps: [{ type: 'function_call', id: 'call_1', name, arguments: args }],
+        usage: { total_input_tokens: 10, total_output_tokens: 5 }
+    }
 });
 
 async function makeService({ fetchImpl, savedSettings = {}, withKey = true } = {}) {
@@ -172,14 +186,15 @@ test('send: full round trip through Gemini with a real tool call', async () => {
     assert.ok(dir);
 });
 
-test('send: the second model call replays the Gemini thought signature', async () => {
+test('send: the second model call chains with previous_interaction_id and sends function_result', async () => {
     const fetchImpl = fakeFetch([geminiCall('list_downloads'), geminiText('ok')]);
     const { service } = await makeService({ fetchImpl });
     const folder = await tempDir();
     await service.send('list', { downloadFolder: folder });
     const secondBody = fetchImpl.calls[1].body;
-    assert.equal(secondBody.contents[1].parts[0].thoughtSignature, 'SIG');
-    assert.ok(secondBody.contents[2].parts[0].functionResponse);
+    assert.equal(secondBody.previous_interaction_id, 'int_call');
+    assert.equal(secondBody.input[0].type, 'function_result');
+    assert.equal(secondBody.input[0].name, 'list_downloads');
 });
 
 test('send: system prompt carries the user context, key is only in the header', async () => {
@@ -188,8 +203,8 @@ test('send: system prompt carries the user context, key is only in the header', 
     const folder = await tempDir();
     await service.send('hello', { downloadFolder: folder, browser: 'chrome', proxy: 'socks5://127.0.0.1:1080/' });
     const call = fetchImpl.calls[0];
-    assert.match(call.body.systemInstruction.parts[0].text, new RegExp(folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-    assert.match(call.body.systemInstruction.parts[0].text, /chrome/);
+    assert.match(call.body.system_instruction, new RegExp(folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(call.body.system_instruction, /chrome/);
     assert.ok(!call.url.includes(SECRET));
     assert.ok(!JSON.stringify(call.body).includes(SECRET));
     assert.equal(call.init.headers['x-goog-api-key'], SECRET);
@@ -240,12 +255,12 @@ test('thinking level: Gemini-only, validated, saved, and used in requests', asyn
     assert.equal(s.providers.ollama.supportsThinkingLevel, false);
 
     await service.send('a', { downloadFolder: folder });
-    assert.equal(fetchImpl.calls[0].body.generationConfig.thinkingConfig.thinkingLevel, 'low');
+    assert.equal(fetchImpl.calls[0].body.generation_config.thinking_level, 'low');
 
     s = await service.setSettings({ providerConfig: { type: 'gemini', thinkingLevel: 'high' } });
     assert.equal(s.providers.gemini.thinkingLevel, 'high');
     await service.send('b', { downloadFolder: folder });
-    assert.equal(fetchImpl.calls[1].body.generationConfig.thinkingConfig.thinkingLevel, 'high');
+    assert.equal(fetchImpl.calls[1].body.generation_config.thinking_level, 'high');
 
     await assert.rejects(service.setSettings({ providerConfig: { type: 'gemini', thinkingLevel: 'minimal' } }), AiSettingsError);
     await assert.rejects(service.setSettings({ providerConfig: { type: 'gemini', thinkingLevel: 'x; drop' } }), AiSettingsError);
@@ -358,7 +373,7 @@ test('send: provider errors come back as { ok: false } and the conversation stay
 
     const second = await service.send('second', { downloadFolder: folder });
     assert.equal(second.ok, true);
-    const roles = fetchImpl.calls[1].body.contents.map((c) => c.role);
+    const roles = fetchImpl.calls[1].body.input.map((c) => c.role);
     assert.deepEqual(roles, ['user', 'model', 'user'], 'failed turn is recorded so roles alternate');
 });
 

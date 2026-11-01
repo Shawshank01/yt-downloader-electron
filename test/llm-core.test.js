@@ -167,8 +167,8 @@ test('Gemini streaming retries without thinkingLevel for models that reject it',
     });
     const reply = await gemini.chat({ system: '', messages: [{ role: 'user', text: 'x' }], onTextDelta: () => { } });
     assert.equal(reply.text, 'fine');
-    assert.ok(bodies[0].generationConfig);
-    assert.equal(bodies[1].generationConfig, undefined);
+    assert.ok(bodies[0].generation_config);
+    assert.equal(bodies[1].generation_config, undefined);
 });
 
 // ---------- prompt / tool registry consistency ----------
