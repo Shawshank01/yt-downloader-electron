@@ -2,8 +2,6 @@
 
 Snapshot of where the project stands, why it is built the way it is, what has and has not been verified, and what to do next. Written so that a new contributor, or another AI assistant, can continue without the earlier conversation.
 
-Last updated: 2026-11-01 (app version 4.1.6 plus unreleased AI mode work).
-
 ## 1. What this project is
 
 A desktop app (Electron 45, JavaScript ES modules, pnpm) that downloads videos with **yt-dlp** and processes them with **FFmpeg**. Release builds **bundle both tools**: `pnpm prepare-tools` (`scripts/prepare-tools.mjs`, versions pinned in `tools-versions.json`) downloads them into `build-tools/<os>-<arch>`, and electron-builder copies them to `Resources/tools` (`extraResources`). At run time `dependencies.js` prefers the bundled copy and falls back to the system `PATH` (the dev run uses system tools; on macOS the app can install them via Homebrew).
