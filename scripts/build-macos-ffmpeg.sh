@@ -58,7 +58,8 @@ cmake -S "$source_dir/freetype" -B "$build_dir/freetype" -G Ninja \
     -DFT_DISABLE_BZIP2=TRUE \
     -DFT_DISABLE_PNG=TRUE \
     -DFT_DISABLE_BROTLI=TRUE \
-    -DFT_DISABLE_HARFBUZZ=TRUE
+    -DFT_DISABLE_HARFBUZZ=TRUE \
+    -DFT_DISABLE_HVF=TRUE
 cmake --build "$build_dir/freetype"
 cmake --install "$build_dir/freetype"
 
@@ -131,6 +132,7 @@ int main(void) {
 }
 EOF
 clang -arch "$target_arch" -mmacosx-version-min=11.0 $libass_cflags "$build_dir/libass-probe.c" \
+    -Wl,-force_load,"$prefix/lib/libfreetype.a" \
     $libass_libs -framework CoreFoundation -framework CoreText -framework CoreGraphics -o "$build_dir/libass-probe"
 
 host_arch="$(uname -m)"
