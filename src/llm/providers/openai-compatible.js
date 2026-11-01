@@ -1,4 +1,5 @@
 import { ProviderError } from '../errors.js';
+import { CONNECTION_TEST_TIMEOUT_MS, MODEL_REQUEST_TIMEOUT_MS } from '../limits.js';
 import { requestJson, DEFAULT_RETRIES } from './http.js';
 
 export const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
@@ -59,7 +60,7 @@ export class OpenAICompatibleProvider {
                 method: 'GET',
                 headers: this.#headers(),
                 signal,
-                timeoutMs: 15000
+                timeoutMs: CONNECTION_TEST_TIMEOUT_MS
             });
             const ids = (data.data || []).map((m) => m.id);
             if (ids.length > 0 && !ids.includes(this.model)) {
@@ -131,7 +132,7 @@ export class OpenAICompatibleProvider {
             signal,
             model: this.model,
             // Reasoning models can legitimately take a few minutes.
-            timeoutMs: 240000,
+            timeoutMs: MODEL_REQUEST_TIMEOUT_MS,
             retries: this.retries,
             retryDelayMs: this.retryDelayMs,
             onRetry

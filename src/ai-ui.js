@@ -461,9 +461,10 @@
         pendingConfirmId = request.requestId;
         els.confirmDesc.textContent = request.description;
         els.confirmRisk.textContent =
-            request.risk === 'high'
+            request.reason ||
+            (request.risk === 'high'
                 ? 'This can take a long time, use a lot of CPU, or replace or delete files.'
-                : '';
+                : '');
         els.confirmModal.style.display = 'flex';
         // Default focus is the safe choice so a stray Enter key does not approve anything.
         els.confirmDeny.focus();

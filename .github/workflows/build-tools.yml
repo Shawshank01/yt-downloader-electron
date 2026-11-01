@@ -18,7 +18,6 @@ on:
         - windows
         default: all
 
-
 permissions:
   contents: read
 

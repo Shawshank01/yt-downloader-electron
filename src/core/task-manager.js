@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { getBundledExecutablePath } from '../dependencies.js';
+import { logger } from './logger.js';
 
 // Task management for long-running processes (yt-dlp or ffmpeg)
 class TaskManager {
@@ -36,7 +37,7 @@ class TaskManager {
         task.activeProcess = child;
 
         child.on('error', (err) => {
-            console.error(`Process error [${command}]:`, err);
+            logger.error(`Process error [${command}]:`, err);
         });
 
         child.on('close', () => {
@@ -58,7 +59,7 @@ class TaskManager {
 
         if (task.activeProcess) {
             const pid = task.activeProcess.pid;
-            console.log(`Cancelling task [${task.type}] with process PID: ${pid}`);
+            logger.info(`Cancelling task [${task.type}] with process PID: ${pid}`);
 
             try {
                 if (process.platform === 'win32') {
@@ -67,7 +68,7 @@ class TaskManager {
                     task.activeProcess.kill('SIGKILL');
                 }
             } catch (e) {
-                console.error('Error killing process:', e);
+                logger.error('Error killing process:', e);
             }
         }
 

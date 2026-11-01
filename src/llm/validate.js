@@ -2,7 +2,7 @@
 //
 // The model is never trusted. Every value that ends up in a yt-dlp / ffmpeg argument list or a
 // file path is validated here first. Tools build their argument arrays from these validated
-// values; the model never supplies raw command-line flags (see the guarded passthrough, step 4).
+// values; the model never supplies raw command-line flags (see the guarded passthrough).
 
 export class ValidationError extends Error {
     constructor(message) {

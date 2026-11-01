@@ -9,7 +9,8 @@ interface AiProviderSettings {
     needsApiKey: boolean;
     editableBaseUrl: boolean;
     supportsThinkingLevel: boolean;
-    thinkingLevel: 'low' | 'medium' | 'high';
+    /** Empty when the provider has no such setting. */
+    thinkingLevel: 'low' | 'medium' | 'high' | '';
     model: string;
     baseUrl: string;
     defaultModel: string;
@@ -46,6 +47,8 @@ type AiEvent =
         name: string;
         description: string;
         risk: 'low' | 'high';
+        /** Why extra care is needed, when that is not obvious from `risk`. */
+        reason?: string;
         args: Record<string, unknown>;
     };
 
@@ -55,7 +58,13 @@ interface AiApi {
         mode?: 'classic' | 'ai';
         provider?: string;
         confirmMode?: string;
-        providerConfig?: { type: string; model?: string; baseUrl?: string; thinkingLevel?: 'low' | 'medium' | 'high' };
+        providerConfig?: {
+            type: string;
+            model?: string;
+            baseUrl?: string;
+            thinkingLevel?: 'low' | 'medium' | 'high';
+            reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+        };
     }) => Promise<{ ok: boolean; settings?: AiSettings; error?: string }>;
     setApiKey: (type: string, apiKey: string) => Promise<{ ok: boolean; persisted?: boolean; settings?: AiSettings; error?: string }>;
     removeApiKey: (type: string) => Promise<{ ok: boolean; settings?: AiSettings; error?: string }>;

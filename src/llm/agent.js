@@ -1,9 +1,12 @@
 import { ProviderError } from './errors.js';
 import { ValidationError } from './validate.js';
-import { getTool, getRisk, getToolDeclarations } from './tool-registry.js';
+import { getTool, getRisk, getToolDeclarations, TOOL_NAMES } from './tool-registry.js';
 import { cancelCurrentTask } from '../core/tools.js';
+import { MAX_AGENT_STEPS, MAX_TOOL_RESULT_CHARS } from './limits.js';
+import { MESSAGES } from './messages.js';
+import { isForeignUrl } from './provenance.js';
 
-const noop = () => {};
+const noop = () => { };
 
 /** Keep tool results small enough for the model's context (small local models especially). */
 export function shapeResult(result, maxChars) {
@@ -32,7 +35,7 @@ export function shapeResult(result, maxChars) {
 }
 
 function needsConfirmation(confirmMode, toolName, risk) {
-    if (toolName === 'cancel_task') return false;
+    if (toolName === TOOL_NAMES.cancelTask) return false;
     if (confirmMode === 'never') return false;
     if (confirmMode === 'always') return true;
     return risk === 'high';
@@ -68,8 +71,8 @@ export async function runAgent({
     onEvent = noop,
     confirm,
     confirmMode = 'risky',
-    maxSteps = 8,
-    maxResultChars = 6000,
+    maxSteps = MAX_AGENT_STEPS,
+    maxResultChars = MAX_TOOL_RESULT_CHARS,
     signal
 }) {
     const tools = getToolDeclarations();
@@ -78,7 +81,7 @@ export async function runAgent({
     let steps = 0;
     const finishAborted = () => {
         cancelCurrentTask();
-        const text = 'Stopped.';
+        const text = MESSAGES.stopped;
         history.push({ role: 'assistant', text });
         onEvent({ type: 'assistant_text', text });
         return { text, steps, stoppedBecause: 'aborted' };
@@ -119,7 +122,7 @@ export async function runAgent({
         });
 
         if (toolCalls.length === 0) {
-            const text = replyText || '(The assistant returned an empty answer.)';
+            const text = replyText || MESSAGES.emptyAnswer;
             onEvent({ type: 'assistant_text', text });
             return { text, steps, stoppedBecause: 'done' };
         }
@@ -130,9 +133,9 @@ export async function runAgent({
             let result;
 
             if (signal?.aborted) {
-                result = { ok: false, error: 'Cancelled by the user.' };
+                result = { ok: false, error: MESSAGES.cancelledByUser };
             } else {
-                result = await executeToolCall(call, { ctx, onEvent, confirm, confirmMode, signal });
+                result = await executeToolCall(call, { ctx, history, onEvent, confirm, confirmMode, signal });
             }
 
             history.push({
@@ -145,31 +148,46 @@ export async function runAgent({
         }
     }
 
-    const text = `I stopped after ${maxSteps} steps without finishing. Tell me if you want me to continue.`;
+    const text = MESSAGES.maxSteps(maxSteps);
     history.push({ role: 'assistant', text });
     onEvent({ type: 'assistant_text', text });
     return { text, steps, stoppedBecause: 'max_steps' };
 }
 
-async function executeToolCall(call, { ctx, onEvent, confirm, confirmMode, signal }) {
+/**
+ * The risk of this call. A URL the user never typed (it came from a web page the model read) is
+ * treated as high risk, so it needs confirmation in the default "risky" mode.
+ * @returns {{risk: 'low'|'high', reason: string|undefined}}
+ */
+function assessRisk(tool, args, history) {
+    const risk = getRisk(tool, args);
+    if (typeof args.url === 'string' && isForeignUrl(history, args.url)) {
+        return { risk: 'high', reason: MESSAGES.urlNotFromUser };
+    }
+    return { risk, reason: undefined };
+}
+
+async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMode, signal }) {
     const tool = getTool(call.name);
     if (!tool) {
         return { ok: false, error: `Unknown tool "${call.name}".` };
     }
 
     const args = call.args && typeof call.args === 'object' ? call.args : {};
-    const risk = getRisk(tool, args);
+    const { risk, reason } = assessRisk(tool, args, history);
     const description = safeDescribe(tool, args);
 
     if (needsConfirmation(confirmMode, tool.name, risk)) {
-        const approved = await askConfirmation(confirm, { id: call.id, name: tool.name, args, description, risk });
+        const approved = await askConfirmation(confirm, {
+            id: call.id, name: tool.name, args, description, risk, reason
+        });
         if (!approved) {
             onEvent({ type: 'tool_denied', id: call.id, name: tool.name, description });
-            return { ok: false, error: 'The user declined to run this action.' };
+            return { ok: false, error: MESSAGES.declinedByUser };
         }
     }
 
-    if (signal?.aborted) return { ok: false, error: 'Cancelled by the user.' };
+    if (signal?.aborted) return { ok: false, error: MESSAGES.cancelledByUser };
 
     onEvent({ type: 'tool_start', id: call.id, name: tool.name, args, description, risk });
     let result;

@@ -1,5 +1,7 @@
-import { ProviderError, errorFromResponse } from '../errors.js';
-import { requestJson, DEFAULT_RETRIES } from './http.js';
+import { ProviderError } from '../errors.js';
+import { CONNECTION_TEST_TIMEOUT_MS, MODEL_REQUEST_TIMEOUT_MS } from '../limits.js';
+import { requestJson, requestStream, DEFAULT_RETRIES } from './http.js';
+import { isStreamable, parseStreamJson, readJsonBody, readSse } from './stream.js';
 
 export const DEFAULT_XAI_BASE_URL = 'https://api.x.ai/v1';
 export const DEFAULT_XAI_MODEL = 'grok-4.3';
@@ -53,7 +55,7 @@ export class XaiProvider {
                 method: 'GET',
                 headers: this.#headers(),
                 signal,
-                timeoutMs: 15000
+                timeoutMs: CONNECTION_TEST_TIMEOUT_MS
             });
             const ids = (data.data || []).map((m) => m.id);
             if (ids.length > 0 && !ids.includes(this.model)) {
@@ -125,7 +127,7 @@ export class XaiProvider {
             },
             signal,
             model: this.model,
-            timeoutMs: 240000,
+            timeoutMs: MODEL_REQUEST_TIMEOUT_MS,
             retries: this.retries,
             retryDelayMs: this.retryDelayMs,
             onRetry
@@ -139,63 +141,22 @@ export class XaiProvider {
     }
 
     async #streamResponse(request, onTextDelta, signal) {
-        const timeoutSignal = AbortSignal.timeout(request.timeoutMs);
-        const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
-        let response;
-        try {
-            response = await request.fetchImpl(request.url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...request.headers },
-                body: JSON.stringify(request.body),
-                signal: combinedSignal
-            });
-        } catch (err) {
-            if (signal?.aborted) throw new ProviderError('Request cancelled.', { kind: 'aborted' });
-            throw new ProviderError(`Cannot reach ${this.displayName} (${err.cause?.code || err.message}).`, { kind: 'network' });
-        }
-        if (!response.ok) {
-            const text = await response.text();
-            throw errorFromResponse(this.displayName, response.status, text, { model: this.model });
-        }
-        if (!response.body?.getReader) {
-            try {
-                return this.#parseResponse(JSON.parse(await response.text()));
-            } catch {
-                throw new ProviderError(`${this.displayName} did not return a streaming response.`, { kind: 'bad_response' });
-            }
+        const response = await requestStream(request);
+        if (!isStreamable(response)) {
+            return this.#parseResponse(await readJsonBody(response, this.displayName));
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
         let completed;
-        const processEvent = (raw) => {
-            const data = raw.split('\n')
-                .filter((line) => line.startsWith('data:'))
-                .map((line) => line.slice(5).trim())
-                .join('\n');
-            if (!data || data === '[DONE]') return;
-            let event;
-            try { event = JSON.parse(data); } catch { return; }
+        await readSse(response, { signal, providerName: this.displayName }, (payload) => {
+            const event = parseStreamJson(payload, this.displayName);
             if (event.type === 'response.output_text.delta' && event.delta) onTextDelta(event.delta);
             if (event.type === 'response.completed' && event.response) completed = event.response;
-        };
-
-        while (true) {
-            const { done, value } = await reader.read();
-            buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-            const events = buffer.split(/\r?\n\r?\n/);
-            buffer = events.pop() || '';
-            for (const event of events) processEvent(event);
-            if (done) break;
-        }
-        if (buffer) processEvent(buffer);
+        });
         if (!completed) throw new ProviderError(`${this.displayName} ended the stream without a completed response.`, { kind: 'bad_response' });
         return this.#parseResponse(completed);
     }
 
     #parseResponse(data) {
-
         const output = Array.isArray(data.output) ? data.output : [];
         const toolCalls = output
             .filter((item) => item.type === 'function_call')

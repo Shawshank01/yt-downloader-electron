@@ -1,5 +1,7 @@
 import { ProviderError } from '../errors.js';
-import { requestJson, DEFAULT_RETRIES } from './http.js';
+import { CONNECTION_TEST_TIMEOUT_MS, LOCAL_MODEL_REQUEST_TIMEOUT_MS } from '../limits.js';
+import { requestJson, requestStream, DEFAULT_RETRIES } from './http.js';
+import { isStreamable, parseStreamJson, readJsonBody, readNdjson } from './stream.js';
 
 export const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 export const DEFAULT_OLLAMA_MODEL = 'lfm3:1.7b';
@@ -30,7 +32,7 @@ export class OllamaProvider {
             url: `${this.baseUrl}/api/tags`,
             method: 'GET',
             signal,
-            timeoutMs: 10000
+            timeoutMs: CONNECTION_TEST_TIMEOUT_MS
         });
         const names = (data.models || []).map((m) => m.name);
         const found = names.some((n) => n === this.model || n === `${this.model}:latest`);
@@ -68,53 +70,87 @@ export class OllamaProvider {
         return out;
     }
 
+
     async chat({ system, messages, tools = [], signal, onTextDelta, onRetry }) {
-        let data;
-        try {
-            if (onTextDelta) return this.#stream(system, messages, tools, signal, onTextDelta);
-            data = await requestJson({
-                fetchImpl: this.fetchImpl,
-                providerName: this.displayName,
-                url: `${this.baseUrl}/api/chat`,
-                body: {
-                    model: this.model,
-                    messages: this.#toMessages(system, messages),
-                    stream: Boolean(onTextDelta),
-                    options: { temperature: 0.2 },
-                    ...(tools.length > 0
-                        ? {
-                            tools: tools.map((t) => ({
-                                type: 'function',
-                                function: { name: t.name, description: t.description, parameters: t.parameters }
-                            }))
-                        }
-                        : {})
-                },
-                signal,
+        const request = {
+            fetchImpl: this.fetchImpl,
+            providerName: this.displayName,
+            url: `${this.baseUrl}/api/chat`,
+            body: {
                 model: this.model,
-                timeoutMs: 300000,
-                retries: this.retries,
-                retryDelayMs: this.retryDelayMs,
-                onRetry
-            });
+                messages: this.#toMessages(system, messages),
+                stream: Boolean(onTextDelta),
+                options: { temperature: 0.2 },
+                ...(tools.length > 0
+                    ? {
+                        tools: tools.map((t) => ({
+                            type: 'function',
+                            function: { name: t.name, description: t.description, parameters: t.parameters }
+                        }))
+                    }
+                    : {})
+            },
+            signal,
+            model: this.model,
+            timeoutMs: LOCAL_MODEL_REQUEST_TIMEOUT_MS,
+            retries: this.retries,
+            retryDelayMs: this.retryDelayMs,
+            onRetry
+        };
+
+        try {
+            return onTextDelta
+                ? await this.#stream(request, signal, onTextDelta)
+                : this.#toReply((await requestJson(request)).message || {});
         } catch (err) {
-            if (err instanceof ProviderError && /does not support tools/i.test(err.message)) {
-                throw new ProviderError(
-                    `The Ollama model "${this.model}" does not support tool calling. Choose a model with tool support (for example qwen3 or llama3.1).`,
-                    { kind: 'bad_request', status: err.status }
-                );
-            }
-            if (err instanceof ProviderError && err.kind === 'network') {
-                throw new ProviderError(
-                    `Cannot reach Ollama at ${this.baseUrl}. Is Ollama running?`,
-                    { kind: 'network' }
-                );
-            }
-            throw err;
+            throw this.#explain(err);
+        }
+    }
+
+    /** Replace generic transport errors with messages that tell the user what to do. */
+    #explain(err) {
+        if (!(err instanceof ProviderError)) return err;
+        if (/does not support tools/i.test(err.message)) {
+            return new ProviderError(
+                `The Ollama model "${this.model}" does not support tool calling. Choose a model with tool support (for example qwen3 or llama3.1).`,
+                { kind: 'bad_request', status: err.status }
+            );
+        }
+        if (err.kind === 'network') {
+            return new ProviderError(`Cannot reach Ollama at ${this.baseUrl}. Is Ollama running?`, { kind: 'network' });
+        }
+        return err;
+    }
+
+    async #stream(request, signal, onTextDelta) {
+        const response = await requestStream(request);
+        if (!isStreamable(response)) {
+            return this.#toReply((await readJsonBody(response, this.displayName)).message || {});
         }
 
-        const message = data.message || {};
-        const toolCalls = (message.tool_calls || []).map((call, index) => {
+        let text = '';
+        let toolCalls = [];
+        await readNdjson(response, { signal, providerName: this.displayName }, (line) => {
+            const message = parseStreamJson(line, this.displayName).message || {};
+            if (message.content) {
+                text += message.content;
+                onTextDelta(message.content);
+            }
+            if (message.tool_calls) toolCalls = this.#toToolCalls(message.tool_calls);
+        });
+        return { text: text.trim(), toolCalls, raw: null };
+    }
+
+    #toReply(message) {
+        return {
+            text: (message.content || '').trim(),
+            toolCalls: this.#toToolCalls(message.tool_calls || []),
+            raw: null
+        };
+    }
+
+    #toToolCalls(calls) {
+        return calls.map((call, index) => {
             let args = call.function?.arguments ?? {};
             if (typeof args === 'string') {
                 try { args = JSON.parse(args); } catch { args = {}; }
@@ -125,53 +161,5 @@ export class OllamaProvider {
                 args
             };
         });
-
-        return { text: (message.content || '').trim(), toolCalls, raw: null };
-    }
-
-    async #stream(system, messages, tools, signal, onTextDelta) {
-        const response = await this.fetchImpl(`${this.baseUrl}/api/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: this.model,
-                messages: this.#toMessages(system, messages),
-                stream: true,
-                options: { temperature: 0.2 },
-                ...(tools.length > 0 ? { tools: tools.map((t) => ({ type: 'function', function: t })) } : {})
-            }),
-            signal
-        });
-        if (!response.ok) throw new ProviderError(`Ollama returned HTTP ${response.status}.`, { kind: 'server', status: response.status });
-        const reader = response.body?.getReader();
-        if (!reader) throw new ProviderError('Ollama did not return a streaming response.', { kind: 'bad_response' });
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let text = '';
-        let toolCalls = [];
-        const process = (line) => {
-            if (!line.trim()) return;
-            const data = JSON.parse(line);
-            const message = data.message || {};
-            if (message.content) {
-                text += message.content;
-                onTextDelta(message.content);
-            }
-            if (message.tool_calls) toolCalls = message.tool_calls.map((call, index) => ({
-                id: `ollama-call-${Date.now()}-${index}`,
-                name: call.function?.name,
-                args: typeof call.function?.arguments === 'string' ? JSON.parse(call.function.arguments) : call.function?.arguments || {}
-            }));
-        };
-        while (true) {
-            const { done, value } = await reader.read();
-            buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-            const lines = buffer.split(/\r?\n/);
-            buffer = lines.pop() || '';
-            lines.forEach(process);
-            if (done) break;
-        }
-        if (buffer) process(buffer);
-        return { text: text.trim(), toolCalls, raw: null };
     }
 }

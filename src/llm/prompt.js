@@ -1,5 +1,9 @@
+import { MESSAGES } from './messages.js';
+import { TOOL_NAMES as T } from './tools/names.js';
+
 /**
- * Build the system prompt for the agent.
+ * Build the system prompt for the agent. Tool names come from TOOL_NAMES so the prompt always refers
+ * to tools that exist.
  * @param {object} info
  * @param {string} [info.downloadFolder]
  * @param {string} [info.browser]
@@ -9,7 +13,7 @@
 export function buildSystemPrompt({ downloadFolder, browser, proxyEnabled, platform = process.platform } = {}) {
     const folderLine = downloadFolder
         ? `The user's download folder is set (${downloadFolder}). All files are saved there; you cannot choose another location.`
-        : 'No download folder is selected yet. If the user wants to download or convert something, tell them to choose a download folder in the app first.';
+        : MESSAGES.noDownloadFolderInPrompt;
 
     return [
         'You are the assistant inside a desktop video downloader app built on yt-dlp and ffmpeg.',
@@ -18,9 +22,9 @@ export function buildSystemPrompt({ downloadFolder, browser, proxyEnabled, platf
         'Rules:',
         '- Use tools to do the work; do not just describe what you would do. Do not invent URLs, file names, format codes or language codes.',
         '- If the user asks for something that needs a URL and none was given, ask for it.',
-        '- To use a specific quality or format, call list_formats first and use the exact format code, or use max_height for simple "up to 720p" requests.',
-        '- Call list_subtitles before downloading subtitles or hardcoding them, and use a language code it returned.',
-        '- Call list_downloads to find exact file names before re-encoding or deleting. Only delete files when the user asked for it or agreed to it.',
+        `- To use a specific quality or format, call ${T.listFormats} first and use the exact format code, or use max_height for simple "up to 720p" requests.`,
+        `- Call ${T.listSubtitles} before downloading subtitles or hardcoding them, and use a language code it returned.`,
+        `- Call ${T.listDownloads} to find exact file names before re-encoding or deleting. Only delete files when the user asked for it or agreed to it.`,
         '- Download a single video unless the user explicitly asks for a whole playlist.',
         '- Do several steps in a row when the request needs them (for example: download, then re-encode), but stop and ask when something is ambiguous.',
         '- If a tool fails, read the error, explain it briefly in plain language, and either fix the problem or tell the user what to do. Do not retry the same failing call repeatedly.',

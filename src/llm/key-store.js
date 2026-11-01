@@ -64,6 +64,18 @@ export class KeyStore {
         }
     }
 
+    /** Every stored key (all providers). Only for main-process use, e.g. to scrub secrets from messages. */
+    async all() {
+        const keys = new Set(this.sessionKeys.values());
+        if (this.isPersistent()) {
+            for (const providerType of Object.keys(await this.#readFile())) {
+                const key = await this.get(providerType);
+                if (key) keys.add(key);
+            }
+        }
+        return [...keys];
+    }
+
     async has(providerType) {
         return (await this.get(providerType)) !== '';
     }

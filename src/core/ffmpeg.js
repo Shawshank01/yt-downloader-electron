@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import { taskManager } from './task-manager.js';
+import { logger } from './logger.js';
 
 // Platform-adaptive default subtitle font (single font family name without commas for ASS style)
 export const DEFAULT_SUBTITLE_FONT = process.platform === 'darwin'
@@ -13,8 +14,8 @@ export const TRANSCODE_CONFIG = {
     crf: '22',
     preset: 'veryslow',
     audioBitrate: '128k',
-    h264Bitrate: '4000k',
-    hevcBitrate: '2500k',
+    h264Bitrate: '5000k',
+    hevcBitrate: '3000k',
     pixelFormatHevc: 'p010le',
     tagH264: 'avc1',
     tagHevc: 'hvc1',
@@ -118,7 +119,7 @@ export async function runFfmpegWithCodecFallback({ task, onProgress, buildArgs, 
         if (task.isCancelled) break;
 
         const args = buildArgs(audioCodec);
-        console.log(`${logPrefix} FFmpeg args:`, args);
+        logger.info(`${logPrefix} FFmpeg args:`, args);
 
         const stderrLines = [];
         const exitCode = await new Promise((resolve) => {
@@ -162,7 +163,7 @@ export async function runFfmpegWithCodecFallback({ task, onProgress, buildArgs, 
         } else {
             try { await fs.unlink(outputPath); } catch { /* ignore */ }
             const errorSnippet = stderrLines.slice(-15).join('\n');
-            console.error(`${logPrefix} with ${audioCodec} failed with code ${exitCode}:\n${errorSnippet}`);
+            logger.error(`${logPrefix} with ${audioCodec} failed with code ${exitCode}:\n${errorSnippet}`);
             lastCode = exitCode;
             lastError = errorSnippet;
 

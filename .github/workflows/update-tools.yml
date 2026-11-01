@@ -2,8 +2,9 @@ name: Check bundled tools
 
 on:
   schedule:
-    - cron: '17 3 * * *'
+  - cron: '17 3 * * *'
   workflow_dispatch:
+
 
 permissions:
   contents: write
@@ -13,42 +14,42 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+    - name: Check out repository
+      uses: actions/checkout@v7
 
-      - name: Update upstream tool versions
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const versions = JSON.parse(fs.readFileSync('tools-versions.json', 'utf8'));
-          const get = async (url) => {
-            const headers = { 'User-Agent': 'yt-downloader-tool-check' };
-            if (process.env.GITHUB_TOKEN) {
-              headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-            }
-            const response = await fetch(url, { headers });
-            if (!response.ok) throw new Error(`${response.status} ${url}`);
-            return response.json();
-          };
-          const yt = await get('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest');
-          const ffmpeg = await get('https://api.github.com/repos/FFmpeg/FFmpeg/tags?per_page=1');
-          versions['yt-dlp'] = yt.tag_name;
-          versions['ffmpeg'] = ffmpeg[0].name.replace(/^n/, '');
-          fs.writeFileSync('tools-versions.json', `${JSON.stringify(versions, null, 2)}\n`);
-          NODE
+    - name: Update upstream tool versions
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        node --input-type=module <<'NODE'
+        import fs from 'node:fs';
+        const versions = JSON.parse(fs.readFileSync('tools-versions.json', 'utf8'));
+        const get = async (url) => {
+          const headers = { 'User-Agent': 'yt-downloader-tool-check' };
+          if (process.env.GITHUB_TOKEN) {
+            headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+          }
+          const response = await fetch(url, { headers });
+          if (!response.ok) throw new Error(`${response.status} ${url}`);
+          return response.json();
+        };
+        const yt = await get('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest');
+        const ffmpeg = await get('https://api.github.com/repos/FFmpeg/FFmpeg/tags?per_page=1');
+        versions['yt-dlp'] = yt.tag_name;
+        versions['ffmpeg'] = ffmpeg[0].name.replace(/^n/, '');
+        fs.writeFileSync('tools-versions.json', `${JSON.stringify(versions, null, 2)}\n`);
+        NODE
 
-      - name: Open update pull request
-        uses: peter-evans/create-pull-request@v8
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: Update bundled yt-dlp and FFmpeg
-          title: Update bundled yt-dlp and FFmpeg
-          body: |
-            Automated daily check of the upstream yt-dlp and FFmpeg releases.
+    - name: Open update pull request
+      uses: peter-evans/create-pull-request@v8
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: Update bundled yt-dlp and FFmpeg
+        title: Update bundled yt-dlp and FFmpeg
+        body: |
+          Automated daily check of the upstream yt-dlp and FFmpeg releases.
 
-            This PR intentionally requires manual review and merge before release builds use the new bundle.
-          branch: automation/update-bundled-tools
-          delete-branch: true
+          This PR intentionally requires manual review and merge before release builds use the new bundle.
+        branch: automation/update-bundled-tools
+        delete-branch: true

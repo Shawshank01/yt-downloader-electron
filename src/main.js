@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { promises as fs } from 'fs';
+
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
 import {
     setupEnvironmentPaths
@@ -16,64 +16,40 @@ import {
     deleteTemporaryFiles
 } from './core/tools.js';
 import { ChatService, AiSettingsError } from './llm/chat-service.js';
+import { sanitizeClassicSettings } from './settings-schema.js';
+import { SettingsStore } from './settings-store.js';
 import { KeyStore } from './llm/key-store.js';
 
 // ESM-compatible dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Persistent user settings
-let settingsFilePath = null;
+// Persistent user settings. New installations start in AI mode; existing ones keep what they saved.
+const FIRST_RUN_SETTINGS = { aiMode: 'ai' };
 
-async function getSettingsPath() {
-    if (!settingsFilePath) {
-        settingsFilePath = join(app.getPath('userData'), 'user-settings.json');
+let settingsStore = null;
+
+// Created lazily because app.getPath('userData') is only reliable once Electron is set up.
+function getSettingsStore() {
+    if (!settingsStore) {
+        settingsStore = new SettingsStore({
+            filePath: join(app.getPath('userData'), 'user-settings.json'),
+            firstRunDefaults: FIRST_RUN_SETTINGS,
+            log: (message) => console.error(`[settings] ${message}`)
+        });
     }
-    return settingsFilePath;
+    return settingsStore;
 }
 
-async function readSettings() {
-    const filePath = await getSettingsPath();
-    try {
-        const data = await fs.readFile(filePath, 'utf-8');
-        return JSON.parse(data);
-    } catch {
-        try {
-            await fs.access(filePath);
-            return {};
-        } catch {
-            return { aiMode: 'ai' };
-        }
-    }
-}
+const readSettings = () => getSettingsStore().read();
+const mergeSettings = (updates) => getSettingsStore().merge(updates);
 
-async function writeSettings(settings) {
-    try {
-        const filePath = await getSettingsPath();
-        await fs.writeFile(filePath, JSON.stringify(settings, null, 2), 'utf-8');
-    } catch (e) {
-        console.error('Failed to save settings:', e);
-    }
-}
-
-ipcMain.handle('get-settings', async () => {
-    return await readSettings();
-});
-
-async function mergeSettings(updates) {
-    const current = await readSettings();
-    const merged = { ...current, ...updates };
-    await writeSettings(merged);
-    return merged;
-}
+ipcMain.handle('get-settings', async () => readSettings());
 
 ipcMain.handle('set-settings', async (_event, updates) => {
-    // Keys starting with "ai" are reserved for the AI mode and may only be changed through the
-    // validated ai-* handlers below (they hold provider URLs, model names and security options).
-    const safeUpdates = Object.fromEntries(
-        Object.entries(updates && typeof updates === 'object' ? updates : {}).filter(([key]) => !key.startsWith('ai'))
-    );
-    return mergeSettings(safeUpdates);
+    // Only the classic UI's own preferences are accepted here (allow-list). AI settings may only
+    // change through the validated ai-* handlers below.
+    return mergeSettings(sanitizeClassicSettings(updates));
 });
 
 // Fix PATH globally so yt-dlp and ffmpeg are found across all environments (MacPorts, Homebrew, system)
@@ -162,7 +138,6 @@ ipcMain.handle('delete-temporary-files', async (_event, paths) => deleteTemporar
 // learn whether one exists, but cannot read them back.
 // ---------------------------------------------------------------------------
 let chatService = null;
-let aiEventSender = null;
 
 function getChatService() {
     if (!chatService) {
@@ -187,22 +162,20 @@ function getChatService() {
             settings: { read: readSettings, merge: mergeSettings },
             keyStore,
             log: (message) => console.log(`[ai] ${message}`),
-            emit: (payload) => {
-                if (aiEventSender && !aiEventSender.isDestroyed()) {
-                    aiEventSender.send('ai-event', payload);
-                }
-            }
+            // Events are delivered per request to the window that sent it (see 'ai-send').
+            emit: () => { }
         });
     }
     return chatService;
 }
 
 // Wrap a handler so expected validation errors come back as { ok: false, error } instead of
-// an opaque "Error invoking remote method" rejection.
+// an opaque "Error invoking remote method" rejection. `ok` is set last so a handler's own
+// result can never override it.
 function aiHandler(fn) {
     return async (event, ...args) => {
         try {
-            return { ok: true, ...(await fn(event, ...args)) };
+            return { ...(await fn(event, ...args)), ok: true };
         } catch (err) {
             if (err instanceof AiSettingsError) return { ok: false, error: err.message };
             console.error('AI handler error:', err.message);
@@ -228,8 +201,30 @@ ipcMain.handle('ai-test-connection', async (_event, overrides) => getChatService
 // Returns { ok: true, text, stoppedBecause, steps } or { ok: false, error: { kind, message } }.
 // Live events (assistant text, tool start/result, progress, confirmation requests) arrive on 'ai-event'.
 ipcMain.handle('ai-send', async (event, message, context) => {
-    aiEventSender = event.sender;
-    return getChatService().send(message, context || {});
+    const sender = event.sender;
+    const service = getChatService();
+    const emit = (payload) => {
+        if (!sender.isDestroyed()) sender.send('ai-event', payload);
+    };
+
+    // If the window goes away or reloads, nobody can answer a confirmation or read the events, so
+    // stop the request instead of leaving it waiting (and a download running) in the background.
+    const abort = () => service.cancel();
+    const onNavigate = (details) => {
+        if (details.isMainFrame && !details.isSameDocument) abort();
+    };
+    sender.once('destroyed', abort);
+    sender.once('render-process-gone', abort);
+    sender.on('did-start-navigation', onNavigate);
+    try {
+        return await service.send(message, context || {}, { emit });
+    } finally {
+        if (!sender.isDestroyed()) {
+            sender.removeListener('destroyed', abort);
+            sender.removeListener('render-process-gone', abort);
+            sender.removeListener('did-start-navigation', onNavigate);
+        }
+    }
 });
 
 ipcMain.handle('ai-cancel', async () => getChatService().cancel());

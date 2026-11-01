@@ -218,7 +218,7 @@ test('pathological input stays fast', () => {
         '_a'.repeat(5000),
         '- '.repeat(5000),
         '> '.repeat(5000),
-        '[a](' .repeat(2500),
+        '[a]('.repeat(2500),
         '| a '.repeat(2500) + '\n|---|\n' + '| b '.repeat(2500),
         '~~x '.repeat(2500),
         'https://'.repeat(1200)

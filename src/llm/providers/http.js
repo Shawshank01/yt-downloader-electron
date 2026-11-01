@@ -1,7 +1,9 @@
 import { ProviderError, errorFromResponse } from '../errors.js';
+import { MODEL_REQUEST_TIMEOUT_MS } from '../limits.js';
 
-/** Default number of retries for model calls (so up to 4 attempts in total). */
-export const DEFAULT_RETRIES = 3;
+
+/** Default number of retries for model calls (so up to 3 attempts in total). */
+export const DEFAULT_RETRIES = 2;
 
 /** Wait `ms`, but stop immediately (with an "aborted" error) if the user cancels. */
 function sleep(ms, signal) {
@@ -30,7 +32,8 @@ function isTransient(err) {
     return err.kind === 'server' && [500, 502, 503, 504].includes(err.status);
 }
 
-async function attemptRequest({ fetchImpl, providerName, url, method, headers, body, signal, model, timeoutMs }) {
+/** One HTTP attempt. Resolves with a successful Response; every failure becomes a ProviderError. */
+async function attemptFetch({ fetchImpl, providerName, url, method, headers, body, signal, model, timeoutMs }) {
     const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const combined = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 
@@ -58,14 +61,41 @@ async function attemptRequest({ fetchImpl, providerName, url, method, headers, b
         );
     }
 
-    const text = await response.text();
     if (!response.ok) {
-        throw errorFromResponse(providerName, response.status, text, { model });
+        throw errorFromResponse(providerName, response.status, await response.text(), { model });
     }
+    return response;
+}
+
+async function attemptRequest(options) {
+    const { providerName } = options;
+    const response = await attemptFetch(options);
+    const text = await response.text();
     try {
         return text ? JSON.parse(text) : {};
     } catch {
         throw new ProviderError(`${providerName} returned an invalid response.`, { kind: 'bad_response' });
+    }
+}
+
+/** Run `attempt`, retrying transient failures with a delay that doubles each time. */
+async function withRetries(attempt, { retries, retryDelayMs, signal, onRetry }) {
+    for (let n = 0; ; n += 1) {
+        try {
+            return await attempt();
+        } catch (err) {
+            if (n >= retries || !isTransient(err) || signal?.aborted) throw err;
+            const delayMs = retryDelayMs * 2 ** n;
+            if (onRetry) {
+                onRetry({
+                    attempt: n + 1,
+                    retries,
+                    delayMs,
+                    reason: err.status ? `HTTP ${err.status}` : 'connection problem'
+                });
+            }
+            await sleep(delayMs, signal);
+        }
     }
 }
 
@@ -89,7 +119,7 @@ async function attemptRequest({ fetchImpl, providerName, url, method, headers, b
  * @param {number} [opts.retryDelayMs] Delay before the first retry; doubles each time. Default 1500.
  * @param {(info: {attempt: number, retries: number, delayMs: number, reason: string}) => void} [opts.onRetry]
  */
-export async function requestJson({
+export function requestJson({
     fetchImpl,
     providerName,
     url,
@@ -103,21 +133,34 @@ export async function requestJson({
     retryDelayMs = 1500,
     onRetry
 }) {
-    for (let attempt = 0; ; attempt += 1) {
-        try {
-            return await attemptRequest({ fetchImpl, providerName, url, method, headers, body, signal, model, timeoutMs });
-        } catch (err) {
-            if (attempt >= retries || !isTransient(err) || signal?.aborted) throw err;
-            const delayMs = retryDelayMs * 2 ** attempt;
-            if (onRetry) {
-                onRetry({
-                    attempt: attempt + 1,
-                    retries,
-                    delayMs,
-                    reason: err.status ? `HTTP ${err.status}` : 'connection problem'
-                });
-            }
-            await sleep(delayMs, signal);
-        }
-    }
+    return withRetries(
+        () => attemptRequest({ fetchImpl, providerName, url, method, headers, body, signal, model, timeoutMs }),
+        { retries, retryDelayMs, signal, onRetry }
+    );
+}
+
+/**
+ * Like `requestJson`, but resolves with the successful Response so the caller can read a streamed
+ * body (see ./stream.js). Retries only cover failures before the response starts; `timeoutMs`
+ * limits the whole stream.
+ * Takes the same options as `requestJson`.
+ */
+export function requestStream({
+    fetchImpl,
+    providerName,
+    url,
+    method = 'POST',
+    headers = {},
+    body,
+    signal,
+    model,
+    timeoutMs = MODEL_REQUEST_TIMEOUT_MS,
+    retries = 0,
+    retryDelayMs = 1500,
+    onRetry
+}) {
+    return withRetries(
+        () => attemptFetch({ fetchImpl, providerName, url, method, headers, body, signal, model, timeoutMs }),
+        { retries, retryDelayMs, signal, onRetry }
+    );
 }

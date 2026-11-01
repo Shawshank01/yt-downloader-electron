@@ -56,11 +56,16 @@ export function getGlobalExtraPaths() {
     ].filter(Boolean);
 }
 
-/**
- * Retrieve system PATH entries from macOS path_helper files (/etc/paths and /etc/paths.d).
- */
+let macHelperPathsCache = null;
+
+/** System PATH entries from macOS path_helper files (/etc/paths and /etc/paths.d), read once. */
 function getSystemPathsFromMacHelper() {
     if (process.platform !== 'darwin') return [];
+    if (!macHelperPathsCache) macHelperPathsCache = readMacHelperPaths();
+    return macHelperPathsCache;
+}
+
+function readMacHelperPaths() {
     const paths = [];
     try {
         if (fs.existsSync('/etc/paths')) {
@@ -85,10 +90,18 @@ function getSystemPathsFromMacHelper() {
     return paths;
 }
 
+let userShellPathsCache = null;
+
 /**
- * Query the login shell for user-defined PATH on macOS / Linux.
+ * User-defined PATH from the login shell (macOS / Linux). Starting a login shell takes a noticeable
+ * moment and setupEnvironmentPaths() runs before every tool lookup, so it is queried once per run.
  */
 function getUserShellPaths() {
+    if (!userShellPathsCache) userShellPathsCache = readUserShellPaths();
+    return userShellPathsCache;
+}
+
+function readUserShellPaths() {
     if (process.platform === 'win32') return [];
     try {
         const shell = process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/sh');
@@ -125,13 +138,20 @@ export function setupEnvironmentPaths() {
     return process.env.PATH;
 }
 
-export function getBundledExecutablePath(name) {
-    if (process.defaultApp || !process.resourcesPath) return null;
-    const executableName = process.platform === 'win32' ? `${name}.exe` : name;
-    const candidate = join(process.resourcesPath, 'tools', executableName);
+/**
+ * Path of a tool shipped inside the packaged app (`Resources/tools`), or null when running from
+ * source or when the tool is missing.
+ * @param {string} name
+ * @param {{defaultApp?: boolean, resourcesPath?: string, platform?: string}} [runtime]  Injectable for tests.
+ */
+export function getBundledExecutablePath(name, runtime = process) {
+    const { defaultApp, resourcesPath, platform } = runtime;
+    if (defaultApp || !resourcesPath) return null;
+    const executableName = platform === 'win32' ? `${name}.exe` : name;
+    const candidate = join(resourcesPath, 'tools', executableName);
     try {
         if (fs.existsSync(candidate)) {
-            if (process.platform !== 'win32') fs.accessSync(candidate, fs.constants.X_OK);
+            if (platform !== 'win32') fs.accessSync(candidate, fs.constants.X_OK);
             return candidate;
         }
     } catch {
