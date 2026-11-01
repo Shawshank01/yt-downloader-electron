@@ -145,6 +145,37 @@ test('tool call missing url recovers from unambiguous user URL or alias (small m
     assert.equal(starts[1].description, 'List formats for https://youtube.com/watch?v=user-url');
 });
 
+test('tool call in follow-up turn missing url recovers URL from earlier conversation turn', async () => {
+    const events = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('list_formats', {})] },
+        { text: 'done' }
+    ]);
+    const history = [
+        { role: 'user', text: 'formats of this https://youtube.com/watch?v=multi-turn' },
+        {
+            role: 'assistant',
+            text: 'Here are the formats...',
+            toolCalls: [{ id: 'c1', name: 'list_formats', args: { url: 'https://youtube.com/watch?v=multi-turn' } }]
+        },
+        { role: 'tool', toolCallId: 'c1', name: 'list_formats', result: { ok: true, output: '1080p, 720p' } }
+    ];
+    // In turn 2, the user does not re-paste the URL:
+    const userText = 'download 1080p as mp4';
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText,
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events.push(e)
+    });
+
+    const starts = events.filter((e) => e.type === 'tool_start');
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].args.url, 'https://youtube.com/watch?v=multi-turn');
+});
+
 test('unknown tools and missing download folder are reported, not thrown', async () => {
     const provider = scriptedProvider([
         { toolCalls: [call('rm_rf', {}), call('list_downloads', {}, 'c2')] },

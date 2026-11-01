@@ -182,10 +182,24 @@ async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMo
             if (typeof alias === 'string' && alias.trim()) {
                 args.url = alias.trim();
             } else {
-                const lastUser = history.findLast((m) => m.role === 'user');
-                const userUrls = lastUser ? [...extractUrls(lastUser.text)] : [];
-                if (userUrls.length === 1) {
-                    args.url = userUrls[0];
+                // Find the most recently referenced user-typed URL in history (across turns or earlier tool calls)
+                for (let i = history.length - 1; i >= 0; i--) {
+                    const msg = history[i];
+                    if (msg.role === 'user') {
+                        const urls = [...extractUrls(msg.text)];
+                        if (urls.length === 1) {
+                            args.url = urls[0];
+                            break;
+                        }
+                    } else if (msg.role === 'assistant' && Array.isArray(msg.toolCalls)) {
+                        const prevCallWithUrl = msg.toolCalls.find(
+                            (tc) => typeof tc.args?.url === 'string' && tc.args.url.trim()
+                        );
+                        if (prevCallWithUrl && !isForeignUrl(history, prevCallWithUrl.args.url)) {
+                            args.url = prevCallWithUrl.args.url.trim();
+                            break;
+                        }
+                    }
                 }
             }
             if (call.args && typeof call.args === 'object' && args.url) {
