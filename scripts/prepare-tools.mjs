@@ -1,6 +1,6 @@
 /* global process */
 
-import { chmod, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { platform, arch } from 'node:process';
@@ -28,10 +28,12 @@ const targets = {
         ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos'
     },
     'linux-arm64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_linux_aarch64'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_linux_aarch64',
+        ffmpeg: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz'
     },
     'linux-x64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_linux'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_linux',
+        ffmpeg: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz'
     },
     'win32-x64': {
         ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe'
@@ -71,6 +73,27 @@ async function download(url, destination) {
     }
 }
 
+async function extractArchive(archivePath, destination) {
+    if (archivePath.endsWith('.tar.xz') || archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tar')) {
+        await execFileAsync('tar', ['-xf', archivePath, '-C', destination]);
+    } else if (archivePath.endsWith('.zip')) {
+        await execFileAsync('unzip', ['-q', archivePath, '-d', destination]);
+    }
+}
+
+async function findBinary(directory, binaryName) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const fullPath = join(directory, entry.name);
+        if (entry.isDirectory()) {
+            const found = await findBinary(fullPath, binaryName);
+            if (found) return found;
+        } else if (entry.name === binaryName) {
+            return fullPath;
+        }
+    }
+    return null;
+}
+
 await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
 
@@ -80,6 +103,30 @@ await download(targetInfo.ytDlp.replace('{yt}', versions['yt-dlp']), ytDlpPath);
 if (!isWindowsTarget) {
     await chmod(ytDlpPath, 0o755);
 }
+
+if (targetInfo.ffmpeg) {
+    const ext = targetInfo.ffmpeg.endsWith('.zip') ? '.zip' : '.tar.xz';
+    const archivePath = join(outputDir, `ffmpeg-archive${ext}`);
+    const tempExtractDir = join(outputDir, '_ffmpeg_extracted');
+    await rm(tempExtractDir, { recursive: true, force: true });
+    await mkdir(tempExtractDir, { recursive: true });
+    await download(targetInfo.ffmpeg, archivePath);
+    await extractArchive(archivePath, tempExtractDir);
+    await rm(archivePath, { force: true });
+
+    for (const bin of ['ffmpeg', 'ffprobe']) {
+        const binName = isWindowsTarget ? `${bin}.exe` : bin;
+        const found = await findBinary(tempExtractDir, binName);
+        if (!found) throw new Error(`Could not find ${binName} in extracted FFmpeg archive`);
+        const dest = join(outputDir, binName);
+        await copyFile(found, dest);
+        if (!isWindowsTarget) {
+            await chmod(dest, 0o755);
+        }
+    }
+    await rm(tempExtractDir, { recursive: true, force: true });
+}
+
 await writeFile(join(outputDir, 'yt-dlp-manifest.json'), JSON.stringify({
     'yt-dlp': versions['yt-dlp'],
     target
@@ -105,6 +152,20 @@ if (altTarget) {
     if (!isWindowsTarget) {
         await chmod(altYtDlpPath, 0o755);
     }
+
+    const availableFiles = await readdir(outputDir);
+    for (const bin of ['ffmpeg', 'ffprobe']) {
+        const binName = isWindowsTarget ? `${bin}.exe` : bin;
+        if (availableFiles.includes(binName)) {
+            const src = join(outputDir, binName);
+            const altBinPath = join(altDir, binName);
+            await copyFile(src, altBinPath);
+            if (!isWindowsTarget) {
+                await chmod(altBinPath, 0o755);
+            }
+        }
+    }
+
     await writeFile(join(altDir, 'yt-dlp-manifest.json'), JSON.stringify({
         'yt-dlp': versions['yt-dlp'],
         target: altTarget

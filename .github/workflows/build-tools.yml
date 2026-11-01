@@ -56,15 +56,9 @@ jobs:
       with:
         node-version: 26
 
-    - name: Install FFmpeg build dependencies (macOS)
+    - name: Install macOS FFmpeg build dependencies
       if: runner.os == 'macOS' && inputs.scope != 'windows'
-      run: brew install nasm pkg-config libass
-
-    - name: Install FFmpeg build dependencies (Linux)
-      if: runner.os == 'Linux' && !startsWith(matrix.target, 'win32-') && inputs.scope != 'windows'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y nasm yasm pkg-config libass-dev
+      run: brew install autoconf automake libtool cmake ninja pkg-config nasm yasm
 
     - name: Install Windows FFmpeg build dependencies
       if: startsWith(matrix.target, 'win32-')
@@ -85,47 +79,11 @@ jobs:
         TOOL_TARGET: ${{ matrix.target }}
       run: bash scripts/build-windows-ffmpeg.sh
 
-    - name: Build FFmpeg from official source
-      if: (startsWith(matrix.target, 'darwin-') || startsWith(matrix.target, 'linux-')) && inputs.scope != 'windows'
-      shell: bash
-      run: |
-        set -euo pipefail
-        VERSION="$(node -p "require('./tools-versions.json').ffmpeg")"
-        curl --fail --location --retry 5 --retry-all-errors \
-          --output ffmpeg.tar.xz "https://ffmpeg.org/releases/ffmpeg-${VERSION}.tar.xz"
-        tar -xf ffmpeg.tar.xz
-        cd "ffmpeg-${VERSION}"
-
-        CONFIGURE_ARGS=(
-          --prefix="$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}"
-          --enable-gpl
-          --enable-libass
-          --enable-filter=subtitles
-          --enable-static
-          --disable-shared
-          --disable-debug
-          --disable-doc
-        )
-
-        if [ "${{ matrix.target }}" = "darwin-x64" ] || [ "${{ matrix.target }}" = "darwin-arm64" ]; then
-          ./configure "${CONFIGURE_ARGS[@]}" --cc=clang --disable-indev=jack
-        else
-          ./configure "${CONFIGURE_ARGS[@]}"
-        fi
-
-        make -j2
-        make install
-        mkdir -p "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}"
-        cp "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/bin/ffmpeg" \
-          "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/ffmpeg" 2>/dev/null || true
-        cp "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/bin/ffprobe" \
-          "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/ffprobe" 2>/dev/null || true
-        if [[ "${{ matrix.target }}" == win32-* ]]; then
-          mv "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/bin/ffmpeg.exe" \
-            "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/ffmpeg.exe"
-          mv "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/bin/ffprobe.exe" \
-            "$GITHUB_WORKSPACE/build-tools/${{ matrix.target }}/ffprobe.exe"
-        fi
+    - name: Build macOS FFmpeg with static libass
+      if: startsWith(matrix.target, 'darwin-') && inputs.scope != 'windows'
+      env:
+        TOOL_TARGET: ${{ matrix.target }}
+      run: bash scripts/build-macos-ffmpeg.sh
 
     - name: Verify tool bundle
       if: inputs.scope != 'windows' || startsWith(matrix.target, 'win32-')
@@ -141,6 +99,12 @@ jobs:
           "$TOOL_DIR/yt-dlp" --version
           "$TOOL_DIR/ffmpeg" -version
           "$TOOL_DIR/ffmpeg" -filters 2>&1 | grep -E '[[:space:]]subtitles[[:space:]]'
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            if otool -L "$TOOL_DIR/ffmpeg" | grep -E '/opt/homebrew|/usr/local/opt'; then
+              echo "Error: ffmpeg dynamically links to Homebrew libraries!" >&2
+              exit 1
+            fi
+          fi
         fi
 
     - name: Generate checksums
