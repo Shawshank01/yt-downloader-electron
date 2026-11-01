@@ -58,7 +58,7 @@ jobs:
 
     - name: Install macOS FFmpeg build dependencies
       if: runner.os == 'macOS' && inputs.scope != 'windows'
-      run: brew install autoconf automake libtool cmake ninja pkg-config nasm yasm
+      run: brew install autoconf automake libtool cmake meson ninja pkg-config nasm yasm
 
     - name: Install Windows FFmpeg build dependencies
       if: startsWith(matrix.target, 'win32-')
