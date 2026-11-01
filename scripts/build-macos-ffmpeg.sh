@@ -131,32 +131,36 @@ int main(void) {
 }
 EOF
 clang -arch "$target_arch" -mmacosx-version-min=11.0 $libass_cflags "$build_dir/libass-probe.c" \
-    $libass_libs -framework CoreFoundation -framework CoreText -framework CoreGraphics -lc++ -o "$build_dir/libass-probe"
+    $libass_libs -framework CoreFoundation -framework CoreText -framework CoreGraphics -o "$build_dir/libass-probe"
 
 host_arch="$(uname -m)"
-cross_args=()
+configure_args=(
+    --prefix="$tool_dir"
+    --arch="$ffmpeg_arch"
+    --cc=clang
+    --enable-gpl
+    --enable-libass
+    --enable-filter=subtitles
+    --enable-videotoolbox
+    --enable-static
+    --disable-shared
+    --disable-debug
+    --disable-doc
+    --disable-indev=jack
+    --pkg-config=pkg-config
+    --pkg-config-flags="--static"
+    --extra-cflags="-arch $target_arch -mmacosx-version-min=11.0 $libass_cflags -I$prefix/include"
+    --extra-ldflags="-arch $target_arch -mmacosx-version-min=11.0 -L$prefix/lib"
+    --extra-libs="$libass_libs -framework CoreFoundation -framework CoreVideo -framework CoreMedia -framework VideoToolbox -framework AudioToolbox -framework CoreText -framework CoreGraphics"
+)
+
 if [ "$host_arch" != "$target_arch" ]; then
-    cross_args+=(--enable-cross-compile --target-os=darwin)
+    configure_args+=(--enable-cross-compile --target-os=darwin)
 fi
 
 (
     cd "$root_dir/ffmpeg-${VERSION}"
-    if ! ./configure \
-        --prefix="$tool_dir" \
-        --arch="$ffmpeg_arch" \
-        "${cross_args[@]}" \
-        --cc=clang \
-        --enable-gpl \
-        --enable-libass \
-        --enable-filter=subtitles \
-        --enable-videotoolbox \
-        --enable-static --disable-shared --disable-debug --disable-doc \
-        --disable-indev=jack \
-        --pkg-config=pkg-config \
-        --pkg-config-flags="--static" \
-        --extra-cflags="-arch $target_arch -mmacosx-version-min=11.0 $libass_cflags -I$prefix/include" \
-        --extra-ldflags="-arch $target_arch -mmacosx-version-min=11.0 -L$prefix/lib" \
-        --extra-libs="$libass_libs -framework CoreFoundation -framework CoreVideo -framework CoreMedia -framework VideoToolbox -framework AudioToolbox -framework CoreText -framework CoreGraphics"; then
+    if ! ./configure "${configure_args[@]}"; then
         tail -n 200 ffbuild/config.log
         exit 1
     fi
