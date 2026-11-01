@@ -132,7 +132,7 @@ Call model, run requested tools **one at a time** (the app allows one yt-dlp/ffm
 
 ## 6. Where data lives
 
-macOS (dev run): `~/Library/Application Support/yt-downloader-electron/` (a packaged build may use its product name).
+macOS (dev run): `~/Library/Application Support/yt-downloader-electron/`
 
 | File | Content |
 | --- | --- |
@@ -143,9 +143,9 @@ macOS (dev run): `~/Library/Application Support/yt-downloader-electron/` (a pack
 ## 7. Testing and verification
 
 ```bash
-pnpm install
-pnpm run lint     # ESLint, src/ and test/
-pnpm test         # node --test test/   (130 tests, about 2 s, no network, no API key)
+pn install
+pn run lint     # ESLint, src/ and test/
+pn test         # node --test test/   (130 tests, about 2 s, no network, no API key)
 ```
 
 Test files: `validate`, `providers` (adapters with mocked `fetch`, retries), `agent` (scripted fake model), `chat-service`, `llm-core` (conversation, confirmations, redaction, streaming, prompt/registry consistency, security checks), `infrastructure` (settings store, logger, bundled-tool detection), `api-contract` (`electron.d.ts` matches `preload.cjs`; every invoked IPC channel has a handler), `key-store`, `markdown`, `ui-wiring` (static checks: element IDs, script order, no `innerHTML`).
