@@ -95,14 +95,17 @@ jobs:
         TOOL_DIR="build-tools/${{ matrix.target }}"
         if [[ "${{ matrix.target }}" == win32-* ]]; then
           test -s "$TOOL_DIR/yt-dlp.exe"
+          test -s "$TOOL_DIR/deno.exe"
           test -s "$TOOL_DIR/ffmpeg.exe"
           test -s "$TOOL_DIR/ffprobe.exe"
           file "$TOOL_DIR/ffmpeg.exe" | grep -Ei 'PE32\+? executable'
         else
+          test -s "$TOOL_DIR/deno"
           "$TOOL_DIR/yt-dlp" --version
           "$TOOL_DIR/ffmpeg" -version
           "$TOOL_DIR/ffmpeg" -filters 2>&1 | grep -E '[[:space:]]subtitles[[:space:]]'
           if [ "${{ runner.os }}" = "macOS" ]; then
+            "$TOOL_DIR/deno" --version
             if otool -L "$TOOL_DIR/ffmpeg" | grep -E '/opt/homebrew|/usr/local/opt'; then
               echo "Error: ffmpeg dynamically links to Homebrew libraries!" >&2
               exit 1
@@ -116,9 +119,9 @@ jobs:
       run: |
         cd "build-tools/${{ matrix.target }}"
         if command -v sha256sum >/dev/null 2>&1; then
-          sha256sum yt-dlp* ffmpeg* > SHA256SUMS
+          sha256sum yt-dlp* ffmpeg* deno* > SHA256SUMS
         else
-          shasum -a 256 yt-dlp* ffmpeg* > SHA256SUMS
+          shasum -a 256 yt-dlp* ffmpeg* deno* > SHA256SUMS
         fi
 
     - name: Upload verified tool bundle

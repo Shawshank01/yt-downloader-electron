@@ -16,36 +16,46 @@ const isWindowsTarget = target.startsWith('win32-') || target.startsWith('win-')
 
 const targets = {
     'darwin-arm64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos',
+        deno: 'https://github.com/denoland/deno/releases/download/v{deno}/deno-aarch64-apple-darwin.zip'
     },
     'darwin-x64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos',
+        deno: 'https://github.com/denoland/deno/releases/download/v{deno}/deno-x86_64-apple-darwin.zip'
     },
     'mac-arm64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos',
+        deno: 'https://github.com/denoland/deno/releases/download/v{deno}/deno-aarch64-apple-darwin.zip'
     },
     'mac-x64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos',
+        deno: 'https://github.com/denoland/deno/releases/download/v{deno}/deno-x86_64-apple-darwin.zip'
     },
     'linux-arm64': {
         ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_linux_aarch64',
+        deno: 'https://github.com/denoland/deno/releases/download/v{deno}/deno-aarch64-unknown-linux-gnu.zip',
         ffmpeg: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz'
     },
     'linux-x64': {
         ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_linux',
+        deno: 'https://github.com/denoland/deno/releases/download/v{deno}/deno-x86_64-unknown-linux-gnu.zip',
         ffmpeg: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz'
     },
     'win32-x64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe',
+        deno: 'https://github.com/denoland/deno/releases/download/v{deno}/deno-x86_64-pc-windows-msvc.zip'
     },
     'win32-arm64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe',
+        deno: 'https://github.com/denoland/deno/releases/download/v{deno}/deno-aarch64-pc-windows-msvc.zip'
     },
     'win-x64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe',
+        deno: 'https://github.com/denoland/deno/releases/download/v{deno}/deno-x86_64-pc-windows-msvc.zip'
     },
     'win-arm64': {
-        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe'
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe',
+        deno: 'https://github.com/denoland/deno/releases/download/v{deno}/deno-aarch64-pc-windows-msvc.zip'
     }
 };
 
@@ -77,7 +87,11 @@ async function extractArchive(archivePath, destination) {
     if (archivePath.endsWith('.tar.xz') || archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tar')) {
         await execFileAsync('tar', ['-xf', archivePath, '-C', destination]);
     } else if (archivePath.endsWith('.zip')) {
-        await execFileAsync('unzip', ['-q', archivePath, '-d', destination]);
+        try {
+            await execFileAsync('unzip', ['-q', archivePath, '-d', destination]);
+        } catch {
+            await execFileAsync('tar', ['-xf', archivePath, '-C', destination]);
+        }
     }
 }
 
@@ -127,8 +141,29 @@ if (targetInfo.ffmpeg) {
     await rm(tempExtractDir, { recursive: true, force: true });
 }
 
+if (targetInfo.deno && versions.deno) {
+    const archivePath = join(outputDir, 'deno-archive.zip');
+    const tempExtractDir = join(outputDir, '_deno_extracted');
+    await rm(tempExtractDir, { recursive: true, force: true });
+    await mkdir(tempExtractDir, { recursive: true });
+    await download(targetInfo.deno.replace('{deno}', versions.deno), archivePath);
+    await extractArchive(archivePath, tempExtractDir);
+    await rm(archivePath, { force: true });
+
+    const binName = isWindowsTarget ? 'deno.exe' : 'deno';
+    const found = await findBinary(tempExtractDir, binName);
+    if (!found) throw new Error(`Could not find ${binName} in extracted Deno archive`);
+    const dest = join(outputDir, binName);
+    await copyFile(found, dest);
+    if (!isWindowsTarget) {
+        await chmod(dest, 0o755);
+    }
+    await rm(tempExtractDir, { recursive: true, force: true });
+}
+
 await writeFile(join(outputDir, 'yt-dlp-manifest.json'), JSON.stringify({
     'yt-dlp': versions['yt-dlp'],
+    'deno': versions.deno || null,
     target
 }, null, 2));
 
@@ -154,7 +189,7 @@ if (altTarget) {
     }
 
     const availableFiles = await readdir(outputDir);
-    for (const bin of ['ffmpeg', 'ffprobe']) {
+    for (const bin of ['ffmpeg', 'ffprobe', 'deno']) {
         const binName = isWindowsTarget ? `${bin}.exe` : bin;
         if (availableFiles.includes(binName)) {
             const src = join(outputDir, binName);
@@ -168,6 +203,7 @@ if (altTarget) {
 
     await writeFile(join(altDir, 'yt-dlp-manifest.json'), JSON.stringify({
         'yt-dlp': versions['yt-dlp'],
+        'deno': versions.deno || null,
         target: altTarget
     }, null, 2));
 }

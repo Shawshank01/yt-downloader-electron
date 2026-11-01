@@ -4,7 +4,7 @@ Snapshot of where the project stands, why it is built the way it is, what has an
 
 ## 1. What this project is
 
-A desktop app (Electron 45, JavaScript ES modules, pnpm) that downloads videos with **yt-dlp** and processes them with **FFmpeg**. Release builds **bundle both tools**: `pnpm prepare-tools` (`scripts/prepare-tools.mjs`, versions pinned in `tools-versions.json`) downloads them into `build-tools/<os>-<arch>`, and electron-builder copies them to `Resources/tools` (`extraResources`). At run time `dependencies.js` prefers the bundled copy and falls back to the system `PATH` (the dev run uses system tools; on macOS the app can install them via Homebrew).
+A desktop app (Electron 45, JavaScript ES modules, pnpm) that downloads videos with **yt-dlp** and processes them with **FFmpeg**. Release builds **bundle tools** (yt-dlp, FFmpeg, and Deno as the JavaScript runtime for yt-dlp's EJS challenge solver): `pnpm prepare-tools` (`scripts/prepare-tools.mjs`, versions pinned in `tools-versions.json`) downloads them into `build-tools/<os>-<arch>`, and electron-builder copies them to `Resources/tools` (`extraResources`). At run time `dependencies.js` prepends the bundled tools directory to `process.env.PATH` and prefers bundled copies before falling back to system binaries. All yt-dlp commands pass `--remote-components ejs:github` to ensure YouTube's `n` challenge solver components can be retrieved and executed.
 
 It originally had only a form-based UI ("Classic mode"). The goal of the current work is:
 

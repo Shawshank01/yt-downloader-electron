@@ -30,7 +30,10 @@ export function cancelCurrentTask() {
  * @returns {Promise<{success: boolean, cancelled: boolean, code: number, output: string, error: string}>}
  */
 export async function runYtDlp(args, onProgress = noop) {
-    logger.info('Executing:', args);
+    const finalArgs = args.includes('--remote-components')
+        ? args
+        : ['--remote-components', 'ejs:github', ...args];
+    logger.info('Executing:', finalArgs);
 
     let task;
     try {
@@ -48,7 +51,7 @@ export async function runYtDlp(args, onProgress = noop) {
     return new Promise((resolve) => {
         let child;
         try {
-            child = taskManager.spawnProcess(task, 'yt-dlp', args);
+            child = taskManager.spawnProcess(task, 'yt-dlp', finalArgs);
         } catch (err) {
             taskManager.endTask(task);
             resolve({
@@ -210,7 +213,7 @@ export function listSubtitles(url, browser, proxy) {
             return;
         }
         try {
-            let args = ['-j', '--skip-download'];
+            let args = ['-j', '--skip-download', '--remote-components', 'ejs:github'];
             if (proxy) args.push('--proxy', proxy);
             if (browser) args.push('--cookies-from-browser', browser);
             args.push(url);

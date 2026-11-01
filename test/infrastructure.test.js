@@ -5,7 +5,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { SettingsStore } from '../src/settings-store.js';
 import { logger, redactArgs, redactText, setLogSink } from '../src/core/logger.js';
-import { getBundledExecutablePath } from '../src/dependencies.js';
+import { getBundledExecutablePath, getBundledToolsDir, setupEnvironmentPaths } from '../src/dependencies.js';
 
 const tempDir = () => fs.mkdtemp(join(tmpdir(), 'ytdl-infra-test-'));
 
@@ -103,4 +103,25 @@ test('on Windows the bundled tool has an .exe suffix and no execute-bit check', 
     const tool = join(resourcesPath, 'tools', 'ffmpeg.exe');
     await fs.writeFile(tool, 'x', { mode: 0o644 });
     assert.equal(getBundledExecutablePath('ffmpeg', { resourcesPath, platform: 'win32' }), tool);
+});
+
+test('bundled tools directory and PATH setup in packaged apps', async () => {
+    const resourcesPath = await tempDir();
+    const toolsDir = join(resourcesPath, 'tools');
+    await fs.mkdir(toolsDir);
+    const denoTool = join(toolsDir, 'deno');
+    await fs.writeFile(denoTool, '#!/bin/sh\n', { mode: 0o755 });
+
+    const packaged = { defaultApp: undefined, resourcesPath, platform: 'linux' };
+    assert.equal(getBundledToolsDir(packaged), toolsDir);
+    assert.equal(getBundledExecutablePath('deno', packaged), denoTool);
+
+    const oldPath = process.env.PATH;
+    try {
+        const configuredPath = setupEnvironmentPaths(packaged);
+        assert.ok(configuredPath.split(':').includes(toolsDir));
+        assert.equal(configuredPath.split(':')[0], toolsDir, 'bundled tools directory should be at the front of PATH');
+    } finally {
+        process.env.PATH = oldPath;
+    }
 });

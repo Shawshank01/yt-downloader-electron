@@ -333,7 +333,7 @@ function validateRunInputs() {
 
 // Build yt-dlp CLI arguments for the chosen action
 async function buildActionArgs(action, { url, browser, downloadFolder, formatCode }) {
-    const args = [...getProxyArgs()];
+    const args = [...getProxyArgs(), '--remote-components', 'ejs:github'];
     if (browser) {
         args.push('--cookies-from-browser', browser);
     }
@@ -822,7 +822,7 @@ async function handleSubtitleDownload(url, browser, downloadFolder) {
 
         output.textContent = `Downloading ${selectedSubtitle.name} (${selectedSubtitle.code}) subtitle...`;
 
-        let args = [...getProxyArgs()];
+        let args = [...getProxyArgs(), '--remote-components', 'ejs:github'];
         if (browser) {
             args.push('--cookies-from-browser', browser);
         }

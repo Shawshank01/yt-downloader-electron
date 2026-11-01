@@ -64,6 +64,7 @@ jobs:
         cp -r "build-tools/${{ matrix.target }}/"* "build-tools/mac-${{ matrix.arch }}/"
         find build-tools -type f -exec chmod 755 {} +
         "build-tools/${{ matrix.target }}/yt-dlp" --version
+        "build-tools/${{ matrix.target }}/deno" --version
         "build-tools/${{ matrix.target }}/ffmpeg" -version
         "build-tools/${{ matrix.target }}/ffmpeg" -filters 2>&1 | grep -E '[[:space:]]subtitles[[:space:]]'
         if otool -L "build-tools/${{ matrix.target }}/ffmpeg" | grep -E '/opt/homebrew|/usr/local/opt'; then

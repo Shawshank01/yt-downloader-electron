@@ -109,8 +109,11 @@ jobs:
         fi
         if [ "${{ runner.os }}" != "Windows" ]; then
           find build-tools -type f -exec chmod 755 {} +
+          test -s "build-tools/${{ matrix.target }}/deno"
           "build-tools/${{ matrix.target }}/yt-dlp" --version
           "build-tools/${{ matrix.target }}/ffmpeg" -version
+        else
+          test -s "build-tools/${{ matrix.target }}/deno.exe"
         fi
 
     - name: Build Electron app

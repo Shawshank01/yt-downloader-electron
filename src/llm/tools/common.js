@@ -52,9 +52,9 @@ export const playlistProperty = {
 /** Whole-playlist operations are high risk; everything else is low. */
 export const playlistRisk = (args) => (args.playlist === true ? 'high' : 'low');
 
-/** Proxy and cookie arguments, in the same form the classic UI uses. */
+/** Proxy, cookie, and remote components arguments, in the same form the classic UI uses. */
 export function commonArgs(ctx) {
-    const args = [];
+    const args = ['--remote-components', 'ejs:github'];
     if (ctx.proxy) args.push('--proxy', ctx.proxy);
     if (ctx.browser) args.push('--cookies-from-browser', ctx.browser);
     return args;

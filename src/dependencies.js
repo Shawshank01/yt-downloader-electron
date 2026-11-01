@@ -117,16 +117,39 @@ function readUserShellPaths() {
 }
 
 /**
- * Configure process.env.PATH globally so child processes find tools across any package manager.
+ * Directory of tools shipped inside the packaged app (`Resources/tools`), or null when running from
+ * source or when the directory is missing.
+ * @param {{defaultApp?: boolean, resourcesPath?: string}} [runtime]  Injectable for tests.
  */
-export function setupEnvironmentPaths() {
+export function getBundledToolsDir(runtime = process) {
+    const { defaultApp, resourcesPath } = runtime;
+    if (defaultApp || !resourcesPath) return null;
+    const toolsDir = join(resourcesPath, 'tools');
+    try {
+        if (fs.existsSync(toolsDir)) {
+            return toolsDir;
+        }
+    } catch {
+        return null;
+    }
+    return null;
+}
+
+/**
+ * Configure process.env.PATH globally so child processes find tools across any package manager,
+ * and ensure bundled tools (yt-dlp, ffmpeg, deno) take precedence when packaged.
+ */
+export function setupEnvironmentPaths(runtime = process) {
     const extraPaths = getGlobalExtraPaths();
     const systemMacPaths = getSystemPathsFromMacHelper();
     const userShellPaths = getUserShellPaths();
     const currentPaths = (process.env.PATH || '').split(delimiter).map((p) => p.trim()).filter(Boolean);
+    const bundledToolsDir = getBundledToolsDir(runtime);
+    const bundledPaths = bundledToolsDir ? [bundledToolsDir] : [];
 
     const combined = [
         ...new Set([
+            ...bundledPaths,
             ...currentPaths,
             ...userShellPaths,
             ...extraPaths,

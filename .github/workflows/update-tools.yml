@@ -35,9 +35,17 @@ jobs:
           return response.json();
         };
         const yt = await get('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest');
-        const ffmpeg = await get('https://api.github.com/repos/FFmpeg/FFmpeg/tags?per_page=1');
+        const ffmpegTags = await get('https://api.github.com/repos/FFmpeg/FFmpeg/tags?per_page=100');
+        const latestFfmpegTag = ffmpegTags
+          .map((t) => t.name)
+          .filter((name) => /^n\d+\.\d+(\.\d+)?$/.test(name))
+          .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))[0];
+        const deno = await get('https://api.github.com/repos/denoland/deno/releases/latest');
         versions['yt-dlp'] = yt.tag_name;
-        versions['ffmpeg'] = ffmpeg[0].name.replace(/^n/, '');
+        if (latestFfmpegTag) {
+          versions['ffmpeg'] = latestFfmpegTag.replace(/^n/, '');
+        }
+        versions['deno'] = deno.tag_name.replace(/^v/, '');
         fs.writeFileSync('tools-versions.json', `${JSON.stringify(versions, null, 2)}\n`);
         NODE
 
