@@ -126,7 +126,7 @@ export function setupEnvironmentPaths() {
 }
 
 export function getBundledExecutablePath(name) {
-    if (process.defaultApp !== false || !process.resourcesPath) return null;
+    if (process.defaultApp || !process.resourcesPath) return null;
     const executableName = process.platform === 'win32' ? `${name}.exe` : name;
     const candidate = join(process.resourcesPath, 'tools', executableName);
     try {
