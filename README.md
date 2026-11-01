@@ -9,7 +9,7 @@ This is a modern, user-friendly desktop application for downloading videos from 
 It has two interfaces that you can switch between at any time:
 
 - **Classic**: a form with a URL box, an action list and a Run button. Works offline and needs no account or API key.
-- **AI Mode (🆕)**: describe what you want in plain language, for example *"Download this video: https://..."*, and an AI assistant carries it out with yt-dlp and FFmpeg.
+- **AI Mode (🆕)**: describe what you want in plain language, for example *"Download this video: https://..."*, powered by an autonomous **Agent Harness** that safely orchestrates yt-dlp and FFmpeg under deterministic engineering guardrails.
 
 ![YT Downloader Electron UI](public/YT-Downloader-UI.png)
 Classic UI
@@ -106,6 +106,17 @@ The assistant can use these tools: video info, list formats, download video, dow
 
 > [!NOTE]
 > The assistant can only do what those tools allow. For example it cannot trim a video yet; it will say so and suggest an `ffmpeg` command instead. Everything it does uses the same download folder, browser-cookie and proxy settings as Classic mode.
+
+### 🛡️ Built with Harness Engineering
+
+Rather than relying on fragile prompt engineering or bloated frameworks, the AI subsystem is built from the ground up using **Harness Engineering** principles (`Agent = Model + Harness`). The harness serves as a deterministic, defensive control plane and operating system around non-deterministic LLMs:
+
+- **State Machine Agent Loop**: Coordinates model calls, multi-turn tool execution, output trimming, and strict step budgets with clean cancellation semantics (`src/llm/agent.js`).
+- **Zero Shell Access & Strict Typed Tools**: The model is never given a raw shell. Every tool call validates parameters against strict schemas, building safe argument vectors directly (`src/llm/validate.js`).
+- **Self-Healing Context & Parameter Recovery**: The harness detects and repairs dropped parameters across multi-turn sessions (e.g. automatically recovering user-typed video URLs from earlier turns when follow-up requests say *"download 1080p as mp4"*).
+- **Prompt Injection Defense & URL Provenance**: Untrusted web data (video titles, descriptions, subtitles) is strictly quarantined from execution; URLs not typed by the user are flagged as foreign and require explicit user confirmation (`src/llm/provenance.js`).
+- **Native Format Intelligence**: Eliminates unnecessary re-encoding by dynamically injecting stream-prioritisation flags (`--format-sort res,ext:mp4:m4a`), downloading and remuxing native MP4 streams directly in seconds.
+- **Zero Framework Bloat**: Pure ES modules without LangChain or LlamaIndex wrappers. The core engine and harness are completely decoupled from Electron and covered by 136+ automated tests running in under 2 seconds.
 
 ### Setting it up
 
@@ -275,15 +286,16 @@ src/
     tools.js             runYtDlp, listSubtitles, reEncodeToMp4, downloadWithHardsub, ...
     task-manager.js      one running task at a time, cancellation
     ffmpeg.js, media-files.js, log-filter.js
-  llm/                 AI mode backend (also Electron-free)
-    agent.js             the loop: model call -> tool calls -> results -> answer
+  llm/                 The Agent Harness (Electron-free AI execution engine)
+    agent.js             the harness loop: state machine, model calls, tool dispatch, error recovery
     tool-registry.js     the 12 tools the model may call (schemas, validation, argument building)
-    validate.js          validation of every model-supplied value
-    chat-service.js      settings, conversation, confirmations, cancel, error handling
-    key-store.js         encrypted API key storage
-    prompt.js            system prompt
-    providers/           gemini.js, ollama.js, openai-compatible.js (also used for xAI), http.js (retries)
-test/                  automated tests
+    validate.js          strict validation and normalization of model-supplied values
+    provenance.js        tracks user-typed URL origins to guard against indirect prompt injection
+    chat-service.js      settings, conversation history, confirmations, cancel, error handling
+    key-store.js         encrypted API key storage (safeStorage)
+    prompt.js            system prompt engineering
+    providers/           gemini.js, xai.js, ollama.js, openai-compatible.js, http.js (retries)
+test/                  automated tests (136 unit tests, node:test runner)
 docs/PROJECT-STATUS.md  status, decisions and roadmap (good starting point for new contributors)
 ```
 
@@ -303,4 +315,3 @@ See [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md) for the architecture, des
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) - The core download engine
 - [FFmpeg](https://ffmpeg.org/) - For video processing
 - [Electron](https://www.electronjs.org/) - For the desktop application framework
-- [Google Gemini](https://ai.google.dev/), [xAI](https://x.ai/api) and [Ollama](https://ollama.com) - Optional AI providers for AI mode
