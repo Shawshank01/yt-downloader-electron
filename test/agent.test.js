@@ -353,3 +353,23 @@ test('system prompt reflects context and warns about untrusted tool output', () 
     assert.match(p, /untrusted/);
     assert.match(buildSystemPrompt({}), /No download folder is selected/);
 });
+
+test('download_video describes format and container accurately', () => {
+    const tool = getTool('download_video');
+    assert.equal(
+        tool.describe({ url: 'https://example.com/v', max_height: 1080, container: 'mp4' }),
+        'Download video https://example.com/v (max 1080p) [mp4]'
+    );
+    assert.equal(
+        tool.describe({ url: 'https://example.com/v', format_code: '299+140', container: 'mp4' }),
+        'Download video https://example.com/v (format 299+140) [mp4]'
+    );
+});
+
+test('reencode_mp4 describe falls back to placeholder when file is omitted', () => {
+    const tool = getTool('reencode_mp4');
+    assert.equal(
+        tool.describe({}),
+        'Re-encode "video" to MP4 (H.264/AAC); an existing .mp4 of the same name is replaced'
+    );
+});

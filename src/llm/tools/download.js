@@ -19,7 +19,7 @@ export const downloadTools = [
     defineTool({
         name: TOOL_NAMES.downloadVideo,
         description:
-            'Download a video to the user\'s download folder. By default downloads the best quality with the thumbnail embedded. Only downloads a single video unless playlist is true.',
+            'Download a video to the user\'s download folder with thumbnail embedded. Can download specific quality (max_height), specific format codes from list_formats (format_code), or specific container (e.g. container: "mp4" for direct native MP4 without re-encoding). Only downloads a single video unless playlist is true.',
         risk: playlistRisk,
         properties: {
             url: urlProperty,
@@ -34,7 +34,7 @@ export const downloadTools = [
             container: {
                 type: 'string',
                 enum: MERGE_FORMATS,
-                description: 'Optional output container for merged video+audio.'
+                description: 'Optional output container. Set to "mp4" whenever the user asks for MP4; yt-dlp will automatically select native MP4-compatible streams without re-encoding.'
             },
             playlist: playlistProperty
         },
@@ -42,7 +42,8 @@ export const downloadTools = [
         describe: (a) =>
             `Download ${a.playlist ? 'playlist' : 'video'} ${a.url}` +
             (a.max_height ? ` (max ${a.max_height}p)` : '') +
-            (a.format_code ? ` (format ${a.format_code})` : ''),
+            (a.format_code ? ` (format ${a.format_code})` : '') +
+            (a.container ? ` [${a.container}]` : ''),
         async run(args, ctx) {
             const url = validateUrl(args.url);
             const maxHeight = validateIntRange(args.max_height, 144, 4320, 'max_height');
@@ -58,7 +59,12 @@ export const downloadTools = [
             } else if (maxHeight) {
                 specific.push('-f', `bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]`);
             }
-            if (container) specific.push('--merge-output-format', container);
+            if (container) {
+                specific.push('--merge-output-format', container);
+                if (container === 'mp4') {
+                    specific.push('--format-sort', 'res,ext:mp4:m4a');
+                }
+            }
             specific.push('--embed-thumbnail');
 
             return runDownload(specific, url, ctx, { playlist });

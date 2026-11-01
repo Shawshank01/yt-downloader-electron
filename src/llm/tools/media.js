@@ -54,16 +54,16 @@ export const mediaTools = [
     defineTool({
         name: TOOL_NAMES.reencodeMp4,
         description:
-            'Re-encode a video that is already in the download folder to a high-quality, widely compatible MP4 (H.264/AAC) with ffmpeg. Slow. If the source is already an .mp4 it is replaced by the re-encoded file.',
+            'Re-encode an existing video file that is already in the download folder to a high-quality, widely compatible MP4 (H.264/AAC) with ffmpeg. Slow and CPU-intensive. Do NOT use this tool for newly downloaded videos; use download_video with container: "mp4" instead to download native MP4 directly in seconds.',
         risk: 'high',
         properties: {
             file: {
                 type: 'string',
-                description: 'File name (or unique part of it, e.g. the video ID) of a video from list_downloads.'
+                description: 'File name (or unique part of it, e.g. the video ID) of an existing video in the download folder from list_downloads.'
             }
         },
         required: ['file'],
-        describe: (a) => `Re-encode "${a.file}" to MP4 (H.264/AAC); an existing .mp4 of the same name is replaced`,
+        describe: (a) => `Re-encode "${a.file || 'video'}" to MP4 (H.264/AAC); an existing .mp4 of the same name is replaced`,
         async run(args, ctx) {
             const file = validateFileHint(args.file);
             const folder = requireFolder(ctx);
