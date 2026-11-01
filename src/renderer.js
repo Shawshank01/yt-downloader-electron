@@ -169,19 +169,51 @@ window.chooseFolder = async function () {
 };
 
 window.checkUpdate = async function () {
+    const updateBtn = document.getElementById('checkUpdateBtn') || document.querySelector('.update-button');
     const output = document.getElementById('output');
-    output.textContent = 'Checking for app updates...\n';
+
+    if (updateBtn) {
+        updateBtn.disabled = true;
+        updateBtn.textContent = 'Checking…';
+    }
+
+    const log = (msg) => {
+        if (output) output.textContent += msg;
+    };
+
+    if (output) output.textContent = 'Checking for app updates...\n';
 
     try {
         // Get current version
         const currentVersion = await window.electronAPI.getCurrentVersion();
-        output.textContent += `Current version: ${currentVersion}\n`;
+        log(`Current version: ${currentVersion}\n`);
 
         // Check if auto-updater is supported
         const isSupported = await window.electronAPI.isAutoUpdaterSupported();
         if (!isSupported) {
-            output.textContent += '\nAuto-updater is not supported on this platform.\n';
-            output.textContent += 'Please download updates manually from GitHub releases.\n';
+            log('\nAuto-updater is not supported on this platform.\n');
+            log('Please download updates manually from GitHub releases.\n');
+            const openReleases = await showConfirmModal({
+                title: 'Check for Updates',
+                message:
+                    `Auto-updater is not supported in this environment.\n\n` +
+                    `You can check for and download updates manually from GitHub releases.`,
+                confirmText: 'Open Releases Page',
+                cancelText: 'Close'
+            });
+            if (openReleases) {
+                const targetUrl = 'https://github.com/Shawshank01/yt-downloader-electron/releases/latest';
+                if (window.electronAPI?.openExternal) {
+                    try {
+                        const opened = await window.electronAPI.openExternal(targetUrl);
+                        if (!opened) window.open(targetUrl, '_blank');
+                    } catch {
+                        window.open(targetUrl, '_blank');
+                    }
+                } else {
+                    window.open(targetUrl, '_blank');
+                }
+            }
             return;
         }
 
@@ -189,7 +221,13 @@ window.checkUpdate = async function () {
         const appUpdate = await window.electronAPI.checkAppUpdate();
 
         if (appUpdate.error) {
-            output.textContent += `\nError checking for updates: ${appUpdate.message}`;
+            log(`\nError checking for updates: ${appUpdate.message}`);
+            await showConfirmModal({
+                title: 'Check for Updates',
+                message: `Could not check for updates:\n\n${appUpdate.message}`,
+                confirmText: 'OK',
+                cancelText: null
+            });
         } else if (
             appUpdate.hasUpdate &&
             appUpdate.version &&
@@ -200,9 +238,10 @@ window.checkUpdate = async function () {
 
             // Show details inside the confirmation prompt first
             const promptMsg =
-                `A new version is available.\n\n` +
+                `A new version is available!\n\n` +
+                `Current version: ${currentVersion}\n` +
                 `New version: ${appUpdate.version}\n` +
-                (cleanedNotes ? `Release notes:\n${cleanedNotes}\n\n` : '\n') +
+                (cleanedNotes ? `\nRelease notes:\n${cleanedNotes}\n\n` : '\n') +
                 `Do you want to open the GitHub releases page to download the latest version?`;
 
             const openNow = await showConfirmModal({
@@ -213,10 +252,10 @@ window.checkUpdate = async function () {
             });
 
             // Then print to output (also using cleaned notes)
-            output.textContent += `\n✅ Update available!\n`;
-            output.textContent += `New version: ${appUpdate.version}\n`;
+            log(`\n✅ Update available!\n`);
+            log(`New version: ${appUpdate.version}\n`);
             if (cleanedNotes) {
-                output.textContent += `Release notes: ${cleanedNotes}\n`;
+                log(`Release notes: ${cleanedNotes}\n`);
             }
 
             if (openNow) {
@@ -238,10 +277,27 @@ window.checkUpdate = async function () {
                 }
             }
         } else {
-            output.textContent += `\n✅ App is up to date!`;
+            log(`\n✅ App is up to date!`);
+            await showConfirmModal({
+                title: 'Check for Updates',
+                message: `✅ You're up to date!\n\nCurrent version (${currentVersion}) is the latest version.`,
+                confirmText: 'OK',
+                cancelText: null
+            });
         }
     } catch (error) {
-        output.textContent += `\nError: ${error.message}`;
+        log(`\nError: ${error.message}`);
+        await showConfirmModal({
+            title: 'Check for Updates',
+            message: `Could not check for updates:\n\n${error.message}`,
+            confirmText: 'OK',
+            cancelText: null
+        });
+    } finally {
+        if (updateBtn) {
+            updateBtn.disabled = false;
+            updateBtn.textContent = 'Check for Updates';
+        }
     }
 };
 
@@ -1098,10 +1154,16 @@ function showConfirmModal({ title = 'Confirm Action', message = '', confirmText 
         if (titleEl) titleEl.textContent = title;
         if (messageEl) messageEl.textContent = message;
         acceptBtn.textContent = confirmText;
-        cancelBtn.textContent = cancelText;
+        if (cancelText) {
+            cancelBtn.textContent = cancelText;
+            cancelBtn.style.display = '';
+        } else {
+            cancelBtn.style.display = 'none';
+        }
 
         const cleanup = () => {
             modal.style.display = 'none';
+            cancelBtn.style.display = '';
             acceptBtn.removeEventListener('click', handleAccept);
             cancelBtn.removeEventListener('click', handleCancel);
             document.removeEventListener('keydown', handleKeydown);
