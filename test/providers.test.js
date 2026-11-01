@@ -6,7 +6,7 @@ import { OllamaProvider } from '../src/llm/providers/ollama.js';
 import { OpenAICompatibleProvider } from '../src/llm/providers/openai-compatible.js';
 import { createProvider } from '../src/llm/providers/index.js';
 import { ProviderError } from '../src/llm/errors.js';
-import { requestJson } from '../src/llm/providers/http.js';
+import { requestJson, DEFAULT_RETRIES } from '../src/llm/providers/http.js';
 
 const TOOLS = [
     {
@@ -411,25 +411,25 @@ const busy503 = { status: 503, json: { error: { message: 'This model is currentl
 const userMessages = [{ role: 'user', text: 'x' }];
 
 test('retry: a temporary 503 is retried automatically and then succeeds', async () => {
-    const fetchImpl = fakeFetch([busy503, busy503, okReply]);
+    const fetchImpl = fakeFetch([...Array(DEFAULT_RETRIES).fill(busy503), okReply]);
     const retries = [];
     const provider = new GeminiProvider({ apiKey: 'k', retryDelayMs: 1, fetchImpl });
     const reply = await provider.chat({ system: '', messages: userMessages, onRetry: (i) => retries.push(i) });
     assert.equal(reply.text, 'ok');
-    assert.equal(fetchImpl.calls.length, 3);
-    assert.deepEqual(retries.map((r) => r.attempt), [1, 2]);
+    assert.equal(fetchImpl.calls.length, DEFAULT_RETRIES + 1);
+    assert.deepEqual(retries.map((r) => r.attempt), Array.from({ length: DEFAULT_RETRIES }, (_, i) => i + 1));
     assert.equal(retries[0].reason, 'HTTP 503');
-    assert.equal(retries[0].retries, 3);
+    assert.equal(retries[0].retries, DEFAULT_RETRIES);
     assert.equal(retries[1].delayMs, retries[0].delayMs * 2, 'delay doubles each time');
 });
 
 test('retry: gives up after the retry limit with an actionable message', async () => {
-    const fetchImpl = fakeFetch([busy503, busy503, busy503, busy503, okReply]);
+    const fetchImpl = fakeFetch([...Array(DEFAULT_RETRIES + 1).fill(busy503), okReply]);
     const provider = new GeminiProvider({ apiKey: 'k', retryDelayMs: 1, fetchImpl });
     const err = await provider.chat({ system: '', messages: userMessages }).catch((e) => e);
     assert.equal(err.kind, 'server');
     assert.equal(err.status, 503);
-    assert.equal(fetchImpl.calls.length, 4, '1 attempt + 3 retries');
+    assert.equal(fetchImpl.calls.length, DEFAULT_RETRIES + 1, '1 attempt + the default number of retries');
     assert.match(err.message, /on their side/);
     assert.match(err.message, /switch provider/);
 });

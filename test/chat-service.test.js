@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { ChatService, AiSettingsError, trimHistory } from '../src/llm/chat-service.js';
 import { KeyStore } from '../src/llm/key-store.js';
+import { DEFAULT_RETRIES } from '../src/llm/providers/http.js';
 
 const SECRET = 'AIzaSy-super-secret-key-0000';
 
@@ -284,7 +285,7 @@ test('send: a busy server is retried, the UI is told, and the user gets the answ
     assert.equal(retrying.provider, 'Gemini');
     assert.equal(retrying.attempt, 1);
     assert.equal(retrying.reason, 'HTTP 503');
-    assert.match(lines.join('\n'), /retrying after HTTP 503: attempt 1 of 3/);
+    assert.match(lines.join('\n'), new RegExp(`retrying after HTTP 503: attempt 1 of ${DEFAULT_RETRIES}`));
 }, { timeout: 15000 });
 
 test('xAI: appears as a provider with its own key slot, defaults, and works end to end', async () => {
