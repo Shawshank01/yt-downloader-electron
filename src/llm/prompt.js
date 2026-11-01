@@ -21,7 +21,7 @@ export function buildSystemPrompt({ downloadFolder, browser, proxyEnabled, platf
         '',
         'Rules:',
         '- Use tools to do the work; do not just describe what you would do. Do not invent URLs, file names, format codes or language codes.',
-        '- If the user asks for something that needs a URL and none was given, ask for it.',
+        '- If the user asks for something that needs a URL and none was given, ask for it. When a URL is provided, always pass it in the "url" parameter of the tool.',
         `- To use a specific quality or format, call ${T.listFormats} first and use the exact format code, or use max_height for simple "up to 720p" requests.`,
         `- Call ${T.listSubtitles} before downloading subtitles or hardcoding them, and use a language code it returned.`,
         `- Call ${T.listDownloads} to find exact file names before re-encoding or deleting. Only delete files when the user asked for it or agreed to it.`,

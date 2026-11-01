@@ -136,7 +136,9 @@ export class OllamaProvider {
                 text += message.content;
                 onTextDelta(message.content);
             }
-            if (message.tool_calls) toolCalls = this.#toToolCalls(message.tool_calls);
+            if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
+                toolCalls = this.#toToolCalls(message.tool_calls);
+            }
         });
         return { text: text.trim(), toolCalls, raw: null };
     }
@@ -151,7 +153,7 @@ export class OllamaProvider {
 
     #toToolCalls(calls) {
         return calls.map((call, index) => {
-            let args = call.function?.arguments ?? {};
+            let args = call.function?.arguments ?? call.function?.args ?? {};
             if (typeof args === 'string') {
                 try { args = JSON.parse(args); } catch { args = {}; }
             }

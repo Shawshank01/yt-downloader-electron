@@ -117,6 +117,34 @@ test('invalid parameters are returned to the model as errors and never executed'
     }
 });
 
+test('tool call missing url recovers from unambiguous user URL or alias (small model robustness)', async () => {
+    const events = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('list_formats', { link: 'https://youtube.com/watch?v=user-url' })] },
+        { toolCalls: [call('list_formats', {})] },
+        { text: 'done' }
+    ]);
+    const history = [];
+    const userText = 'what formats does it have\nhttps://youtube.com/watch?v=user-url';
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText,
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events.push(e)
+    });
+
+    const starts = events.filter((e) => e.type === 'tool_start');
+    assert.equal(starts.length, 2);
+    // 1. Alias 'link' resolved to 'url'
+    assert.equal(starts[0].args.url, 'https://youtube.com/watch?v=user-url');
+    assert.equal(starts[0].description, 'List formats for https://youtube.com/watch?v=user-url');
+    // 2. Empty args resolved to the single URL from the user message
+    assert.equal(starts[1].args.url, 'https://youtube.com/watch?v=user-url');
+    assert.equal(starts[1].description, 'List formats for https://youtube.com/watch?v=user-url');
+});
+
 test('unknown tools and missing download folder are reported, not thrown', async () => {
     const provider = scriptedProvider([
         { toolCalls: [call('rm_rf', {}), call('list_downloads', {}, 'c2')] },

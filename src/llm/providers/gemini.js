@@ -257,6 +257,15 @@ export class GeminiProvider {
                     index: data.index ?? accumulatedSteps.length
                 };
                 if (!currentStep.type && data.step?.type) currentStep.type = data.step.type;
+                if (data.step?.arguments) {
+                    currentStep.arguments = typeof data.step.arguments === 'object'
+                        ? JSON.stringify(data.step.arguments)
+                        : String(data.step.arguments);
+                } else if (data.step?.args) {
+                    currentStep.arguments = typeof data.step.args === 'object'
+                        ? JSON.stringify(data.step.args)
+                        : String(data.step.args);
+                }
                 accumulatedSteps[currentStep.index] = currentStep;
             }
 
@@ -284,8 +293,12 @@ export class GeminiProvider {
                             step.content = [{ type: 'text', text: delta.text }];
                         }
                     }
-                    if (delta.arguments_delta || delta.arguments) {
-                        const argsDelta = delta.arguments_delta || delta.arguments;
+                    const argsDelta = delta.partial_arguments
+                        || delta.arguments_delta
+                        || delta.arguments
+                        || delta.args
+                        || (delta.type === 'arguments' && typeof delta.text === 'string' ? delta.text : undefined);
+                    if (argsDelta) {
                         const idx = data.index ?? (currentStep ? currentStep.index : 0);
                         if (!accumulatedSteps[idx]) {
                             accumulatedSteps[idx] = { type: 'function_call', arguments: '' };
@@ -293,8 +306,8 @@ export class GeminiProvider {
                         const step = accumulatedSteps[idx];
                         if (typeof step.arguments === 'string') {
                             step.arguments += argsDelta;
-                        } else if (typeof step.arguments === 'object') {
-                            // already parsed or object
+                        } else if (step.arguments && typeof step.arguments === 'object') {
+                            step.arguments = JSON.stringify(step.arguments);
                         } else {
                             step.arguments = argsDelta;
                         }
@@ -438,10 +451,11 @@ export class GeminiProvider {
                 }
             } else if (step.type === 'function_call' || step.type === 'tool_call') {
                 let args = {};
-                if (typeof step.arguments === 'string' && step.arguments.trim()) {
-                    try { args = JSON.parse(step.arguments); } catch { args = {}; }
-                } else if (step.arguments && typeof step.arguments === 'object') {
-                    args = step.arguments;
+                const rawArgs = step.arguments ?? step.args;
+                if (typeof rawArgs === 'string' && rawArgs.trim()) {
+                    try { args = JSON.parse(rawArgs); } catch { args = {}; }
+                } else if (rawArgs && typeof rawArgs === 'object') {
+                    args = rawArgs;
                 }
                 toolCalls.push({
                     id: step.id || step.call_id || `gemini-call-${Date.now()}-${index}`,

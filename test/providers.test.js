@@ -291,6 +291,32 @@ test('Gemini streaming keeps tool calls when the final chunk has no content', as
     assert.deepEqual(reply.toolCalls[0].args, { url: 'https://x.test/v' });
 });
 
+test('Gemini streaming captures tool arguments streamed via partial_arguments', async () => {
+    const chunks = [
+        'data: {"event_type":"step.start","index":0,"step":{"type":"function_call","name":"list_formats","id":"call_1"}}\n\n',
+        'data: {"event_type":"step.delta","index":0,"delta":{"type":"arguments","partial_arguments":"{\\"url\\":\\"https://x.test/v\\"}"}}\n\n',
+        'data: {"event_type":"step.stop","index":0}\n\n'
+    ];
+    const fetchImpl = async () => ({
+        ok: true,
+        body: new ReadableStream({
+            start(controller) {
+                for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+                controller.close();
+            }
+        })
+    });
+    const provider = new GeminiProvider({ apiKey: 'k', fetchImpl });
+    const reply = await provider.chat({
+        system: '',
+        messages: [{ role: 'user', text: 'formats please' }],
+        onTextDelta: () => { }
+    });
+    assert.equal(reply.toolCalls.length, 1);
+    assert.equal(reply.toolCalls[0].name, 'list_formats');
+    assert.deepEqual(reply.toolCalls[0].args, { url: 'https://x.test/v' });
+});
+
 test('Gemini: testConnection uses a free GET on the model', async () => {
     const fetchImpl = fakeFetch([{ json: { name: 'models/gemini-3.8-flash', displayName: 'Gemini 3.8 Flash' } }]);
     const provider = new GeminiProvider({ apiKey: 'k', fetchImpl });

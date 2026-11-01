@@ -4,7 +4,7 @@ import { getTool, getRisk, getToolDeclarations, TOOL_NAMES } from './tool-regist
 import { cancelCurrentTask } from '../core/tools.js';
 import { MAX_AGENT_STEPS, MAX_TOOL_RESULT_CHARS } from './limits.js';
 import { MESSAGES } from './messages.js';
-import { isForeignUrl } from './provenance.js';
+import { isForeignUrl, extractUrls } from './provenance.js';
 
 const noop = () => { };
 
@@ -173,7 +173,27 @@ async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMo
         return { ok: false, error: `Unknown tool "${call.name}".` };
     }
 
-    const args = call.args && typeof call.args === 'object' ? call.args : {};
+    const args = call.args && typeof call.args === 'object' ? { ...call.args } : {};
+
+    // Normalize common model parameter hallucinations if the tool expects a 'url'
+    if (tool.parameters?.properties?.url) {
+        if (!args.url || typeof args.url !== 'string' || !args.url.trim()) {
+            const alias = args.link || args.video_url || args.video || args.uri || args.target_url || args.webpage_url;
+            if (typeof alias === 'string' && alias.trim()) {
+                args.url = alias.trim();
+            } else {
+                const lastUser = history.findLast((m) => m.role === 'user');
+                const userUrls = lastUser ? [...extractUrls(lastUser.text)] : [];
+                if (userUrls.length === 1) {
+                    args.url = userUrls[0];
+                }
+            }
+            if (call.args && typeof call.args === 'object' && args.url) {
+                call.args.url = args.url;
+            }
+        }
+    }
+
     const { risk, reason } = assessRisk(tool, args, history);
     const description = safeDescribe(tool, args);
 
