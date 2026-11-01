@@ -18,19 +18,25 @@ jobs:
 
       - name: Update upstream tool versions
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          node <<'NODE'
-          const fs = require('node:fs');
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
           const versions = JSON.parse(fs.readFileSync('tools-versions.json', 'utf8'));
           const get = async (url) => {
-            const response = await fetch(url, { headers: { 'User-Agent': 'yt-downloader-tool-check' } });
+            const headers = { 'User-Agent': 'yt-downloader-tool-check' };
+            if (process.env.GITHUB_TOKEN) {
+              headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+            }
+            const response = await fetch(url, { headers });
             if (!response.ok) throw new Error(`${response.status} ${url}`);
             return response.json();
           };
           const yt = await get('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest');
           const ffmpeg = await get('https://api.github.com/repos/FFmpeg/FFmpeg/tags?per_page=1');
           versions['yt-dlp'] = yt.tag_name;
-          versions['ffmpeg'] = ffmpeg[0].name.replace(/^n/, 'n');
+          versions['ffmpeg'] = ffmpeg[0].name.replace(/^n/, '');
           fs.writeFileSync('tools-versions.json', `${JSON.stringify(versions, null, 2)}\n`);
           NODE
 
