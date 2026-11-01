@@ -100,12 +100,13 @@ meson compile -C "$build_dir/fribidi"
 meson install -C "$build_dir/fribidi"
 
 meson setup "$build_dir/harfbuzz" "$source_dir/harfbuzz" \
-	--cross-file "$build_dir/meson-cross.ini" \
-	--prefix "$prefix" --buildtype release \
-	--default-library static \
-	-Dfreetype=disabled -Dglib=disabled -Dgobject=disabled \
-	-Dcairo=disabled -Dicu=disabled -Dtests=disabled \
-	-Ddocs=disabled -Dutilities=disabled
+    --cross-file "$build_dir/meson-cross.ini" \
+    --prefix "$prefix" --buildtype release \
+    --default-library static \
+    -Dfreetype=disabled -Dglib=disabled -Dgobject=disabled \
+    -Dcairo=disabled -Dicu=disabled -Dtests=disabled \
+    -Ddocs=disabled -Dutilities=disabled \
+    -Dsubset=disabled -Draster=disabled -Dvector=disabled -Dgpu=disabled
 meson compile -C "$build_dir/harfbuzz"
 meson install -C "$build_dir/harfbuzz"
 
