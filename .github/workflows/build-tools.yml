@@ -24,7 +24,6 @@ permissions:
 
 jobs:
   build:
-    if: inputs.scope == 'all' || inputs.scope == '' || (inputs.scope == 'mac' && startsWith(matrix.target, 'darwin-')) || (inputs.scope == 'windows' && startsWith(matrix.target, 'win32-'))
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -51,44 +50,46 @@ jobs:
 
     steps:
     - name: Check out Git repository
+      if: inputs.scope == 'all' || inputs.scope == '' || (inputs.scope == 'mac' && startsWith(matrix.target, 'darwin-')) || (inputs.scope == 'windows' && startsWith(matrix.target, 'win32-'))
       uses: actions/checkout@v7
 
     - name: Set up Node.js
+      if: inputs.scope == 'all' || inputs.scope == '' || (inputs.scope == 'mac' && startsWith(matrix.target, 'darwin-')) || (inputs.scope == 'windows' && startsWith(matrix.target, 'win32-'))
       uses: actions/setup-node@v7
       with:
         node-version: 26
 
     - name: Install macOS FFmpeg build dependencies
-      if: runner.os == 'macOS' && inputs.scope != 'windows'
+      if: runner.os == 'macOS' && (inputs.scope == 'all' || inputs.scope == '' || inputs.scope == 'mac')
       run: brew install autoconf automake libtool cmake meson ninja pkg-config nasm yasm
 
     - name: Install Windows FFmpeg build dependencies
-      if: startsWith(matrix.target, 'win32-')
+      if: startsWith(matrix.target, 'win32-') && (inputs.scope == 'all' || inputs.scope == '' || inputs.scope == 'windows')
       run: |
         sudo apt-get update
         sudo apt-get install -y autoconf automake autopoint cmake \
           file libtool make meson ninja-build pkg-config nasm yasm
 
     - name: Prepare tool bundle
-      if: inputs.scope != 'windows' || startsWith(matrix.target, 'win32-')
+      if: inputs.scope == 'all' || inputs.scope == '' || (inputs.scope == 'mac' && startsWith(matrix.target, 'darwin-')) || (inputs.scope == 'windows' && startsWith(matrix.target, 'win32-'))
       env:
         TOOL_TARGET: ${{ matrix.target }}
       run: node scripts/prepare-tools.mjs
 
     - name: Build Windows FFmpeg with LLVM-MinGW
-      if: startsWith(matrix.target, 'win32-')
+      if: startsWith(matrix.target, 'win32-') && (inputs.scope == 'all' || inputs.scope == '' || inputs.scope == 'windows')
       env:
         TOOL_TARGET: ${{ matrix.target }}
       run: bash scripts/build-windows-ffmpeg.sh
 
     - name: Build macOS FFmpeg with static libass
-      if: startsWith(matrix.target, 'darwin-') && inputs.scope != 'windows'
+      if: startsWith(matrix.target, 'darwin-') && (inputs.scope == 'all' || inputs.scope == '' || inputs.scope == 'mac')
       env:
         TOOL_TARGET: ${{ matrix.target }}
       run: bash scripts/build-macos-ffmpeg.sh
 
     - name: Verify tool bundle
-      if: inputs.scope != 'windows' || startsWith(matrix.target, 'win32-')
+      if: inputs.scope == 'all' || inputs.scope == '' || (inputs.scope == 'mac' && startsWith(matrix.target, 'darwin-')) || (inputs.scope == 'windows' && startsWith(matrix.target, 'win32-'))
       shell: bash
       run: |
         TOOL_DIR="build-tools/${{ matrix.target }}"
@@ -110,7 +111,7 @@ jobs:
         fi
 
     - name: Generate checksums
-      if: inputs.scope != 'windows' || startsWith(matrix.target, 'win32-')
+      if: inputs.scope == 'all' || inputs.scope == '' || (inputs.scope == 'mac' && startsWith(matrix.target, 'darwin-')) || (inputs.scope == 'windows' && startsWith(matrix.target, 'win32-'))
       shell: bash
       run: |
         cd "build-tools/${{ matrix.target }}"
@@ -121,7 +122,7 @@ jobs:
         fi
 
     - name: Upload verified tool bundle
-      if: inputs.scope != 'windows' || startsWith(matrix.target, 'win32-')
+      if: inputs.scope == 'all' || inputs.scope == '' || (inputs.scope == 'mac' && startsWith(matrix.target, 'darwin-')) || (inputs.scope == 'windows' && startsWith(matrix.target, 'win32-'))
       uses: actions/upload-artifact@v7
       with:
         name: ${{ matrix.target }}-tools
