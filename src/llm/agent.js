@@ -208,19 +208,51 @@ async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMo
         }
     }
 
-    // Reconcile container for download_video if user explicitly mentioned mp4, mkv, or webm
-    if (call.name === TOOL_NAMES.downloadVideo && !args.container) {
-        const lastUser = history.findLast((m) => m.role === 'user');
-        const userText = lastUser?.text || '';
-        if (/\bmp4\b/i.test(userText)) {
-            args.container = 'mp4';
-        } else if (/\bmkv\b/i.test(userText)) {
-            args.container = 'mkv';
-        } else if (/\bwebm\b/i.test(userText)) {
-            args.container = 'webm';
+    // Reconcile container and format_code for download_video
+    if (call.name === TOOL_NAMES.downloadVideo) {
+        if (!args.container) {
+            const lastUser = history.findLast((m) => m.role === 'user');
+            const userText = lastUser?.text || '';
+            if (/\bmkv\b/i.test(userText)) {
+                args.container = 'mkv';
+            } else if (/\bwebm\b/i.test(userText)) {
+                args.container = 'webm';
+            } else {
+                args.container = 'mp4';
+            }
+            if (call.args && typeof call.args === 'object' && args.container) {
+                call.args.container = args.container;
+            }
         }
-        if (call.args && typeof call.args === 'object' && args.container) {
-            call.args.container = args.container;
+
+        if (!args.format_code) {
+            const lastUser = history.findLast((m) => m.role === 'user');
+            const userText = lastUser?.text || '';
+            const userFormatMatch = userText.match(/\b(?:format\s+)?([0-9]{2,4}\+[0-9]{2,4})\b/i);
+            if (userFormatMatch) {
+                args.format_code = userFormatMatch[1];
+            } else if (/^(?:yes|yep|sure|ok|proceed|go ahead|do it|please do|yeah)\b/i.test(userText)) {
+                // Check if the previous assistant turn (before the user confirmation) suggested a specific format code
+                let lastAssistantText = '';
+                for (let i = history.length - 1; i >= 0; i--) {
+                    if (history[i].role === 'user') {
+                        for (let j = i - 1; j >= 0; j--) {
+                            if (history[j].role === 'assistant' && history[j].text) {
+                                lastAssistantText = history[j].text;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+                const assistFormatMatch = lastAssistantText.match(/\bformats?\s+([0-9a-zA-Z_-]+(?:\+[0-9a-zA-Z_-]+)?)/i);
+                if (assistFormatMatch) {
+                    args.format_code = assistFormatMatch[1];
+                }
+            }
+            if (call.args && typeof call.args === 'object' && args.format_code) {
+                call.args.format_code = args.format_code;
+            }
         }
     }
 

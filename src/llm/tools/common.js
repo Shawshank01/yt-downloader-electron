@@ -108,6 +108,13 @@ export async function runDownload(specificArgs, url, ctx, { playlist = false } =
     } catch { /* manifest is only written on success */ }
     try { await fs.unlink(manifestFile); } catch { /* ignore */ }
 
+    if (files.length === 0 && res.output) {
+        const alreadyMatch = res.output.match(/\[download\]\s+["']?(.+?)["']?\s+has already been downloaded/i);
+        if (alreadyMatch) {
+            files = [alreadyMatch[1].trim()];
+        }
+    }
+
     return outcome(res, {
         saved_to_folder: folder,
         files: files.map((p) => basename(p)),

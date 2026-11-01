@@ -201,6 +201,32 @@ test('download_video reconciles container from user text (e.g. as mp4)', async (
     assert.match(starts[0].description, /\[mp4\]/);
 });
 
+test('download_video reconciles format_code from user text or affirmative response', async () => {
+    const events = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('download_video', { url: 'https://youtube.com/watch?v=fmt-test' })] },
+        { text: 'done' }
+    ]);
+    const history = [
+        { role: 'user', text: 'formats of https://youtube.com/watch?v=fmt-test' },
+        { role: 'assistant', text: 'Would you like me to download formats 299+140 directly as an .mp4?', toolCalls: [] }
+    ];
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText: 'yes',
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events.push(e)
+    });
+
+    const starts = events.filter((e) => e.type === 'tool_start');
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].args.format_code, '299+140');
+    assert.equal(starts[0].args.container, 'mp4');
+    assert.match(starts[0].description, /format 299\+140/);
+});
+
 test('unknown tools and missing download folder are reported, not thrown', async () => {
     const provider = scriptedProvider([
         { toolCalls: [call('rm_rf', {}), call('list_downloads', {}, 'c2')] },

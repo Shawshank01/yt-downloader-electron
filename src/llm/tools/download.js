@@ -50,22 +50,33 @@ export const downloadTools = [
             const formatCode = args.format_code ? validateFormatCode(args.format_code) : undefined;
             const container = args.container
                 ? validateEnum(args.container, MERGE_FORMATS, 'container')
-                : (formatCode ? undefined : 'mp4');
+                : 'mp4';
             const playlist = validateBool(args.playlist, 'playlist');
 
             const specific = [];
             if (formatCode) {
                 specific.push('-f', formatCode);
+            } else if (container === 'mp4') {
+                if (maxHeight) {
+                    specific.push('-f', `bv*[height<=${maxHeight}][ext=mp4]+ba[ext=m4a]/b[height<=${maxHeight}][ext=mp4] / bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]`);
+                } else {
+                    specific.push('-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4] / bv*+ba/b');
+                }
             } else if (maxHeight) {
                 specific.push('-f', `bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]`);
             }
+
             if (container) {
                 specific.push('--merge-output-format', container);
+                specific.push('--remux-video', container);
                 if (container === 'mp4') {
                     specific.push('--format-sort', 'res,ext:mp4:m4a');
                 }
             }
-            specific.push('--embed-thumbnail');
+
+            if (container !== 'webm') {
+                specific.push('--convert-thumbnails', 'jpg', '--embed-thumbnail');
+            }
 
             return runDownload(specific, url, ctx, { playlist });
         }
@@ -91,7 +102,9 @@ export const downloadTools = [
             const playlist = validateBool(args.playlist, 'playlist');
 
             const specific = ['-f', 'bestaudio/best', '-x', '--audio-format', format];
-            if (format === 'mp3' || format === 'm4a') specific.push('--embed-thumbnail');
+            if (format === 'mp3' || format === 'm4a') {
+                specific.push('--convert-thumbnails', 'jpg', '--embed-thumbnail');
+            }
 
             return runDownload(specific, url, ctx, { playlist });
         }
