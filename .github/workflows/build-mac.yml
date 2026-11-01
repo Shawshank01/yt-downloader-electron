@@ -1,0 +1,88 @@
+name: Build macOS packages
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  tools:
+    uses: ./.github/workflows/build-tools.yml
+    with:
+      scope: mac
+
+  build:
+    needs: tools
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-15
+          arch: x64
+          target: darwin-x64
+          builder_args: --mac --x64
+        - os: macos-26
+          arch: arm64
+          target: darwin-arm64
+          builder_args: --mac --arm64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Check out Git repository
+      uses: actions/checkout@v7
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v6
+      with:
+        version: 12
+
+    - name: Install Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 26
+        cache: pnpm
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+
+    - name: Download verified tool bundle
+      uses: actions/download-artifact@v8
+      with:
+        name: ${{ matrix.target }}-tools
+        path: build-tools/${{ matrix.target }}
+
+    - name: Prepare and verify tool bundle
+      shell: bash
+      run: |
+        mkdir -p "build-tools/mac-${{ matrix.arch }}"
+        cp -r "build-tools/${{ matrix.target }}/"* "build-tools/mac-${{ matrix.arch }}/"
+        find build-tools -type f -exec chmod 755 {} +
+        "build-tools/${{ matrix.target }}/yt-dlp" --version
+        "build-tools/${{ matrix.target }}/ffmpeg" -version
+        "build-tools/${{ matrix.target }}/ffmpeg" -filters 2>&1 | grep -E '[[:space:]]subtitles[[:space:]]'
+        if otool -L "build-tools/${{ matrix.target }}/ffmpeg" | grep -E '/opt/homebrew|/usr/local/opt'; then
+          echo "Error: ffmpeg dynamically links to Homebrew libraries!" >&2
+          exit 1
+        fi
+
+    - name: Build macOS package
+      run: pnpm exec electron-builder build ${{ matrix.builder_args }} --publish never
+
+    - name: List build artifacts
+      shell: bash
+      run: |
+        echo "=== Build artifacts for ${{ runner.os }} (${{ runner.arch }}) ==="
+        ls -la dist/ || echo "dist/ directory not found"
+
+    - name: Upload macOS package
+      uses: actions/upload-artifact@v7
+      with:
+        name: mac-${{ matrix.arch }}-package
+        path: dist/
+        if-no-files-found: error

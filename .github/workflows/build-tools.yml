@@ -15,6 +15,7 @@ on:
         type: choice
         options:
         - all
+        - mac
         - windows
         default: all
 
@@ -23,6 +24,7 @@ permissions:
 
 jobs:
   build:
+    if: inputs.scope == 'all' || inputs.scope == '' || (inputs.scope == 'mac' && startsWith(matrix.target, 'darwin-')) || (inputs.scope == 'windows' && startsWith(matrix.target, 'win32-'))
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
