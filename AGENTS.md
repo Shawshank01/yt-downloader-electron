@@ -21,9 +21,6 @@ It originally had only a form-based UI ("Classic mode"). The goal of the current
 | 3A. Main-process integration | Encrypted API-key storage, chat service (settings, conversation, confirmations, cancel), IPC and preload API (`window.electronAPI.ai`). | Done, user-verified (key save, connection test) |
 | 3B. UI | Classic / AI switch, chat panel, AI settings dialog, Allow/Deny dialog, live progress, streamed replies, auto-scroll, shared Browser / Download Folder / SOCKS5 context controls. | Done, user-verified |
 | Follow-ups | Gemini `thinkingLevel`, streamed Markdown replies, retries on HTTP 503 and similar, xAI Responses provider, Ollama streaming, empty-parameter tool schema fix, diagnostic `[ai]` log lines. | Done |
-| Code-review pass (2026-11) | Correctness, duplication, security and smaller smells from a full review (see section 4 and 8). Includes the packaged-build fix for bundled tool lookup. | Done; **only unit-tested, not yet run in a real Electron window** |
-
-Confirmed working by the user with Gemini (`gemini-3.8-flash`) before the review pass: saving a key, Test connection, chat, tool calling, downloading through the assistant using Brave cookies, error explanation and retry, rendering of replies.
 
 ## 3. Architecture
 
