@@ -12,6 +12,10 @@ It has two interfaces that you can switch between at any time:
 - **AI Mode (🆕)**: describe what you want in plain language, for example *"Download this video: https://..."*, and an AI assistant carries it out with yt-dlp and FFmpeg.
 
 ![YT Downloader Electron UI](public/YT-Downloader-UI.png)
+Classic UI
+
+![YT Downloader Electron UI AI Mode](public/YT-Downloader-UI-AI.png)
+AI Mode UI
 
 ## Features
 

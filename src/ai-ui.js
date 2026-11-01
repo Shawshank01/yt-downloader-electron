@@ -144,6 +144,7 @@
     // Assistant text is Markdown. It is rendered with DOM calls only (see markdown.js), so model or
     // website text can never inject markup. If anything goes wrong we fall back to plain text.
     function fillMessage(el, kind, text) {
+        el.dataset.rawText = text;
         if (kind === 'assistant' && window.MarkdownLite) {
             try {
                 el.classList.add('md');
@@ -159,6 +160,12 @@
     }
 
     function addMessage(kind, text) {
+        if (kind === 'assistant') {
+            const last = els.messages.lastElementChild;
+            if (last && last.dataset.rawText && last.dataset.rawText.trim() === String(text).trim()) {
+                return last;
+            }
+        }
         const el = document.createElement('div');
         el.className = `ai-msg ${kind}`;
         fillMessage(el, kind, text);
@@ -172,12 +179,13 @@
             streamingBubble.className = 'ai-msg assistant';
             append(streamingBubble);
         }
-        streamingBubble.textContent = text;
+        if (text !== undefined) streamingBubble.textContent = text;
         scrollMessagesToBottom();
         if (done) {
-            const finalText = streamingBubble.textContent;
+            const finalText = (text ?? streamingBubble.textContent) || '';
             streamingBubble.textContent = '';
             fillMessage(streamingBubble, 'assistant', finalText);
+            lastAssistantText = finalText;
             assistantBubblesThisTurn += 1;
             streamingBubble = null;
             scrollMessagesToBottom();
@@ -318,13 +326,30 @@
         try {
             const res = await api.send(text, getContext());
             if (!res.ok) {
+                if (streamingBubble) {
+                    streamingBubble.remove();
+                    streamingBubble = null;
+                }
                 addError(res.error);
-            } else if (assistantBubblesThisTurn === 0) {
-                // The answer normally arrives as an 'assistant_text' event. If it did not, show the
-                // returned text so the user is never left without a reply.
-                addMessage('assistant', res.text || '(The assistant did not return any text.)');
+            } else {
+                const answerText = (res.text || '').trim();
+                if (streamingBubble) {
+                    // Finalize the in-progress streaming bubble with the complete text
+                    updateStreamingMessage(answerText || streamingBubble.textContent, true);
+                } else if (assistantBubblesThisTurn === 0) {
+                    // The answer normally arrives as an 'assistant_text' event. If it did not, show the
+                    // returned text so the user is never left without a reply.
+                    const fallbackText = answerText || '(The assistant did not return any text.)';
+                    lastAssistantText = fallbackText;
+                    assistantBubblesThisTurn += 1;
+                    addMessage('assistant', fallbackText);
+                }
             }
         } catch (err) {
+            if (streamingBubble) {
+                streamingBubble.remove();
+                streamingBubble = null;
+            }
             addError({ kind: 'unexpected', message: 'Something went wrong talking to the assistant.' });
             console.error(err);
         } finally {
@@ -371,19 +396,19 @@
         switch (event.type) {
             case 'assistant_text':
                 if (event.text) {
+                    const text = event.text.trim();
                     if (streamingBubble) {
-                        updateStreamingMessage(event.text, true);
-                        lastAssistantText = event.text;
+                        updateStreamingMessage(text, true);
                         break;
                     }
-                    if (event.text === lastAssistantText) break;
-                    lastAssistantText = event.text;
+                    if (text === lastAssistantText.trim()) break;
+                    lastAssistantText = text;
                     assistantBubblesThisTurn += 1;
-                    addMessage('assistant', event.text);
+                    addMessage('assistant', text);
                 }
                 break;
             case 'assistant_delta':
-                if (event.text) updateStreamingMessage((streamingBubble?.textContent || '') + event.text);
+                if (event.text && busy) updateStreamingMessage((streamingBubble?.textContent || '') + event.text);
                 break;
             case 'progress':
                 els.progress.textContent = event.text;
