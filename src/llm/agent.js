@@ -208,6 +208,22 @@ async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMo
         }
     }
 
+    // Reconcile container for download_video if user explicitly mentioned mp4, mkv, or webm
+    if (call.name === TOOL_NAMES.downloadVideo && !args.container) {
+        const lastUser = history.findLast((m) => m.role === 'user');
+        const userText = lastUser?.text || '';
+        if (/\bmp4\b/i.test(userText)) {
+            args.container = 'mp4';
+        } else if (/\bmkv\b/i.test(userText)) {
+            args.container = 'mkv';
+        } else if (/\bwebm\b/i.test(userText)) {
+            args.container = 'webm';
+        }
+        if (call.args && typeof call.args === 'object' && args.container) {
+            call.args.container = args.container;
+        }
+    }
+
     const { risk, reason } = assessRisk(tool, args, history);
     const description = safeDescribe(tool, args);
 

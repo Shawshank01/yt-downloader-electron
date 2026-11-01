@@ -176,6 +176,31 @@ test('tool call in follow-up turn missing url recovers URL from earlier conversa
     assert.equal(starts[0].args.url, 'https://youtube.com/watch?v=multi-turn');
 });
 
+test('download_video reconciles container from user text (e.g. as mp4)', async () => {
+    const events = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('download_video', { url: 'https://youtube.com/watch?v=container-test' })] },
+        { text: 'done' }
+    ]);
+    const history = [
+        { role: 'user', text: 'formats of https://youtube.com/watch?v=container-test' },
+        { role: 'assistant', text: 'Formats...', toolCalls: [] }
+    ];
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText: 'download it as mp4',
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events.push(e)
+    });
+
+    const starts = events.filter((e) => e.type === 'tool_start');
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].args.container, 'mp4');
+    assert.match(starts[0].description, /\[mp4\]/);
+});
+
 test('unknown tools and missing download folder are reported, not thrown', async () => {
     const provider = scriptedProvider([
         { toolCalls: [call('rm_rf', {}), call('list_downloads', {}, 'c2')] },

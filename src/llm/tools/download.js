@@ -50,7 +50,7 @@ export const downloadTools = [
             const formatCode = args.format_code ? validateFormatCode(args.format_code) : undefined;
             const container = args.container
                 ? validateEnum(args.container, MERGE_FORMATS, 'container')
-                : undefined;
+                : (formatCode ? undefined : 'mp4');
             const playlist = validateBool(args.playlist, 'playlist');
 
             const specific = [];
