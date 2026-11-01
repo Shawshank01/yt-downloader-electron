@@ -72,7 +72,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y autoconf automake autopoint cmake \
-          libtool make meson ninja-build pkg-config nasm yasm
+          file libtool make meson ninja-build pkg-config nasm yasm
 
     - name: Prepare tool bundle
       if: inputs.scope != 'windows' || startsWith(matrix.target, 'win32-')
@@ -134,9 +134,10 @@ jobs:
       run: |
         TOOL_DIR="build-tools/${{ matrix.target }}"
         if [[ "${{ matrix.target }}" == win32-* ]]; then
-          "$TOOL_DIR/yt-dlp.exe" --version
-          "$TOOL_DIR/ffmpeg.exe" -version
-          "$TOOL_DIR/ffmpeg.exe" -filters 2>&1 | grep -E '[[:space:]]subtitles[[:space:]]'
+          test -s "$TOOL_DIR/yt-dlp.exe"
+          test -s "$TOOL_DIR/ffmpeg.exe"
+          test -s "$TOOL_DIR/ffprobe.exe"
+          file "$TOOL_DIR/ffmpeg.exe" | grep -Ei 'PE32\+? executable'
         else
           "$TOOL_DIR/yt-dlp" --version
           "$TOOL_DIR/ffmpeg" -version

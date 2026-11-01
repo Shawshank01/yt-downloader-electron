@@ -94,6 +94,20 @@ jobs:
         name: ${{ matrix.target }}-tools
         path: build-tools/${{ matrix.target }}
 
+    - name: Prepare tool bundle for electron-builder
+      shell: bash
+      run: |
+        case "${{ matrix.target }}" in
+          darwin-*) os_dir="mac-${{ matrix.arch }}" ;;
+          win32-*)  os_dir="win-${{ matrix.arch }}" ;;
+          linux-*)  os_dir="linux-${{ matrix.arch }}" ;;
+          *)        os_dir="" ;;
+        esac
+        if [ -n "$os_dir" ] && [ "$os_dir" != "${{ matrix.target }}" ]; then
+          mkdir -p "build-tools/$os_dir"
+          cp -r "build-tools/${{ matrix.target }}/"* "build-tools/$os_dir/"
+        fi
+
     - name: Build Electron app
       run: pnpm exec electron-builder build ${{ matrix.builder_args }} --publish never
 

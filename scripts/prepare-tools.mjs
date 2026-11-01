@@ -1,6 +1,6 @@
 /* global process */
 
-import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { platform, arch } from 'node:process';
@@ -12,13 +12,19 @@ const execFileAsync = promisify(execFile);
 const versions = JSON.parse(await readFile(join(root, 'tools-versions.json'), 'utf8'));
 const target = process.env.TOOL_TARGET || `${platform}-${arch}`;
 const outputDir = join(root, 'build-tools', target);
-const isWindowsTarget = target.startsWith('win32-');
+const isWindowsTarget = target.startsWith('win32-') || target.startsWith('win-');
 
 const targets = {
     'darwin-arm64': {
         ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos'
     },
     'darwin-x64': {
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos'
+    },
+    'mac-arm64': {
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos'
+    },
+    'mac-x64': {
         ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp_macos'
     },
     'linux-arm64': {
@@ -31,6 +37,12 @@ const targets = {
         ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe'
     },
     'win32-arm64': {
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe'
+    },
+    'win-x64': {
+        ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe'
+    },
+    'win-arm64': {
         ytDlp: 'https://github.com/yt-dlp/yt-dlp/releases/download/{yt}/yt-dlp.exe'
     }
 };
@@ -72,4 +84,31 @@ await writeFile(join(outputDir, 'yt-dlp-manifest.json'), JSON.stringify({
     'yt-dlp': versions['yt-dlp'],
     target
 }, null, 2));
+
+let altTarget = null;
+if (target.startsWith('win32-')) {
+    altTarget = `win-${target.slice(6)}`;
+} else if (target.startsWith('win-')) {
+    altTarget = `win32-${target.slice(4)}`;
+} else if (target.startsWith('darwin-')) {
+    altTarget = `mac-${target.slice(7)}`;
+} else if (target.startsWith('mac-')) {
+    altTarget = `darwin-${target.slice(4)}`;
+}
+
+if (altTarget) {
+    const altDir = join(root, 'build-tools', altTarget);
+    await rm(altDir, { recursive: true, force: true });
+    await mkdir(altDir, { recursive: true });
+    const altYtDlpPath = join(altDir, isWindowsTarget ? 'yt-dlp.exe' : 'yt-dlp');
+    await copyFile(ytDlpPath, altYtDlpPath);
+    if (!isWindowsTarget) {
+        await chmod(altYtDlpPath, 0o755);
+    }
+    await writeFile(join(altDir, 'yt-dlp-manifest.json'), JSON.stringify({
+        'yt-dlp': versions['yt-dlp'],
+        target: altTarget
+    }, null, 2));
+}
+
 process.stdout.write(`Prepared ${target} tool bundle in ${outputDir}\n`);

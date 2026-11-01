@@ -57,6 +57,15 @@ jobs:
         name: ${{ matrix.target }}-tools
         path: build-tools/${{ matrix.target }}
 
+    - name: Prepare and verify tool bundle
+      shell: bash
+      run: |
+        mkdir -p "build-tools/win-${{ matrix.arch }}"
+        cp -r "build-tools/${{ matrix.target }}/"* "build-tools/win-${{ matrix.arch }}/"
+        "build-tools/${{ matrix.target }}/yt-dlp.exe" --version
+        "build-tools/${{ matrix.target }}/ffmpeg.exe" -version
+        "build-tools/${{ matrix.target }}/ffmpeg.exe" -filters 2>&1 | grep -E '[[:space:]]subtitles[[:space:]]'
+
     - name: Build Windows installer
       run: pnpm exec electron-builder build ${{ matrix.builder_args }} --publish never
 
