@@ -4,12 +4,12 @@
 
 # YT Downloader Electron
 
-This is a modern, user-friendly desktop application for downloading videos from YouTube and other supported platforms. It uses yt-dlp for download, and FFmpeg to change the format or add subtitles.
+This is a user-friendly desktop application with **AI Assistance**. It uses yt-dlp for downloading videos from YouTube, X (Twitter), Instagram and many other platforms, and FFmpeg to changing the format, re-encoding and adding subtitles.
 
 It has two interfaces that you can switch between at any time:
 
-- **Classic**: a form with a URL box, an action list and a Run button. Works offline and needs no account or API key.
-- **AI Mode (🆕)**: describe what you want in plain language, for example *"Download this video: https://..."*, powered by an autonomous **Agent Harness** that safely orchestrates yt-dlp and FFmpeg under deterministic engineering guardrails.
+- **Classic**: A form with a URL box, an action list and a Run button. Works offline and needs no account or API key.
+- **AI Mode (🆕)**: Describe what you want in plain language, for example *"Download this video: https://..."*, powered by an autonomous **Agent Harness** that safely orchestrates yt-dlp and FFmpeg under deterministic engineering guardrails.
 
 ![YT Downloader Electron UI](public/YT-Downloader-UI.png)
 Classic UI
@@ -19,26 +19,19 @@ AI Mode UI
 
 ## Features
 
-- **Classic / AI mode switch**: use the form, or just describe what you want (see [AI mode](#ai-mode) below)
+- **Classic / AI mode switch**: Use the form, or just describe what you want (see [AI mode](#ai-mode) below)
 - Download videos in various formats and qualities
-- Smart subtitle downloading with language selection
-- Hardcode subtitles into video with customizable positioning (Bottom or Top) using hardware acceleration (H.264 / HEVC)
-- Automatically extracts and embeds YouTube thumbnails natively into MP4 video containers
-- Safely cancel any ongoing downloads or encoding processes
-- Built-in process concurrency guards and command injection task protections
-- Browser cookie support (Brave, Chrome, Firefox, Safari)
+- Real-time download progress info
 - Custom download folder selection
-- Real-time download progress
+- Browser cookie support (Brave, Chrome, Firefox, Safari)
 - Format selection with detailed format list
+- Automatically extracts and embeds thumbnails natively into MP4 video containers
 - MP4 re-encoding with H.264/AAC codecs for maximum compatibility
+- Smart subtitle downloading with language selection
+- Hardcode subtitles into video with customizable positioning (Bottom or Top) using hardware acceleration on macOS (H.264 / HEVC)
+- Safely cancel any ongoing downloads, encoding processes or AI conversation
+- Built-in process concurrency guards and command injection task protections
 - SOCKS5 Proxy support (default listening address `127.0.0.1:1080`, with manual custom override)
-
-> [!NOTE]
-> **Released installers include yt-dlp and FFmpeg.**
-
-Release installers include platform-appropriate copies of `yt-dlp` and `FFmpeg`, so end users do not need to install them separately. Development runs (`pn start`) intentionally continue to use tools installed on the developer's `PATH`.
-
-- **For development:** install [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) and [FFmpeg](https://ffmpeg.org/download.html) and make sure they are available in your `PATH`.
 
 ## Installation
 
@@ -46,17 +39,15 @@ Release installers include platform-appropriate copies of `yt-dlp` and `FFmpeg`,
 
 1. Download the latest release from the [Releases](https://github.com/Shawshank01/yt-downloader-electron/releases) page.
 2. Extract the downloaded file and run the installer for your OS:
-    - **macOS:** `.dmg`
-    - **Linux:** `.AppImage` or `.deb`
-    - **Windows:** `.exe` installer (x64 or ARM64)
+    - **Linux:** `.AppImage`
+    - **macOS:** `.dmg` (download `mac-arm64` if you are using an M-series Mac)
+    - **Windows:** `.exe` installer (dwonload `win-x64` if you're not sure which to choose)
 3. **First Run:**
-    - On **macOS**, drag `YT Downloader.app` to `/Applications`. If macOS shows *“YT Downloader.app is damaged and can’t be opened. You should move it to the Trash”* (Gatekeeper quarantine for unsigned apps), click Cancel, open Terminal and run:
+    - On **macOS**, drag `YT Downloader.app` to `/Applications`, then open Terminal and run:
 
       ```bash
       xattr -cr /Applications/"YT Downloader.app"
       ```
-
-    - The installer includes `yt-dlp` and `FFmpeg`; no separate tool installation is required.
 
 ### Method 2: From Source (For Developers)
 
@@ -89,7 +80,7 @@ pnpm run build
 
 This will create a distributable package in the `dist` directory.
 
-## AI mode
+## AI mode Usage
 
 Click **AI** in the top-right corner to switch from the form to a chat. Use natural language to perform a variety of functions.
 
@@ -146,7 +137,7 @@ Other settings:
 - **Treat website text as untrusted.** Video titles and descriptions are passed to the model as data; the assistant is instructed never to follow instructions found in them. Replies are rendered as formatted text, never as HTML, and links open in your browser only for `http(s)` URLs.
 - The terminal output (`pnpm start`) prints diagnostic lines starting with `[ai]` (timing, token counts, errors). They never contain your key, your messages or the replies. Nothing is written to a log file.
 
-## Usage
+## Classic Mode Usage
 
 1. **Basic Video Download**
    - Enter the video URL
@@ -205,8 +196,6 @@ The app includes a built-in update checker:
 2. If a new version is available, you will be prompted to open the [GitHub Releases](https://github.com/Shawshank01/yt-downloader-electron/releases/latest) page to download the latest installer for your platform (macOS, Windows, or Linux).
 3. If you are already on the latest version, the app will let you know that you are up to date.
 
-**Update button is only supported when running the packaged app** (from `.dmg`, `.exe`, or `.AppImage`/`.deb`). If you run the app in development mode (using `start.command` or `pnpm start`), update may not be available.
-
 > [!NOTE]
 >
 > Release installers use their bundled copies of `yt-dlp` and `FFmpeg`. Development runs use tools installed on your `PATH`.
@@ -238,22 +227,19 @@ The app includes a built-in update checker:
        - Download [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) and [FFmpeg](https://ffmpeg.org/download.html)
        - Add them to your system PATH
 
-2. **Update Issues**
-   - If updates fail, try updating `yt-dlp` and `FFmpeg` manually (see above).
-
-3. **Browser Cookie Issues**
-   - Make sure you're logged into YouTube in your selected browser
+2. **Browser Cookie Issues**
+   - Make sure you are logged in to your chosen browser
    - Try a different browser if issues persist
-   - On **macOS**, when reading browser cookies, macOS may block data access until permitted. Follow the in-app prompt or navigate to **System Settings > Privacy & Security > Files & Folders**, enable access for `YT Downloader.app` under the corresponding browser, and restart the app.
+   - On **macOS**, when reading browser cookies, macOS may block data access until permitted. Follow the in-app prompt or navigate to **System Settings > Privacy & Security > Files & Folders**, enable access for `YT Downloader.app` under the corresponding browser, and restart the app. Full Disk Access may be required
 
-4. **AI Mode Issues**
+3. **AI Mode Issues**
    - **"Gemini is having problems (HTTP 503)"**: Google's servers are overloaded, which happens on the free tier. The app already retries three times. Try again in a minute, switch provider, or use Classic mode.
    - **"Rate limit or quota reached" (HTTP 429)**: you used up the free quota. Wait, switch provider, or use Classic mode.
    - **"rejected the API key"** or **"could not find model"**: open **AI Settings**, re-paste the key, check the model name, and use **Test connection**.
    - **Slow answers**: keep **Response speed** on *Fast*. With Ollama, the first answer after starting a model is slower.
    - **A download fails with a cookie error**: AI mode uses the browser selected in the *Browser for Cookies* box, exactly like Classic mode. Choose the right browser (or *No cookies*) and ask again.
 
-5. **start.command Issues (macOS)**
+4. **start.command Issues (macOS)**
    - If you get a security warning, right-click the file and select "Open"
    - Make sure the file has execute permissions:
 
@@ -264,10 +250,8 @@ The app includes a built-in update checker:
 ## Development
 
 ```bash
-pnpm install
-pnpm start        # run the app
-pnpm run lint     # ESLint over src/ and test/
-pnpm test         # automated tests (Node's built-in test runner, no extra dependencies)
+pn run lint     # ESLint over src/ and test/
+pn test         # automated tests
 ```
 
 The tests (in `test/`) need no network access and no API key: they use mock HTTP responses and scripted fake models. They cover input validation, the tool layer, the AI providers, the agent loop, key storage, settings, the Markdown renderer and static checks of the interface wiring. They do **not** open the app window, so after changing the interface run `pnpm start` and try it by hand. The `test/` folder is excluded from the packaged installer.
@@ -296,10 +280,7 @@ src/
     prompt.js            system prompt engineering
     providers/           gemini.js, xai.js, ollama.js, openai-compatible.js, http.js (retries)
 test/                  automated tests (136 unit tests, node:test runner)
-docs/PROJECT-STATUS.md  status, decisions and roadmap (good starting point for new contributors)
 ```
-
-See [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md) for the architecture, design decisions, what has and has not been verified, and the roadmap.
 
 ## Contributing
 
@@ -310,7 +291,7 @@ See [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md) for the architecture, des
 5. Push to the branch
 6. Create a Pull Request
 
-## Acknowledgments
+## Credits
 
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) - The core download engine
 - [FFmpeg](https://ffmpeg.org/) - For video processing
