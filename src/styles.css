@@ -935,13 +935,18 @@ body[data-mode='ai'] .ai-panel {
 }
 
 .ai-composer-side .ai-hint {
+    margin-top: 0;
+    font-size: 12px;
+    line-height: 18px;
+    min-height: 18px;
     white-space: nowrap;
 }
 
 #aiInput {
     flex: 1;
     resize: vertical;
-    min-height: 48px;
+    height: 62px;
+    min-height: 62px;
     max-height: 160px;
     padding: 10px 12px;
     border: 1px solid var(--border-default);
