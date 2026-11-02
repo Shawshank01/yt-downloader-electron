@@ -8,7 +8,7 @@ This is a user-friendly desktop application with **AI Assistance**. It uses yt-d
 
 It has two interfaces that you can switch between at any time:
 
-- **Classic**: A form with a URL box, an action list and a Run button. Works offline and needs no account or API key.
+- **Classic**: A form with a URL box, an action list and a Run button. Needs no account or API key.
 - **AI Mode (🆕)**: Describe what you want in plain language, for example *"Download this video: https://..."*, powered by an autonomous **Agent Harness** that safely orchestrates yt-dlp and FFmpeg under deterministic engineering guardrails.
 
 ![YT Downloader Electron UI](public/YT-Downloader-UI.png)
