@@ -29,12 +29,12 @@ export const downloadTools = [
             },
             format_code: {
                 type: 'string',
-                description: 'Optional exact yt-dlp format code from list_formats, e.g. "137+140". Overrides max_height.'
+                description: 'Optional exact yt-dlp format code from list_formats, e.g. "299+140" or "137+140" (prefer avc1+m4a for broad device compatibility). Overrides max_height.'
             },
             container: {
                 type: 'string',
                 enum: MERGE_FORMATS,
-                description: 'Optional output container. Set to "mp4" whenever the user asks for MP4; yt-dlp will automatically select native MP4-compatible streams without re-encoding.'
+                description: 'Optional output container. Default: "mp4". When "mp4", automatically favors universally compatible H.264 (avc1) video and AAC (mp4a) audio streams without re-encoding.'
             },
             playlist: playlistProperty
         },
@@ -58,9 +58,21 @@ export const downloadTools = [
                 specific.push('-f', formatCode);
             } else if (container === 'mp4') {
                 if (maxHeight) {
-                    specific.push('-f', `bv*[height<=${maxHeight}][ext=mp4]+ba[ext=m4a]/b[height<=${maxHeight}][ext=mp4] / bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]`);
+                    specific.push(
+                        '-f',
+                        `bv*[height<=${maxHeight}][vcodec^=avc]+ba[acodec^=mp4a]/` +
+                        `bv*[height<=${maxHeight}][ext=mp4]+ba[ext=m4a]/` +
+                        `b[height<=${maxHeight}][ext=mp4]/` +
+                        `bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]`
+                    );
                 } else {
-                    specific.push('-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4] / bv*+ba/b');
+                    specific.push(
+                        '-f',
+                        'bv*[vcodec^=avc]+ba[acodec^=mp4a]/' +
+                        'bv*[ext=mp4]+ba[ext=m4a]/' +
+                        'b[ext=mp4]/' +
+                        'bv*+ba/b'
+                    );
                 }
             } else if (maxHeight) {
                 specific.push('-f', `bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]`);
@@ -70,7 +82,7 @@ export const downloadTools = [
                 specific.push('--merge-output-format', container);
                 specific.push('--remux-video', container);
                 if (container === 'mp4') {
-                    specific.push('--format-sort', 'res,ext:mp4:m4a');
+                    specific.push('--format-sort', 'res,vcodec:h264,ext:mp4:m4a');
                 }
             }
 
