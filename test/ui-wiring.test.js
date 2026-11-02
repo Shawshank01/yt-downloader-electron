@@ -39,6 +39,11 @@ test('assistant messages are rendered as Markdown, user and error messages as pl
     assert.match(aiUi, /el\.textContent = text;/, 'plain-text fallback exists');
 });
 
+test('streaming responses render as Markdown live on every text delta', () => {
+    assert.match(aiUi, /streamingText\s*\+=\s*event\.text/);
+    assert.match(aiUi, /updateStreamingMessage\(streamingText\)/);
+});
+
 test('every preload ai.* method maps to an ipcMain handler', () => {
     const channels = [...preload.matchAll(/ipcRenderer\.invoke\('(ai-[a-z-]+)'/g)].map((m) => m[1]);
     assert.ok(channels.length >= 8);

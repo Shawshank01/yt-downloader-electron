@@ -79,6 +79,7 @@
     let pendingConfirmId = null;
     let assistantBubblesThisTurn = 0;
     let streamingBubble = null;
+    let streamingText = '';
     let lastAssistantText = '';
     let retryTimer = null;
     const steps = new Map(); // tool call id -> { el, detailEl, description }
@@ -149,6 +150,7 @@
         if (kind === 'assistant' && window.MarkdownLite) {
             try {
                 el.classList.add('md');
+                el.textContent = '';
                 el.appendChild(window.MarkdownLite.render(text, document, { onLink: openLink }));
                 return;
             } catch (err) {
@@ -180,15 +182,15 @@
             streamingBubble.className = 'ai-msg assistant';
             append(streamingBubble);
         }
-        if (text !== undefined) streamingBubble.textContent = text;
+        if (text !== undefined) fillMessage(streamingBubble, 'assistant', text);
         scrollMessagesToBottom();
         if (done) {
-            const finalText = (text ?? streamingBubble.textContent) || '';
-            streamingBubble.textContent = '';
+            const finalText = (text ?? streamingText) || '';
             fillMessage(streamingBubble, 'assistant', finalText);
             lastAssistantText = finalText;
             assistantBubblesThisTurn += 1;
             streamingBubble = null;
+            streamingText = '';
             scrollMessagesToBottom();
         }
     }
@@ -355,6 +357,7 @@
         els.input.value = '';
         assistantBubblesThisTurn = 0;
         lastAssistantText = '';
+        streamingText = '';
         setBusy(true);
         els.progress.textContent = 'Thinking…';
         try {
@@ -363,13 +366,14 @@
                 if (streamingBubble) {
                     streamingBubble.remove();
                     streamingBubble = null;
+                    streamingText = '';
                 }
                 addError(res.error);
             } else {
                 const answerText = (res.text || '').trim();
                 if (streamingBubble) {
                     // Finalize the in-progress streaming bubble with the complete text
-                    updateStreamingMessage(answerText || streamingBubble.textContent, true);
+                    updateStreamingMessage(answerText || streamingText, true);
                 } else if (assistantBubblesThisTurn === 0) {
                     // The answer normally arrives as an 'assistant_text' event. If it did not, show the
                     // returned text so the user is never left without a reply.
@@ -383,6 +387,7 @@
             if (streamingBubble) {
                 streamingBubble.remove();
                 streamingBubble = null;
+                streamingText = '';
             }
             addError({ kind: 'unexpected', message: 'Something went wrong talking to the assistant.' });
             console.error(err);
@@ -405,6 +410,7 @@
         if (ok) {
             steps.clear();
             streamingBubble = null;
+            streamingText = '';
             renderEmptyHint();
         }
     }
@@ -445,7 +451,10 @@
                 break;
             case 'assistant_delta':
                 clearRetryProgress();
-                if (event.text && busy) updateStreamingMessage((streamingBubble?.textContent || '') + event.text);
+                if (event.text && busy) {
+                    streamingText += event.text;
+                    updateStreamingMessage(streamingText);
+                }
                 break;
             case 'progress':
                 clearRetryProgress();
