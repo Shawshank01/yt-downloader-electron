@@ -435,6 +435,124 @@ test('OpenAI-compatible: request shape and tool call parsing', async () => {
     assert.deepEqual(reply.toolCalls[1].args, {});
 });
 
+test('OpenAI-compatible: streams response text deltas via SSE', async () => {
+    let capturedCall;
+    const chunks = [
+        'data: {"id":"c1","choices":[{"index":0,"delta":{"content":"hello "}}]}\n\n',
+        ': ping\n\n',
+        'data: {"id":"c1","choices":[{"index":0,"delta":{"content":"world!"}}]}\n\n',
+        'data: [DONE]\n\n'
+    ];
+    const fetchImpl = async (url, init) => {
+        capturedCall = { url, init, body: init.body ? JSON.parse(init.body) : undefined };
+        return {
+            ok: true,
+            status: 200,
+            body: new ReadableStream({
+                start(controller) {
+                    for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+                    controller.close();
+                }
+            })
+        };
+    };
+
+    const provider = new OpenAICompatibleProvider({
+        apiKey: 'key-123',
+        model: 'lfm-1.7b',
+        baseUrl: 'http://127.0.0.1:8080/v1',
+        fetchImpl
+    });
+
+    const deltas = [];
+    const reply = await provider.chat({
+        system: 'be brief',
+        messages: [{ role: 'user', text: 'hi' }],
+        onTextDelta: (d) => deltas.push(d)
+    });
+
+    assert.equal(capturedCall.url, 'http://127.0.0.1:8080/v1/chat/completions');
+    assert.equal(capturedCall.body.stream, true);
+    assert.deepEqual(deltas, ['hello ', 'world!']);
+    assert.equal(reply.text, 'hello world!');
+    assert.deepEqual(reply.toolCalls, []);
+});
+
+test('OpenAI-compatible: streams tool calls split across SSE chunks', async () => {
+    const chunks = [
+        'data: {"id":"c2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"list_formats","arguments":"{\\"url\\":"}}]}}]}\n\n',
+        'data: {"id":"c2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"https://x.test/v\\"}"}}]}}]}\n\n',
+        'data: {"id":"c2","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"id":"call_2","type":"function","function":{"name":"download_video","arguments":{"url":"https://x.test/2"}}}]}}]}\n\n',
+        'data: {"id":"c2","choices":[{"index":0,"delta":{}}]}\n\n',
+        'data: [DONE]\n\n'
+    ];
+    const fetchImpl = async () => ({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+            start(controller) {
+                for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+                controller.close();
+            }
+        })
+    });
+
+    const provider = new OpenAICompatibleProvider({
+        model: 'lfm-1.7b',
+        baseUrl: 'http://127.0.0.1:8080/v1',
+        fetchImpl
+    });
+
+    const reply = await provider.chat({
+        system: '',
+        messages: [{ role: 'user', text: 'get formats' }],
+        tools: TOOLS,
+        onTextDelta: () => { }
+    });
+
+    assert.equal(reply.toolCalls.length, 2);
+    assert.equal(reply.toolCalls[0].id, 'call_1');
+    assert.equal(reply.toolCalls[0].name, 'list_formats');
+    assert.deepEqual(reply.toolCalls[0].args, { url: 'https://x.test/v' });
+    assert.equal(reply.toolCalls[1].id, 'call_2');
+    assert.equal(reply.toolCalls[1].name, 'download_video');
+    assert.deepEqual(reply.toolCalls[1].args, { url: 'https://x.test/2' });
+});
+
+test('OpenAI-compatible: streaming error cases', async () => {
+    // Malformed JSON in SSE
+    const badJsonFetch = async () => ({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode('data: not json\n\n'));
+                controller.close();
+            }
+        })
+    });
+    const p1 = new OpenAICompatibleProvider({ model: 'm', fetchImpl: badJsonFetch });
+    const err1 = await p1.chat({ system: '', messages: [], onTextDelta: () => { } }).catch((e) => e);
+    assert.equal(err1.kind, 'bad_response');
+    assert.match(err1.message, /invalid streaming data/);
+
+    // Empty stream ([DONE] only)
+    const emptyFetch = async () => ({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+                controller.close();
+            }
+        })
+    });
+    const p2 = new OpenAICompatibleProvider({ model: 'm', fetchImpl: emptyFetch });
+    const err2 = await p2.chat({ system: '', messages: [], onTextDelta: () => { } }).catch((e) => e);
+    assert.equal(err2.kind, 'bad_response');
+    assert.match(err2.message, /returned no answer/);
+});
+
 const okReply = { json: { candidates: [{ content: { parts: [{ text: 'ok' }] } }] } };
 const busy503 = { status: 503, json: { error: { message: 'This model is currently experiencing high demand.' } } };
 const userMessages = [{ role: 'user', text: 'x' }];

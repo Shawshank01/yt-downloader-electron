@@ -1,6 +1,7 @@
 import { ProviderError } from '../errors.js';
 import { CONNECTION_TEST_TIMEOUT_MS, MODEL_REQUEST_TIMEOUT_MS } from '../limits.js';
-import { requestJson, DEFAULT_RETRIES } from './http.js';
+import { requestJson, requestStream, DEFAULT_RETRIES } from './http.js';
+import { isStreamable, parseStreamJson, readJsonBody, readSse } from './stream.js';
 
 export const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 
@@ -105,14 +106,125 @@ export class OpenAICompatibleProvider {
         return out;
     }
 
-    async chat({ system, messages, tools = [], signal, onRetry }) {
+    #toToolCalls(rawCalls = []) {
+        return rawCalls.map((call, index) => {
+            let args = {};
+            const rawArgs = call.function?.arguments ?? call.function?.args ?? call.arguments;
+            if (typeof rawArgs === 'string' && rawArgs.trim()) {
+                try {
+                    args = JSON.parse(rawArgs);
+                } catch {
+                    args = {};
+                }
+            } else if (rawArgs && typeof rawArgs === 'object') {
+                args = rawArgs;
+            }
+            return {
+                id: call.id || `openai-call-${Date.now()}-${index}`,
+                name: call.function?.name || call.name,
+                args
+            };
+        });
+    }
+
+    #toReply(data) {
+        const message = data.choices?.[0]?.message;
+        if (!message) {
+            throw new ProviderError(`${this.displayName} returned no answer.`, { kind: 'bad_response' });
+        }
+        return {
+            text: (message.content || '').trim(),
+            toolCalls: this.#toToolCalls(message.tool_calls || []),
+            raw: null
+        };
+    }
+
+    async #stream(request, signal, onTextDelta) {
+        const response = await requestStream(request);
+        if (!isStreamable(response)) {
+            return this.#toReply(await readJsonBody(response, this.displayName));
+        }
+
+        let text = '';
+        const toolCallsByIndex = [];
+        let hasAnyChunk = false;
+
+        await readSse(response, { signal, providerName: this.displayName }, (payload) => {
+            hasAnyChunk = true;
+            const chunk = parseStreamJson(payload, this.displayName);
+            const choice = chunk.choices?.[0];
+            if (!choice) return;
+
+            const delta = choice.delta;
+            if (!delta) return;
+
+            if (typeof delta.content === 'string' && delta.content) {
+                text += delta.content;
+                onTextDelta(delta.content);
+            } else if (Array.isArray(delta.content)) {
+                for (const part of delta.content) {
+                    const str = typeof part === 'string' ? part : part?.text || '';
+                    if (str) {
+                        text += str;
+                        onTextDelta(str);
+                    }
+                }
+            }
+
+            if (Array.isArray(delta.tool_calls)) {
+                for (const tc of delta.tool_calls) {
+                    let idx = typeof tc.index === 'number' ? tc.index : -1;
+                    if (idx === -1 && tc.id) {
+                        idx = toolCallsByIndex.findIndex((c) => c && c.id === tc.id);
+                    }
+                    if (idx === -1) {
+                        if (tc.function?.name && toolCallsByIndex.length > 0 && toolCallsByIndex[toolCallsByIndex.length - 1]?.name) {
+                            idx = toolCallsByIndex.length;
+                        } else {
+                            idx = Math.max(0, toolCallsByIndex.length - 1);
+                        }
+                    }
+
+                    if (!toolCallsByIndex[idx]) {
+                        toolCallsByIndex[idx] = {
+                            id: tc.id || '',
+                            name: tc.function?.name || '',
+                            arguments: ''
+                        };
+                    } else {
+                        if (tc.id) {
+                            toolCallsByIndex[idx].id = tc.id;
+                        }
+                        if (tc.function?.name && toolCallsByIndex[idx].name !== tc.function.name) {
+                            toolCallsByIndex[idx].name += tc.function.name;
+                        }
+                    }
+                    const argChunk = tc.function?.arguments ?? tc.function?.args;
+                    if (typeof argChunk === 'string') {
+                        toolCallsByIndex[idx].arguments += argChunk;
+                    } else if (argChunk && typeof argChunk === 'object') {
+                        toolCallsByIndex[idx].arguments = argChunk;
+                    }
+                }
+            }
+        });
+
+        if (!hasAnyChunk) {
+            throw new ProviderError(`${this.displayName} returned no answer.`, { kind: 'bad_response' });
+        }
+
+        const toolCalls = this.#toToolCalls(toolCallsByIndex.filter(Boolean));
+        return { text: text.trim(), toolCalls, raw: null };
+    }
+
+    async chat({ system, messages, tools = [], signal, onTextDelta, onRetry }) {
         if (!this.model) {
             throw new ProviderError('No model is configured for the OpenAI-compatible provider.', {
                 kind: 'bad_request'
             });
         }
 
-        const data = await requestJson({
+        const request = {
             fetchImpl: this.fetchImpl,
             providerName: this.displayName,
             url: `${this.baseUrl}/chat/completions`,
@@ -136,28 +248,14 @@ export class OpenAICompatibleProvider {
             retries: this.retries,
             retryDelayMs: this.retryDelayMs,
             onRetry
-        });
+        };
 
-        const message = data.choices?.[0]?.message;
-        if (!message) {
-            throw new ProviderError(`${this.displayName} returned no answer.`, { kind: 'bad_response' });
+        if (onTextDelta) {
+            request.body.stream = true;
+            return this.#stream(request, signal, onTextDelta);
         }
 
-        const toolCalls = (message.tool_calls || []).map((call, index) => {
-            let args = {};
-            const rawArgs = call.function?.arguments;
-            if (typeof rawArgs === 'string' && rawArgs.trim()) {
-                try { args = JSON.parse(rawArgs); } catch { args = {}; }
-            } else if (rawArgs && typeof rawArgs === 'object') {
-                args = rawArgs;
-            }
-            return {
-                id: call.id || `openai-call-${Date.now()}-${index}`,
-                name: call.function?.name,
-                args
-            };
-        });
-
-        return { text: (message.content || '').trim(), toolCalls, raw: null };
+        const data = await requestJson(request);
+        return this.#toReply(data);
     }
 }
