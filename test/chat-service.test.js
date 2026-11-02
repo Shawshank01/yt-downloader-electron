@@ -84,7 +84,7 @@ test('getSettings returns safe defaults and never includes API keys', async () =
     assert.equal(s.provider, 'gemini');
     assert.equal(s.confirmMode, 'risky');
     assert.equal(s.keyStorageSecure, true);
-    assert.equal(s.providers.gemini.model, 'gemini-3.8-flash');
+    assert.equal(s.providers.gemini.model, 'gemma-4-26b-a4b-it');
     assert.equal(s.providers.gemini.hasApiKey, true);
     assert.equal(s.providers.ollama.hasApiKey, false);
     assert.equal(s.providers.ollama.baseUrl, 'http://127.0.0.1:11434');
@@ -236,7 +236,7 @@ test('send: diagnostic log records the flow but never keys or message text', asy
     const folder = await tempDir();
     await service.send('my private question', { downloadFolder: folder });
     const log = lines.join('\n');
-    assert.match(log, /request started: provider=gemini model=gemini-3\.8-flash/);
+    assert.match(log, /request started: provider=gemini model=gemma-4-26b-a4b-it/);
     assert.match(log, /event: assistant_text/);
     assert.match(log, /request finished: done/);
     assert.ok(!log.includes(SECRET));

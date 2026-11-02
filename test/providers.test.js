@@ -35,9 +35,9 @@ function fakeFetch(responses) {
     return impl;
 }
 
-test('default Gemini model is gemini-3.8-flash', () => {
-    assert.equal(DEFAULT_GEMINI_MODEL, 'gemini-3.8-flash');
-    assert.equal(new GeminiProvider({ apiKey: 'k' }).model, 'gemini-3.8-flash');
+test('default Gemini model is gemma-4-26b-a4b-it', () => {
+    assert.equal(DEFAULT_GEMINI_MODEL, 'gemma-4-26b-a4b-it');
+    assert.equal(new GeminiProvider({ apiKey: 'k' }).model, 'gemma-4-26b-a4b-it');
 });
 
 test('Gemini: request shape, key in header (not URL), tool declarations, function call parsing', async () => {
@@ -46,7 +46,7 @@ test('Gemini: request shape, key in header (not URL), tool declarations, functio
             json: {
                 id: 'int_call_1',
                 status: 'requires_action',
-                model: 'gemini-3.8-flash',
+                model: 'gemma-4-26b-a4b-it',
                 steps: [
                     {
                         type: 'function_call',
@@ -72,7 +72,7 @@ test('Gemini: request shape, key in header (not URL), tool declarations, functio
     );
     assert.ok(!call.url.includes('SECRET'), 'API key must not be in the URL');
     assert.equal(call.init.headers['x-goog-api-key'], 'SECRET');
-    assert.equal(call.body.model, 'gemini-3.8-flash');
+    assert.equal(call.body.model, 'gemma-4-26b-a4b-it');
     assert.equal(call.body.system_instruction, 'be helpful');
     assert.equal(call.body.input, 'formats please');
     assert.equal(call.body.tools[0].type, 'function');
@@ -202,7 +202,7 @@ test('Gemini: error mapping (404 model, 429 quota, bad key, no key)', async () =
     const notFound = await run({ status: 404, json: { error: { message: 'models/x is not found' } } });
     assert.ok(notFound instanceof ProviderError);
     assert.equal(notFound.kind, 'not_found');
-    assert.match(notFound.message, /gemini-3\.8-flash/);
+    assert.match(notFound.message, /gemma-4-26b-a4b-it/);
     assert.match(notFound.message, /model ID/i);
 
     const quota = await run({ status: 429, json: { error: { message: 'quota' } } });
@@ -318,12 +318,12 @@ test('Gemini streaming captures tool arguments streamed via partial_arguments', 
 });
 
 test('Gemini: testConnection uses a free GET on the model', async () => {
-    const fetchImpl = fakeFetch([{ json: { name: 'models/gemini-3.8-flash', displayName: 'Gemini 3.8 Flash' } }]);
+    const fetchImpl = fakeFetch([{ json: { name: 'models/gemma-4-26b-a4b-it', displayName: 'Gemma 4 26B' } }]);
     const provider = new GeminiProvider({ apiKey: 'k', fetchImpl });
     const res = await provider.testConnection();
     assert.equal(res.ok, true);
     assert.equal(fetchImpl.calls[0].init.method, 'GET');
-    assert.match(res.message, /Gemini 3\.8 Flash/);
+    assert.match(res.message, /Gemma 4 26B/);
 });
 
 test('Ollama: request shape and tool call parsing (object and string arguments)', async () => {

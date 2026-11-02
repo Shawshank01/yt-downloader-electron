@@ -4,7 +4,7 @@ import { requestJson, requestStream, DEFAULT_RETRIES, DEFAULT_RETRY_DELAY_MS } f
 import { isStreamable, parseStreamJson, readJsonBody, readSse } from './stream.js';
 
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemma-4-26b-a4b-it';
 export const DEFAULT_GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 /**
