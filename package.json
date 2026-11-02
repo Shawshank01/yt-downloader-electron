@@ -66,6 +66,7 @@
   "build": {
     "appId": "com.ytdownloader.app",
     "productName": "YT Downloader",
+    "compression": "maximum",
     "artifactName": "YT-Downloader-${os}-${arch}-${version}.${ext}",
     "publish": {
       "provider": "github"
