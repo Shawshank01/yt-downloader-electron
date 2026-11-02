@@ -291,7 +291,7 @@ test('send: a busy server is retried, the UI is told, and the user gets the answ
     const lines = [];
     service.log = (line) => lines.push(line);
 
-    // Uses the real first retry delay (about 1.5 s).
+    // Uses the real first retry delay (about 3.0 s).
     const res = await service.send('hi', { downloadFolder: await tempDir() });
     assert.equal(res.ok, true);
     assert.equal(res.text, 'worked on the second try');

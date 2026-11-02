@@ -2,8 +2,11 @@ import { ProviderError, errorFromResponse } from '../errors.js';
 import { MODEL_REQUEST_TIMEOUT_MS } from '../limits.js';
 
 
-/** Default number of retries for model calls (so up to 3 attempts in total). */
-export const DEFAULT_RETRIES = 2;
+/** Default number of retries for model calls (so up to 2 attempts in total: 1 initial attempt + 1 retry). */
+export const DEFAULT_RETRIES = 1;
+
+/** Default delay in milliseconds before retrying transient failures (doubles with exponential backoff). */
+export const DEFAULT_RETRY_DELAY_MS = 3000;
 
 /** Wait `ms`, but stop immediately (with an "aborted" error) if the user cancels. */
 function sleep(ms, signal) {
@@ -116,7 +119,7 @@ async function withRetries(attempt, { retries, retryDelayMs, signal, onRetry }) 
  * @param {string} [opts.model]       Used for "model not found" messages.
  * @param {number} [opts.timeoutMs]
  * @param {number} [opts.retries]     How many times to retry after the first attempt. Default 0.
- * @param {number} [opts.retryDelayMs] Delay before the first retry; doubles each time. Default 1500.
+ * @param {number} [opts.retryDelayMs] Delay before the first retry; doubles each time. Default 3000.
  * @param {(info: {attempt: number, retries: number, delayMs: number, reason: string}) => void} [opts.onRetry]
  */
 export function requestJson({
@@ -130,7 +133,7 @@ export function requestJson({
     model,
     timeoutMs = 120000,
     retries = 0,
-    retryDelayMs = 1500,
+    retryDelayMs = DEFAULT_RETRY_DELAY_MS,
     onRetry
 }) {
     return withRetries(
@@ -156,7 +159,7 @@ export function requestStream({
     model,
     timeoutMs = MODEL_REQUEST_TIMEOUT_MS,
     retries = 0,
-    retryDelayMs = 1500,
+    retryDelayMs = DEFAULT_RETRY_DELAY_MS,
     onRetry
 }) {
     return withRetries(

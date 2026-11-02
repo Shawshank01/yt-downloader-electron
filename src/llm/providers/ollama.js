@@ -1,6 +1,6 @@
 import { ProviderError } from '../errors.js';
 import { CONNECTION_TEST_TIMEOUT_MS, LOCAL_MODEL_REQUEST_TIMEOUT_MS } from '../limits.js';
-import { requestJson, requestStream, DEFAULT_RETRIES } from './http.js';
+import { requestJson, requestStream, DEFAULT_RETRIES, DEFAULT_RETRY_DELAY_MS } from './http.js';
 import { isStreamable, parseStreamJson, readJsonBody, readNdjson } from './stream.js';
 
 export const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
@@ -14,7 +14,7 @@ export class OllamaProvider {
      * @param {string} [config.baseUrl]
      * @param {typeof fetch} [config.fetchImpl]
      */
-    constructor({ model, baseUrl, retries = DEFAULT_RETRIES, retryDelayMs = 1500, fetchImpl = globalThis.fetch } = {}) {
+    constructor({ model, baseUrl, retries = DEFAULT_RETRIES, retryDelayMs = DEFAULT_RETRY_DELAY_MS, fetchImpl = globalThis.fetch } = {}) {
         this.id = 'ollama';
         this.retries = retries;
         this.retryDelayMs = retryDelayMs;

@@ -1,6 +1,6 @@
 import { ProviderError } from '../errors.js';
 import { CONNECTION_TEST_TIMEOUT_MS, MODEL_REQUEST_TIMEOUT_MS } from '../limits.js';
-import { requestJson, requestStream, DEFAULT_RETRIES } from './http.js';
+import { requestJson, requestStream, DEFAULT_RETRIES, DEFAULT_RETRY_DELAY_MS } from './http.js';
 import { isStreamable, parseStreamJson, readJsonBody, readSse } from './stream.js';
 
 
@@ -49,7 +49,7 @@ export class GeminiProvider {
      * @param {number} [config.retryDelayMs]
      * @param {typeof fetch} [config.fetchImpl]
      */
-    constructor({ apiKey, model, baseUrl, thinkingLevel, retries = DEFAULT_RETRIES, retryDelayMs = 1500, fetchImpl = globalThis.fetch } = {}) {
+    constructor({ apiKey, model, baseUrl, thinkingLevel, retries = DEFAULT_RETRIES, retryDelayMs = DEFAULT_RETRY_DELAY_MS, fetchImpl = globalThis.fetch } = {}) {
         this.id = 'gemini';
         this.retries = retries;
         this.retryDelayMs = retryDelayMs;

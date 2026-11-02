@@ -6,7 +6,7 @@ import { OllamaProvider } from '../src/llm/providers/ollama.js';
 import { OpenAICompatibleProvider } from '../src/llm/providers/openai-compatible.js';
 import { createProvider } from '../src/llm/providers/index.js';
 import { ProviderError } from '../src/llm/errors.js';
-import { requestJson, DEFAULT_RETRIES } from '../src/llm/providers/http.js';
+import { requestJson, DEFAULT_RETRIES, DEFAULT_RETRY_DELAY_MS } from '../src/llm/providers/http.js';
 
 const TOOLS = [
     {
@@ -567,7 +567,23 @@ test('retry: a temporary 503 is retried automatically and then succeeds', async 
     assert.deepEqual(retries.map((r) => r.attempt), Array.from({ length: DEFAULT_RETRIES }, (_, i) => i + 1));
     assert.equal(retries[0].reason, 'HTTP 503');
     assert.equal(retries[0].retries, DEFAULT_RETRIES);
+});
+
+test('retry: delay doubles when multiple retries are configured', async () => {
+    const fetchImpl = fakeFetch([busy503, busy503, okReply]);
+    const retries = [];
+    const provider = new GeminiProvider({ apiKey: 'k', retries: 2, retryDelayMs: 10, fetchImpl });
+    await provider.chat({ system: '', messages: userMessages, onRetry: (i) => retries.push(i) });
+    assert.equal(retries.length, 2);
     assert.equal(retries[1].delayMs, retries[0].delayMs * 2, 'delay doubles each time');
+});
+
+test('retry: defaults to 1 retry and 3000 ms backoff', () => {
+    assert.equal(DEFAULT_RETRIES, 1);
+    assert.equal(DEFAULT_RETRY_DELAY_MS, 3000);
+    const provider = new GeminiProvider({ apiKey: 'k' });
+    assert.equal(provider.retries, 1);
+    assert.equal(provider.retryDelayMs, 3000);
 });
 
 test('retry: gives up after the retry limit with an actionable message', async () => {

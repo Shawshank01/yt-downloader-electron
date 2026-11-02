@@ -1,6 +1,6 @@
 import { ProviderError } from '../errors.js';
 import { CONNECTION_TEST_TIMEOUT_MS, MODEL_REQUEST_TIMEOUT_MS } from '../limits.js';
-import { requestJson, requestStream, DEFAULT_RETRIES } from './http.js';
+import { requestJson, requestStream, DEFAULT_RETRIES, DEFAULT_RETRY_DELAY_MS } from './http.js';
 import { isStreamable, parseStreamJson, readJsonBody, readSse } from './stream.js';
 
 export const DEFAULT_XAI_BASE_URL = 'https://api.x.ai/v1';
@@ -23,7 +23,7 @@ export class XaiProvider {
         model = DEFAULT_XAI_MODEL,
         reasoningEffort = 'none',
         retries = DEFAULT_RETRIES,
-        retryDelayMs = 1500,
+        retryDelayMs = DEFAULT_RETRY_DELAY_MS,
         fetchImpl = globalThis.fetch
     } = {}) {
         this.id = 'xai';

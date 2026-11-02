@@ -128,7 +128,7 @@ Call model, run requested tools **one at a time** (the app allows one yt-dlp/ffm
 
 **Ollama**: `/api/chat`, needs a tool-capable model, streamed NDJSON. Unsupported-tools and unreachable-server errors are turned into actionable messages for both streaming and non-streaming calls. lfm3:1.7b has passed testing.
 
-**Retries** (`providers/http.js`): `DEFAULT_RETRIES` is **2** (up to 3 attempts), 1.5 s doubling, only for HTTP 500/502/503/504 and connection errors; not for 4xx, 429 or a request that already hit its timeout. They apply to requests before a streamed response starts. Cancelling during the wait stops immediately. The UI shows "retrying". Tests derive their expectations from `DEFAULT_RETRIES`.
+**Retries** (`providers/http.js`): `DEFAULT_RETRIES` is **1** (up to 2 attempts), 3.0 s backoff, only for HTTP 500/502/503/504 and connection errors; not for 4xx, 429 or a request that already hit its timeout. They apply to requests before a streamed response starts. Cancelling during the wait stops immediately. The UI shows "retrying". Tests derive their expectations from `DEFAULT_RETRIES`.
 
 ## 6. Where data lives
 
