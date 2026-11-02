@@ -293,6 +293,7 @@ test/                  automated tests (136 unit tests, node:test runner)
 
 ## Credits
 
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - The core download engine
-- [FFmpeg](https://ffmpeg.org/) - For video processing
+- [Deno](https://deno.com/) - JavaScript runtime for yt-dlp's EJS challenge solver
 - [Electron](https://www.electronjs.org/) - For the desktop application framework
+- [FFmpeg](https://ffmpeg.org/) - For media processing
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - The core download engine
