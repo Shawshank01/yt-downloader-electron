@@ -561,6 +561,11 @@ body[data-mode='ai'] .ai-panel {
     text-overflow: ellipsis;
 }
 
+.ai-progress.retrying {
+    color: #ffa726;
+    transition: color 0.15s ease;
+}
+
 .ai-composer {
     display: flex;
     gap: 10px;

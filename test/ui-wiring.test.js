@@ -78,3 +78,12 @@ test('model text is never rendered as HTML', () => {
 test('the AI UI sends only the three context fields the main process validates', () => {
     assert.match(aiUi, /downloadFolder:[\s\S]*browser:[\s\S]*proxy:/);
 });
+
+test('retry countdown and in-progress status update in real time with styled indicator', () => {
+    assert.match(aiUi, /function startRetryProgress/);
+    assert.match(aiUi, /function clearRetryProgress/);
+    assert.match(aiUi, /Retrying in \$\{secondsLeft\} s/);
+    assert.match(aiUi, /Retrying now/);
+    assert.match(css, /\.ai-progress\.retrying\s*\{/);
+});
+

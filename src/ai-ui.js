@@ -80,6 +80,7 @@
     let assistantBubblesThisTurn = 0;
     let streamingBubble = null;
     let lastAssistantText = '';
+    let retryTimer = null;
     const steps = new Map(); // tool call id -> { el, detailEl, description }
 
     // ------------------------------------------------------------------ helpers
@@ -272,6 +273,37 @@
 
     // ------------------------------------------------------------------ chat
 
+    function clearRetryProgress() {
+        if (retryTimer) {
+            clearInterval(retryTimer);
+            retryTimer = null;
+            els.progress.textContent = '';
+        }
+        els.progress.classList.remove('retrying');
+    }
+
+    function startRetryProgress(event) {
+        clearRetryProgress();
+        els.progress.classList.add('retrying');
+        const startTime = Date.now();
+        const deadline = startTime + Math.max(0, event.delayMs || 0);
+
+        function tick() {
+            const now = Date.now();
+            if (now < deadline) {
+                const secondsLeft = Math.max(1, Math.ceil((deadline - now) / 1000));
+                els.progress.textContent = `${event.provider} is busy (${event.reason}). Retrying in ${secondsLeft} s (attempt ${event.attempt} of ${event.retries})\u2026`;
+            } else {
+                const elapsedSinceRetry = Math.floor((now - deadline) / 1000);
+                const elapsedText = elapsedSinceRetry > 0 ? ` (${elapsedSinceRetry}s)` : '';
+                els.progress.textContent = `${event.provider} is busy (${event.reason}). Retrying now (attempt ${event.attempt} of ${event.retries})\u2026${elapsedText}`;
+            }
+        }
+
+        tick();
+        retryTimer = setInterval(tick, 250);
+    }
+
     function setBusy(value) {
         busy = value;
         els.sendBtn.disabled = value;
@@ -281,6 +313,7 @@
         els.stopBtn.disabled = false;
         els.stopBtn.textContent = 'Stop';
         if (!value) {
+            clearRetryProgress();
             els.progress.textContent = '';
             hideConfirm();
             els.input.focus();
@@ -317,6 +350,7 @@
         const text = els.input.value.trim();
         if (!text || busy) return;
 
+        clearRetryProgress();
         addMessage('user', text);
         els.input.value = '';
         assistantBubblesThisTurn = 0;
@@ -358,6 +392,7 @@
     }
 
     async function stop() {
+        clearRetryProgress();
         els.stopBtn.disabled = true;
         els.stopBtn.textContent = 'Stopping…';
         hideConfirm();
@@ -395,6 +430,7 @@
     function handleEvent(event) {
         switch (event.type) {
             case 'assistant_text':
+                clearRetryProgress();
                 if (event.text) {
                     const text = event.text.trim();
                     if (streamingBubble) {
@@ -408,15 +444,18 @@
                 }
                 break;
             case 'assistant_delta':
+                clearRetryProgress();
                 if (event.text && busy) updateStreamingMessage((streamingBubble?.textContent || '') + event.text);
                 break;
             case 'progress':
+                clearRetryProgress();
                 els.progress.textContent = event.text;
                 break;
             case 'retrying':
-                els.progress.textContent = `${event.provider} is busy (${event.reason}). Retrying in ${Math.round(event.delayMs / 1000)} s (attempt ${event.attempt} of ${event.retries})\u2026`;
+                startRetryProgress(event);
                 break;
             case 'tool_start': {
+                clearRetryProgress();
                 const el = document.createElement('div');
                 el.className = 'ai-step running';
                 const title = document.createElement('div');
@@ -429,6 +468,7 @@
                 break;
             }
             case 'tool_result': {
+                clearRetryProgress();
                 const step = steps.get(event.id);
                 if (!step) break;
                 const failed = !event.ok || event.cancelled;
@@ -440,6 +480,7 @@
                 break;
             }
             case 'tool_denied': {
+                clearRetryProgress();
                 const el = document.createElement('div');
                 el.className = 'ai-step denied';
                 el.textContent = `⊘ Declined: ${event.description}`;
@@ -448,6 +489,7 @@
                 break;
             }
             case 'confirm_request':
+                clearRetryProgress();
                 showConfirm(event);
                 break;
             default:
