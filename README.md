@@ -19,7 +19,7 @@ AI Mode UI
 
 ## Features
 
-- **Classic / AI mode switch**: Use the form, or just describe what you want (see [AI mode](#ai-mode) below)
+- **Classic / AI mode switch**: Use the form, or just describe what you want (see [AI mode](#ai-mode-usage) below)
 - Download videos in various formats and qualities
 - Real-time download progress info
 - Custom download folder selection
