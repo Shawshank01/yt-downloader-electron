@@ -405,6 +405,54 @@ function hideCancelButton() {
     }
 }
 
+// Classic mode download progress bar from yt-dlp stdout lines
+function updateDownloadProgress(text) {
+    const container = document.getElementById('classicProgressBarContainer');
+    if (!container || !text) return;
+
+    // Look for yt-dlp download progress format: [download]  45.2% of ~145.2MiB at 32.4MiB/s ETA 00:03
+    const match = text.match(/\[download\]\s+([\d.]+)%(?:\s+of\s+([^\s]+))?(?:\s+at\s+([^\s]+))?(?:\s+ETA\s+([^\s\r\n]+))?/i);
+    if (match) {
+        container.style.display = 'block';
+        const pct = parseFloat(match[1]);
+        const size = match[2] || '';
+        const speed = match[3] || '';
+        const eta = match[4] || '';
+
+        const fill = document.getElementById('classicProgressBarFill');
+        const percentEl = document.getElementById('classicProgressPercent');
+        const statusEl = document.getElementById('classicProgressStatus');
+        const etaEl = document.getElementById('classicProgressEta');
+
+        if (fill) fill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+        if (percentEl) percentEl.textContent = pct.toFixed(1) + '%';
+        if (statusEl) {
+            let statusText = '';
+            if (size) statusText += size;
+            if (speed) statusText += (statusText ? ' • ' : '') + speed;
+            statusEl.textContent = statusText;
+        }
+        if (etaEl) {
+            etaEl.textContent = eta ? `ETA ${eta}` : '';
+        }
+    }
+}
+
+function resetDownloadProgress() {
+    const container = document.getElementById('classicProgressBarContainer');
+    if (container) {
+        container.style.display = 'none';
+        const fill = document.getElementById('classicProgressBarFill');
+        if (fill) fill.style.width = '0%';
+        const percentEl = document.getElementById('classicProgressPercent');
+        if (percentEl) percentEl.textContent = '0%';
+        const statusEl = document.getElementById('classicProgressStatus');
+        if (statusEl) statusEl.textContent = '';
+        const etaEl = document.getElementById('classicProgressEta');
+        if (etaEl) etaEl.textContent = '';
+    }
+}
+
 // Render status banner with CSS classes
 function renderStatusBanner(status, message) {
     const outputElement = document.getElementById('output');
@@ -702,11 +750,13 @@ window.runCommand = async function () {
 
     progressHandler = window.electronAPI.onProgress((progress) => {
         outputElement.textContent = commandLine + '\n' + progress;
+        updateDownloadProgress(progress);
     });
 
     outputElement.textContent = commandLine + '\n';
     console.log('Running command:', args);
 
+    resetDownloadProgress();
     showCancelButton();
 
     try {
@@ -746,14 +796,23 @@ window.runCommand = async function () {
         } else if (action !== 'List Formats') {
             if (isCancelled) {
                 renderStatusBanner('cancelled', '❌ Download canceled!');
+                resetDownloadProgress();
             } else if (isError) {
                 renderStatusBanner('error', '❌ Download failed!');
+                resetDownloadProgress();
             } else {
                 renderStatusBanner('success', '✅ Download completed!');
+                const fill = document.getElementById('classicProgressBarFill');
+                if (fill && fill.style.width !== '0%') {
+                    fill.style.width = '100%';
+                    const percentEl = document.getElementById('classicProgressPercent');
+                    if (percentEl) percentEl.textContent = '100%';
+                }
             }
         }
     } catch (e) {
         outputElement.textContent += '\nError: ' + (e?.message || e);
+        resetDownloadProgress();
         if (isCookiePermissionError(e?.message || e, '')) {
             renderStatusBanner('error', '❌ Files & Folders permission required to read cookies');
             await handleCookiePermissionError(browser);

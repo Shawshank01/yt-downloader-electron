@@ -80,7 +80,30 @@ function createWindow() {
     win.maximize();
 }
 
-app.whenReady().then(createWindow).catch(console.error);
+let asyncEncryptionAvailable = null;
+
+async function initSafeStorageAvailability() {
+    if (typeof safeStorage.isAsyncEncryptionAvailable === 'function') {
+        try {
+            asyncEncryptionAvailable = await safeStorage.isAsyncEncryptionAvailable();
+        } catch {
+            asyncEncryptionAvailable = false;
+        }
+    } else if (typeof safeStorage.isEncryptionAvailable === 'function') {
+        try {
+            asyncEncryptionAvailable = safeStorage.isEncryptionAvailable();
+        } catch {
+            asyncEncryptionAvailable = false;
+        }
+    } else {
+        asyncEncryptionAvailable = false;
+    }
+}
+
+app.whenReady().then(async () => {
+    await initSafeStorageAvailability();
+    createWindow();
+}).catch(console.error);
 
 // IPC handler for folder picker
 ipcMain.handle('choose-folder', async () => {
@@ -147,14 +170,32 @@ function getChatService() {
                 // On Linux without a keyring Electron falls back to a hard-coded password ("basic_text"),
                 // which is not real protection, so treat that as unavailable.
                 isAvailable: () => {
-                    if (!safeStorage.isEncryptionAvailable()) return false;
+                    if (asyncEncryptionAvailable !== null) {
+                        if (!asyncEncryptionAvailable) return false;
+                    } else if (typeof safeStorage.isAsyncEncryptionAvailable === 'function') {
+                        // Modern Electron supports async encryption; avoid calling deprecated sync method
+                        return true;
+                    } else if (typeof safeStorage.isEncryptionAvailable === 'function') {
+                        if (!safeStorage.isEncryptionAvailable()) return false;
+                    }
                     if (process.platform === 'linux' && typeof safeStorage.getSelectedStorageBackend === 'function') {
                         return safeStorage.getSelectedStorageBackend() !== 'basic_text';
                     }
                     return true;
                 },
-                encrypt: (plain) => safeStorage.encryptString(plain),
-                decrypt: (encrypted) => safeStorage.decryptString(encrypted)
+                encrypt: async (plain) => {
+                    if (typeof safeStorage.encryptStringAsync === 'function') {
+                        return safeStorage.encryptStringAsync(plain);
+                    }
+                    return safeStorage.encryptString(plain);
+                },
+                decrypt: async (encrypted) => {
+                    if (typeof safeStorage.decryptStringAsync === 'function') {
+                        const res = await safeStorage.decryptStringAsync(encrypted);
+                        return typeof res === 'object' && res !== null ? res.result : res;
+                    }
+                    return safeStorage.decryptString(encrypted);
+                }
             }
         });
 

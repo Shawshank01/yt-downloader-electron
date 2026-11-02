@@ -11,7 +11,16 @@
     <div class="container">
         <div class="app-header">
             <div class="header-top">
-                <h1>YT-DLP Downloader</h1>
+                <div class="header-brand">
+                    <div class="brand-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                    </div>
+                    <h1>YT-DLP Downloader</h1>
+                </div>
                 <div class="header-controls">
                     <span id="modeNotice" class="mode-notice" role="status"></span>
                     <div class="mode-switch" role="group" aria-label="Interface mode">
@@ -84,11 +93,12 @@
                     </div>
 
                     <div class="input-group run-button-group classic-only">
+                        <span class="run-label-spacer" aria-hidden="true">&nbsp;</span>
                         <button class="run-button" onclick="window.runCommand()">Run</button>
                     </div>
                 </div>
 
-                <div class="input-row">
+                <div class="input-row conditional-row">
                     <div class="input-group short-input classic-only" id="formatCodeGroup" style="display: none">
                         <label for="formatCode">Format Code:</label>
                         <input type="text" id="formatCode" placeholder="e.g., 140, 356, or 140+356" />
@@ -113,14 +123,33 @@
                 </div>
             </div>
 
-            <div id="cancelActionControls" class="classic-only" style="display: none; margin-bottom: 10px;">
-                <button id="cancelActionBtn"
-                    style="background-color: #d32f2f; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">Cancel
-                    Action</button>
+            <div id="cancelActionControls" class="classic-only" style="display: none;">
+                <button id="cancelActionBtn">Cancel Action</button>
             </div>
         </div>
 
-        <div id="output" class="classic-only" role="log" aria-label="Command output"></div>
+        <!-- Classic Mode Download Progress Bar -->
+        <div id="classicProgressBarContainer" class="classic-progress-container classic-only" style="display: none;">
+            <div class="classic-progress-info">
+                <span class="classic-progress-title">Download Progress:</span>
+                <span id="classicProgressStatus" class="classic-progress-status"></span>
+                <span id="classicProgressEta" class="classic-progress-eta"></span>
+                <span id="classicProgressPercent" class="classic-progress-percent">0%</span>
+            </div>
+            <div class="classic-progress-track">
+                <div id="classicProgressBarFill" class="classic-progress-fill" style="width: 0%;"></div>
+            </div>
+        </div>
+
+        <div class="output-card classic-only">
+            <div class="output-header">
+                <div class="output-header-title">
+                    <span class="output-dot"></span>
+                    <span>Process Output Log</span>
+                </div>
+            </div>
+            <div id="output" class="classic-only" role="log" aria-label="Command output"></div>
+        </div>
 
         <!-- AI assistant panel (shown in AI mode) -->
         <section id="aiPanel" class="ai-panel" aria-label="AI assistant">
@@ -208,8 +237,7 @@
                 <div class="modal-buttons">
                     <button type="button" id="aiTestBtn">Test connection</button>
                     <button type="button" id="aiSettingsCancelBtn">Cancel</button>
-                    <button type="button" id="aiSettingsSaveBtn" class="run-button"
-                        style="padding: 10px 20px; font-weight: 500;">Save</button>
+                    <button type="button" id="aiSettingsSaveBtn" class="run-button">Save</button>
                 </div>
             </div>
         </div>
@@ -223,8 +251,7 @@
                 <div id="aiConfirmRisk" class="ai-confirm-risk"></div>
                 <div class="modal-buttons">
                     <button type="button" class="cancel-btn" id="aiConfirmDenyBtn">Deny</button>
-                    <button type="button" class="run-button" id="aiConfirmAllowBtn"
-                        style="padding: 10px 20px; font-weight: 500;">Allow</button>
+                    <button type="button" class="run-button" id="aiConfirmAllowBtn">Allow</button>
                 </div>
             </div>
         </div>
@@ -247,10 +274,9 @@
                 <p id="cleanupMessage" style="text-align: center; margin-bottom: 20px;">Re-encoding completed
                     successfully. Do you want to delete the temporary downloaded files (original video and thumbnail)?
                 </p>
-                <div class="modal-buttons" style="gap: 10px;">
+                <div class="modal-buttons">
                     <button class="cancel-btn" id="deleteFilesBtn">Delete Files</button>
-                    <button class="run-button" id="keepFilesBtn" style="padding: 10px 20px; font-weight: 500;">Keep
-                        Files</button>
+                    <button class="run-button" id="keepFilesBtn">Keep Files</button>
                 </div>
             </div>
         </div>
@@ -262,10 +288,9 @@
                 <div id="confirmMessage"
                     style="text-align: left; margin-bottom: 20px; white-space: pre-wrap; line-height: 1.5; max-height: 50vh; overflow-y: auto;">
                 </div>
-                <div class="modal-buttons" style="gap: 10px;">
+                <div class="modal-buttons">
                     <button class="cancel-btn" id="confirmCancelBtn">Cancel</button>
-                    <button class="run-button" id="confirmAcceptBtn"
-                        style="padding: 10px 20px; font-weight: 500;">Confirm</button>
+                    <button class="run-button" id="confirmAcceptBtn">Confirm</button>
                 </div>
             </div>
         </div>

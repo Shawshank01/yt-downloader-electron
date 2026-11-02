@@ -57,7 +57,8 @@ export class KeyStore {
         const encoded = data[providerType];
         if (typeof encoded !== 'string' || !encoded) return '';
         try {
-            return this.crypto.decrypt(Buffer.from(encoded, 'base64'));
+            const decrypted = this.crypto.decrypt(Buffer.from(encoded, 'base64'));
+            return decrypted instanceof Promise ? await decrypted : decrypted;
         } catch {
             // Unreadable (e.g. different OS user or keychain reset). Treat as "no key".
             return '';
@@ -94,7 +95,9 @@ export class KeyStore {
             return { persisted: false };
         }
         const data = await this.#readFile();
-        data[providerType] = this.crypto.encrypt(key).toString('base64');
+        const encrypted = this.crypto.encrypt(key);
+        const buf = encrypted instanceof Promise ? await encrypted : encrypted;
+        data[providerType] = Buffer.from(buf).toString('base64');
         await this.#writeFile(data);
         this.sessionKeys.delete(providerType);
         return { persisted: true };

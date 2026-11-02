@@ -87,3 +87,11 @@ test('retry countdown and in-progress status update in real time with styled ind
     assert.match(css, /\.ai-progress\.retrying\s*\{/);
 });
 
+test('classic download progress bar and #019D9C theme styling are present', () => {
+    assert.match(css, /--run-button-bg:\s*#019D9C;/);
+    assert.match(css, /\.classic-progress-container\s*\{/);
+    assert.match(css, /\.classic-progress-fill\s*\{/);
+    assert.match(html, /id="classicProgressBarContainer"[^>]*class="[^"]*classic-only/);
+});
+
+
