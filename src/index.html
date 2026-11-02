@@ -12,13 +12,13 @@
         <div class="app-header">
             <div class="header-top">
                 <div class="header-brand">
-                    <div class="brand-icon">
+                    <button type="button" id="appInfoBtn" class="brand-icon" aria-label="About YT-DLP Downloader" title="About YT-DLP Downloader">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="7 10 12 15 17 10"></polyline>
                             <line x1="12" y1="15" x2="12" y2="3"></line>
                         </svg>
-                    </div>
+                    </button>
                     <h1>YT-DLP Downloader</h1>
                 </div>
                 <div class="header-controls">
@@ -295,10 +295,67 @@
             </div>
         </div>
 
-        <footer class="app-footer">
-            <button type="button" id="checkUpdateBtn" class="update-button" onclick="checkUpdate()">Check for
-                Updates</button>
-        </footer>
+        <!-- App Info / About Modal -->
+        <div id="appInfoModal" class="modal" style="display: none;" role="dialog" aria-modal="true"
+            aria-labelledby="appInfoTitle">
+            <div class="modal-content app-info-modal">
+                <div class="app-info-header">
+                    <div class="app-info-brand">
+                        <div class="brand-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                        </div>
+                        <div class="app-info-title-group">
+                            <h2 id="appInfoTitle">YT-DLP Downloader</h2>
+                            <span id="appInfoVersion" class="app-info-badge">v4.3.0</span>
+                        </div>
+                    </div>
+                    <button type="button" class="modal-close-btn" id="appInfoCloseBtn" aria-label="Close">&times;</button>
+                </div>
+
+                <div class="app-info-body">
+                    <div class="app-info-section">
+                        <div class="app-info-row">
+                            <span class="app-info-label">Developer</span>
+                            <span class="app-info-value">Michifumi</span>
+                        </div>
+                        <div class="app-info-row">
+                            <span class="app-info-label">GitHub</span>
+                            <a href="https://github.com/Shawshank01/yt-downloader-electron" id="appInfoGithubLink" class="app-info-link" target="_blank" rel="noopener noreferrer" title="https://github.com/Shawshank01/yt-downloader-electron">Shawshank01/yt-downloader-electron</a>
+                        </div>
+                    </div>
+
+                    <div class="app-info-section">
+                        <div class="app-info-section-title">Bundled Tool Versions</div>
+                        <div class="app-info-grid" id="bundledToolsGrid">
+                            <div class="app-info-row">
+                                <span class="app-info-label">yt-dlp</span>
+                                <span class="app-info-value" id="toolVerYtdlp">2026.10.26</span>
+                            </div>
+                            <div class="app-info-row">
+                                <span class="app-info-label">FFmpeg</span>
+                                <span class="app-info-value" id="toolVerFfmpeg">9.0.2</span>
+                            </div>
+                            <div class="app-info-row">
+                                <span class="app-info-label">Deno</span>
+                                <span class="app-info-value" id="toolVerDeno">2.9.8</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="depCheckResult" class="app-info-dep-result" style="display: none;"></div>
+                </div>
+
+                <div class="modal-buttons app-info-actions">
+                    <button type="button" id="checkDependenciesBtn" class="dep-check-btn" style="display: none;">Check Dependencies</button>
+                    <button type="button" id="checkUpdateBtn" class="update-button" onclick="checkUpdate()">Check for Updates</button>
+                    <button type="button" class="cancel-btn" id="appInfoDoneBtn">Close</button>
+                </div>
+            </div>
+        </div>
     </div>
     <script src="renderer.js"></script>
     <script src="markdown.js"></script>

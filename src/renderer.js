@@ -1238,6 +1238,113 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.electronAPI?.setSettings({ proxyAddress: proxyInput.value.trim() }).catch(console.error);
         });
     }
+
+    // App Info / About modal setup
+    const appInfoBtn = document.getElementById('appInfoBtn');
+    const appInfoModal = document.getElementById('appInfoModal');
+    const appInfoCloseBtn = document.getElementById('appInfoCloseBtn');
+    const appInfoDoneBtn = document.getElementById('appInfoDoneBtn');
+    const checkDependenciesBtn = document.getElementById('checkDependenciesBtn');
+    const depCheckResult = document.getElementById('depCheckResult');
+    const appInfoGithubLink = document.getElementById('appInfoGithubLink');
+
+    if (appInfoGithubLink) {
+        appInfoGithubLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            const targetUrl = appInfoGithubLink.getAttribute('href') || 'https://github.com/Shawshank01/yt-downloader-electron';
+            if (window.electronAPI?.openExternal) {
+                window.electronAPI.openExternal(targetUrl);
+            }
+        });
+    }
+
+    async function loadAppInfo() {
+        if (!window.electronAPI?.getAppInfo) return;
+        try {
+            const info = await window.electronAPI.getAppInfo();
+            if (info) {
+                const versionBadge = document.getElementById('appInfoVersion');
+                if (versionBadge && info.version) versionBadge.textContent = `v${info.version}`;
+                if (info.bundledTools) {
+                    const ytEl = document.getElementById('toolVerYtdlp');
+                    if (ytEl && info.bundledTools['yt-dlp']) ytEl.textContent = info.bundledTools['yt-dlp'];
+                    const ffmpegEl = document.getElementById('toolVerFfmpeg');
+                    if (ffmpegEl && info.bundledTools.ffmpeg) ffmpegEl.textContent = info.bundledTools.ffmpeg;
+                    const denoEl = document.getElementById('toolVerDeno');
+                    if (denoEl && info.bundledTools.deno) denoEl.textContent = info.bundledTools.deno;
+                }
+                // Only show "Check Dependencies" when NOT packaged (i.e. dev run / pn start)
+                if (checkDependenciesBtn) {
+                    checkDependenciesBtn.style.display = info.isPackaged ? 'none' : '';
+                }
+            }
+        } catch (err) {
+            console.error('Failed to load app info:', err);
+        }
+    }
+
+    if (appInfoBtn && appInfoModal) {
+        appInfoBtn.addEventListener('click', async () => {
+            await loadAppInfo();
+            appInfoModal.style.display = 'flex';
+        });
+
+        const closeInfoModal = () => {
+            appInfoModal.style.display = 'none';
+        };
+
+        if (appInfoCloseBtn) appInfoCloseBtn.addEventListener('click', closeInfoModal);
+        if (appInfoDoneBtn) appInfoDoneBtn.addEventListener('click', closeInfoModal);
+
+        appInfoModal.addEventListener('click', (e) => {
+            if (e.target === appInfoModal) closeInfoModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && appInfoModal.style.display === 'flex') {
+                closeInfoModal();
+            }
+        });
+    }
+
+    if (checkDependenciesBtn && depCheckResult) {
+        checkDependenciesBtn.addEventListener('click', async () => {
+            checkDependenciesBtn.disabled = true;
+            checkDependenciesBtn.textContent = 'Checking…';
+            depCheckResult.style.display = 'block';
+            depCheckResult.textContent = 'Checking system dependencies…';
+
+            try {
+                const res = await window.electronAPI.checkDependencies();
+                if (!res || !res.success) {
+                    depCheckResult.textContent = `❌ ${res?.message || 'Failed to check dependencies.'}`;
+                } else {
+                    const lines = [];
+                    for (const dep of res.dependencies || []) {
+                        if (dep.installed) {
+                            lines.push(`✅ ${dep.name}: ${dep.version}`);
+                            if (dep.name === 'ffmpeg' && dep.hasSubtitlesFilter === false) {
+                                lines.push('   ⚠️ Warning: Missing subtitles filter (libass). Hardsubbing disabled.');
+                            }
+                        } else {
+                            lines.push(`❌ ${dep.name}: Not installed`);
+                        }
+                    }
+                    if (res.allInstalled) {
+                        lines.push('\n🎉 All system dependencies are satisfied!');
+                    } else if (res.missing && res.missing.length > 0) {
+                        lines.push(`\n⚠️ Missing dependencies: ${res.missing.join(', ')}`);
+                    }
+                    depCheckResult.textContent = lines.join('\n');
+                }
+            } catch (err) {
+                depCheckResult.textContent = `❌ Error: ${err.message}`;
+            } finally {
+                checkDependenciesBtn.disabled = false;
+                checkDependenciesBtn.textContent = 'Check Dependencies';
+            }
+        });
+    }
 });
 
 // Show asynchronous confirmation modal and return boolean without freezing UI thread

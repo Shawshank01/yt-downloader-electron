@@ -106,6 +106,29 @@ interface ElectronAPI {
         message?: string;
     }>;
     getCurrentVersion: () => Promise<string>;
+    getAppInfo: () => Promise<{
+        name: string;
+        version: string;
+        developer: string;
+        isPackaged: boolean;
+        bundledTools: Record<string, string>;
+        platform: string;
+    }>;
+    checkDependencies: () => Promise<{
+        success: boolean;
+        allInstalled?: boolean;
+        dependencies?: Array<{
+            name: string;
+            installed: boolean;
+            path: string;
+            version: string;
+            hasSubtitlesFilter?: boolean;
+        }>;
+        missing?: string[];
+        packageManagers?: Record<string, unknown>;
+        platform?: string;
+        message?: string;
+    }>;
     isAutoUpdaterSupported: () => Promise<boolean>;
     reEncodeToMp4: (downloadFolder: string, videoId: string) => Promise<{
         success: boolean;

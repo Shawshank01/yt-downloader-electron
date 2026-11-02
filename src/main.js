@@ -1,10 +1,12 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { readFileSync } from 'fs';
 
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
 import {
-    setupEnvironmentPaths
+    setupEnvironmentPaths,
+    checkSystemDependencies
 } from './dependencies.js';
 import {
     cancelCurrentTask,
@@ -143,6 +145,28 @@ ipcMain.handle('open-external', async (_event, url) => {
 ipcMain.handle('check-app-update', checkAppUpdate);
 ipcMain.handle('get-current-version', getCurrentVersion);
 ipcMain.handle('is-auto-updater-supported', isAutoUpdaterSupported);
+ipcMain.handle('get-app-info', async () => {
+    let bundledTools = {
+        'yt-dlp': '2026.10.26',
+        ffmpeg: '9.0.2',
+        deno: '2.9.8'
+    };
+    try {
+        const toolsPath = join(app.getAppPath(), 'tools-versions.json');
+        bundledTools = JSON.parse(readFileSync(toolsPath, 'utf8'));
+    } catch {
+        // Fall back to default pinned versions
+    }
+    return {
+        name: 'YT-DLP Downloader',
+        version: app.getVersion(),
+        developer: 'Michifumi',
+        isPackaged: app.isPackaged,
+        bundledTools,
+        platform: process.platform
+    };
+});
+ipcMain.handle('check-dependencies', async () => checkSystemDependencies());
 
 // IPC handler for listing available subtitles
 ipcMain.handle('list-subtitles', async (_event, url, browser, proxy) => listSubtitles(url, browser, proxy));
