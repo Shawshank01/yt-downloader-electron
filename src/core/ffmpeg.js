@@ -122,6 +122,9 @@ export async function runFfmpegWithCodecFallback({ task, onProgress, buildArgs, 
         logger.info(`${logPrefix} FFmpeg args:`, args);
 
         const stderrLines = [];
+        let totalDurationSeconds = 0;
+        let headerBuffer = '';
+
         const exitCode = await new Promise((resolve) => {
             let child;
             try {
@@ -134,8 +137,56 @@ export async function runFfmpegWithCodecFallback({ task, onProgress, buildArgs, 
             const handleData = (data) => {
                 if (task.isCancelled) return;
                 const str = data.toString();
+
+                if (!totalDurationSeconds) {
+                    headerBuffer += str;
+                    const durMatch = headerBuffer.match(/Duration:\s*(\d{2}):(\d{2}):([\d.]+)/);
+                    if (durMatch) {
+                        const durSec = parseInt(durMatch[1], 10) * 3600 + parseInt(durMatch[2], 10) * 60 + parseFloat(durMatch[3]);
+                        if (durSec > 0.5) {
+                            totalDurationSeconds = durSec;
+                            headerBuffer = '';
+                        }
+                    } else if (headerBuffer.length > 4096) {
+                        headerBuffer = headerBuffer.slice(-1024);
+                    }
+                }
+
                 if (str.includes('time=') || str.includes('frame=')) {
-                    onProgress(`${logPrefix} (${audioCodec}): ${str.trim()}`);
+                    const timeMatch = str.match(/time=\s*(\d{2}):(\d{2}):([\d.]+)/);
+                    const speedMatch = str.match(/speed=\s*([\d.]+)x/i);
+                    const sizeMatch = str.match(/size=\s*([^\s]+)/);
+
+                    if (timeMatch && totalDurationSeconds > 0) {
+                        const curSec = parseInt(timeMatch[1], 10) * 3600 + parseInt(timeMatch[2], 10) * 60 + parseFloat(timeMatch[3]);
+                        const pct = Math.min(99.9, Math.max(0, (curSec / totalDurationSeconds) * 100));
+                        const speedVal = speedMatch ? parseFloat(speedMatch[1]) : 0;
+                        const speedStr = speedVal > 0 ? `${speedVal.toFixed(1)}x` : '';
+
+                        let etaStr = '';
+                        if (speedVal > 0 && curSec < totalDurationSeconds) {
+                            const remainingSec = Math.round((totalDurationSeconds - curSec) / speedVal);
+                            const m = Math.floor(remainingSec / 60);
+                            const s = remainingSec % 60;
+                            etaStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                        }
+
+                        const totMin = Math.floor(totalDurationSeconds / 60);
+                        const totSec = Math.floor(totalDurationSeconds % 60);
+                        const totFormatted = `${String(totMin).padStart(2, '0')}:${String(totSec).padStart(2, '0')}`;
+
+                        const curMin = Math.floor(curSec / 60);
+                        const curSecPart = Math.floor(curSec % 60);
+                        const curFormatted = `${String(curMin).padStart(2, '0')}:${String(curSecPart).padStart(2, '0')}`;
+
+                        const etaPart = etaStr ? ` ETA ${etaStr}` : '';
+                        const speedPart = speedStr ? ` at ${speedStr}` : '';
+                        const sizePart = sizeMatch ? ` (${sizeMatch[1]})` : '';
+
+                        onProgress(`[ffmpeg] ${pct.toFixed(1)}% of ~${totFormatted} (${curFormatted})${speedPart}${sizePart}${etaPart}`);
+                    } else {
+                        onProgress(`${logPrefix} (${audioCodec}): ${str.trim()}`);
+                    }
                 } else {
                     const lines = str.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
                     stderrLines.push(...lines);

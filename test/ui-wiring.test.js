@@ -9,6 +9,7 @@ const aiUi = readFileSync(new URL('../src/ai-ui.js', import.meta.url), 'utf-8');
 const preload = readFileSync(new URL('../src/preload.cjs', import.meta.url), 'utf-8');
 const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf-8');
 const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf-8');
+const rendererScript = readFileSync(new URL('../src/renderer.js', import.meta.url), 'utf-8');
 
 const htmlIds = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
 
@@ -93,5 +94,12 @@ test('classic download progress bar and #019D9C theme styling are present', () =
     assert.match(css, /\.classic-progress-fill\s*\{/);
     assert.match(html, /id="classicProgressBarContainer"[^>]*class="[^"]*classic-only/);
 });
+
+test('re-encode and hardsub support progress bar updates', () => {
+    assert.match(rendererScript, /updateDownloadProgress\(progress,\s*['"]Hardsub Progress:['"]\)/);
+    assert.match(rendererScript, /updateDownloadProgress\(text,\s*defaultTitle/);
+    assert.match(rendererScript, /download\|ffmpeg/);
+});
+
 
 

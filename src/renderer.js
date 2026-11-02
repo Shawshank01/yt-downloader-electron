@@ -405,31 +405,54 @@ function hideCancelButton() {
     }
 }
 
-// Classic mode download progress bar from yt-dlp stdout lines
-function updateDownloadProgress(text) {
+// Classic mode progress bar from yt-dlp or ffmpeg stdout/stderr lines
+function updateDownloadProgress(text, defaultTitle = 'Download Progress:') {
     const container = document.getElementById('classicProgressBarContainer');
     if (!container || !text) return;
 
-    // Look for yt-dlp download progress format: [download]  45.2% of ~145.2MiB at 32.4MiB/s ETA 00:03
-    const match = text.match(/\[download\]\s+([\d.]+)%(?:\s+of\s+([^\s]+))?(?:\s+at\s+([^\s]+))?(?:\s+ETA\s+([^\s\r\n]+))?/i);
+    // Matches both yt-dlp download progress format and ffmpeg progress format:
+    // e.g.: [download]  45.2% of ~145.2MiB at 32.4MiB/s ETA 00:03
+    // e.g.: [ffmpeg] 45.2% of ~03:45 (01:42) at 2.4x (26KiB) ETA 00:32
+    const match = text.match(/\[(download|ffmpeg)\]\s+([\d.]+)%(?:\s+of\s+([^\s]+))?(?:\s+\(([^)]+)\))?(?:\s+at\s+([^\s]+))?(?:\s+\(([^)]+)\))?(?:\s+ETA\s+([^\s\r\n]+))?/i);
     if (match) {
         container.style.display = 'block';
-        const pct = parseFloat(match[1]);
-        const size = match[2] || '';
-        const speed = match[3] || '';
-        const eta = match[4] || '';
+        const type = (match[1] || 'download').toLowerCase();
+        const pct = parseFloat(match[2]);
+        const sizeOrDur = match[3] || '';
+        const processedTime = match[4] || '';
+        const speed = match[5] || '';
+        const sizeFallback = match[6] || '';
+        const eta = match[7] || '';
 
+        const titleEl = document.getElementById('classicProgressTitle');
         const fill = document.getElementById('classicProgressBarFill');
         const percentEl = document.getElementById('classicProgressPercent');
         const statusEl = document.getElementById('classicProgressStatus');
         const etaEl = document.getElementById('classicProgressEta');
 
+        if (titleEl) {
+            if (type === 'ffmpeg') {
+                titleEl.textContent = defaultTitle === 'Download Progress:' ? 'Encoding Progress:' : defaultTitle;
+            } else {
+                titleEl.textContent = 'Download Progress:';
+            }
+        }
+
         if (fill) fill.style.width = Math.min(100, Math.max(0, pct)) + '%';
         if (percentEl) percentEl.textContent = pct.toFixed(1) + '%';
         if (statusEl) {
             let statusText = '';
-            if (size) statusText += size;
-            if (speed) statusText += (statusText ? ' • ' : '') + speed;
+            if (processedTime && sizeOrDur) {
+                statusText = `${processedTime} / ${sizeOrDur.replace(/^~/, '')}`;
+            } else if (sizeOrDur) {
+                statusText = sizeOrDur;
+            }
+            if (sizeFallback && !statusText.includes(sizeFallback)) {
+                statusText += (statusText ? ' • ' : '') + sizeFallback;
+            }
+            if (speed) {
+                statusText += (statusText ? ' • ' : '') + speed;
+            }
             statusEl.textContent = statusText;
         }
         if (etaEl) {
@@ -450,6 +473,8 @@ function resetDownloadProgress() {
         if (statusEl) statusEl.textContent = '';
         const etaEl = document.getElementById('classicProgressEta');
         if (etaEl) etaEl.textContent = '';
+        const titleEl = document.getElementById('classicProgressTitle');
+        if (titleEl) titleEl.textContent = 'Download Progress:';
     }
 }
 
@@ -685,6 +710,9 @@ async function handleReEncodePrompt({ url, downloadFolder, commandLine, cleanRes
     }
 
     showCancelButton();
+    resetDownloadProgress();
+    const titleEl = document.getElementById('classicProgressTitle');
+    if (titleEl) titleEl.textContent = 'Re-encoding Progress:';
 
     try {
         const reEncodeResult = await window.electronAPI.reEncodeToMp4(downloadFolder, targetIdentifier);
@@ -708,15 +736,22 @@ async function handleReEncodePrompt({ url, downloadFolder, commandLine, cleanRes
 
         if (res.cancelled) {
             renderStatusBanner('cancelled', '❌ Re-encoding canceled!');
+            resetDownloadProgress();
         } else if (res.success) {
             renderStatusBanner('success', '✅ Re-encoding completed successfully!');
+            const fill = document.getElementById('classicProgressBarFill');
+            if (fill) fill.style.width = '100%';
+            const percentEl = document.getElementById('classicProgressPercent');
+            if (percentEl) percentEl.textContent = '100%';
         } else {
             renderStatusBanner('error', '❌ Re-encoding failed!');
+            resetDownloadProgress();
         }
     } catch (reEncodeError) {
         document.getElementById('output').textContent +=
             `\nRe-encoding error: ${reEncodeError.message || reEncodeError}`;
         renderStatusBanner('error', '❌ Re-encoding failed!');
+        resetDownloadProgress();
     } finally {
         hideCancelButton();
     }
@@ -971,6 +1006,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
 
     progressHandler = window.electronAPI.onProgress((progress) => {
         output.textContent = progress;
+        updateDownloadProgress(progress, 'Hardsub Progress:');
     });
 
     output.textContent = 'Fetching available subtitles...';
@@ -1001,6 +1037,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
 
         output.textContent = `Selected subtitle: ${selectedSubtitle.name} (${selectedSubtitle.code})\nStarting download...`;
         showCancelButton();
+        resetDownloadProgress();
 
         try {
             const rawHardsubResult = await window.electronAPI.downloadWithHardsub({
@@ -1043,8 +1080,13 @@ async function handleHardsubAction(url, browser, downloadFolder) {
 
             if (res.cancelled) {
                 renderStatusBanner('cancelled', '❌ Hardsub canceled!');
+                resetDownloadProgress();
             } else if (res.success) {
                 renderStatusBanner('success', '✅ Hardsub completed!');
+                const fill = document.getElementById('classicProgressBarFill');
+                if (fill) fill.style.width = '100%';
+                const percentEl = document.getElementById('classicProgressPercent');
+                if (percentEl) percentEl.textContent = '100%';
             } else {
                 if (isCookiePermissionError(res.message, res.error)) {
                     renderStatusBanner('error', '❌ Files & Folders permission required to read cookies');
@@ -1052,6 +1094,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
                 } else {
                     renderStatusBanner('error', '❌ Hardsub failed!');
                 }
+                resetDownloadProgress();
             }
         } finally {
             hideCancelButton();
@@ -1069,6 +1112,7 @@ async function handleHardsubAction(url, browser, downloadFolder) {
                 renderStatusBanner('error', '❌ Hardsub failed!');
             }
         }
+        resetDownloadProgress();
     }
 }
 
