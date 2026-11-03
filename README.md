@@ -118,14 +118,14 @@ Rather than relying on fragile prompt engineering or bloated frameworks, the AI 
 
 | Provider | Needs | Notes |
 | --- | --- | --- |
-| **Google Gemini** (default, model `gemma-4-26b-a4b-it`) | Free API key from [Google AI Studio](https://aistudio.google.com/apikey) | Free tier can be busy (HTTP 503) or rate limited; the app retries automatically. Your messages go to Google. |
-| **xAI (Grok)** (model `grok-4.3`) | API key from the [xAI console](https://console.x.ai) | Uses xAI's Responses API at `https://api.x.ai/v1/responses`. |
+| **Google Gemini** (default, model `gemma-4-26b-a4b-it`) | Free API key from [Google AI Studio](https://aistudio.google.com/apikey) | Free tier can be busy (HTTP 503) or rate limited, the app retries automatically. Your messages go to Google. |
+| **xAI (Grok)** (model `grok-4.3`) | API key from the [xAI console](https://console.x.ai) | Uses xAI's Responses API at `https://api.x.ai/v1/responses`. Your messages go to Musk. |
 | **Ollama (local & cloud)** | [Ollama](https://ollama.com) running with small models, for example `LFM3-1.7B`. | Everything stays on your computer if you run a local model. Small models are faster but less reliable. |
 | **OpenAI-compatible** | Server URL, model name, usually an API key | Works with llama.cpp, OpenAI, OpenRouter, Groq, LM Studio and similar. |
 
 Other settings:
 
-- **Response speed** (Gemini only): *Fast* (default) is quick and enough for downloads; *Balanced* and *Thorough* think longer and are much slower.
+- **Response speed**: *Fast* (default) is quick and enough for downloads; *Balanced* and *Thorough* think longer and are much slower. The similar applies to xAI.
 - **Ask me before running**: *Risky actions only* (default: re-encode, hardsub, deleting files, downloading playlists), *Every action*, or *Never*. When a confirmation is needed you get an Allow / Deny dialog; Deny is the default button.
 
 ### Privacy and security
