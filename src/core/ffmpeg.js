@@ -1,4 +1,6 @@
+import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
+import { findExecutable } from '../dependencies.js';
 import { taskManager } from './task-manager.js';
 import { logger } from './logger.js';
 
@@ -236,4 +238,165 @@ export async function runFfmpegWithCodecFallback({ task, onProgress, buildArgs, 
     }
 
     return { success, lastCode, lastError, isCancelled: task.isCancelled };
+}
+
+/**
+ * Run ffprobe to get structured stream and format metadata for a media file.
+ * @param {string} filePath Absolute path to the file.
+ * @returns {Promise<{ok: boolean, data?: object, error?: string}>}
+ */
+export async function probeMedia(filePath) {
+    const executable = await findExecutable('ffprobe');
+    if (!executable) {
+        return { ok: false, error: 'ffprobe is not installed or bundled.' };
+    }
+
+    return new Promise((resolve) => {
+        const args = [
+            '-v', 'error',
+            '-print_format', 'json',
+            '-show_format',
+            '-show_streams',
+            filePath
+        ];
+
+        let child;
+        try {
+            child = spawn(executable, args);
+        } catch (err) {
+            resolve({ ok: false, error: `Failed to spawn ffprobe: ${err.message}` });
+            return;
+        }
+
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (d) => { stdout += d; });
+        child.stderr.on('data', (d) => { stderr += d; });
+
+        const timer = setTimeout(() => {
+            try { child.kill('SIGKILL'); } catch { /* ignore */ }
+            resolve({ ok: false, error: 'ffprobe timed out after 15 seconds.' });
+        }, 15000);
+
+        child.on('error', (err) => {
+            clearTimeout(timer);
+            resolve({ ok: false, error: `ffprobe error: ${err.message}` });
+        });
+
+        child.on('close', (code) => {
+            clearTimeout(timer);
+            if (code !== 0) {
+                const err = stderr.trim() || `ffprobe failed with exit code ${code}`;
+                resolve({ ok: false, error: err });
+                return;
+            }
+
+            try {
+                const data = JSON.parse(stdout);
+                resolve({ ok: true, data });
+            } catch (parseErr) {
+                resolve({ ok: false, error: `Failed to parse ffprobe output: ${parseErr.message}` });
+            }
+        });
+    });
+}
+
+/**
+ * Convert raw ffprobe json output into a curated, LLM-friendly summary.
+ * @param {object} data Parsed ffprobe json with format and streams.
+ * @param {string} filename Name of the file.
+ * @returns {object} Curated media summary.
+ */
+export function summarizeMediaInfo(data, filename) {
+    const format = data.format || {};
+    const streams = Array.isArray(data.streams) ? data.streams : [];
+
+    const durationSec = format.duration ? parseFloat(format.duration) : null;
+    let durationFormatted = null;
+    if (durationSec !== null && !isNaN(durationSec)) {
+        const total = Math.round(durationSec);
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = total % 60;
+        durationFormatted = h > 0
+            ? `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+            : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    const sizeBytes = format.size ? Number(format.size) : null;
+    const sizeMb = sizeBytes ? Math.round((sizeBytes / (1024 * 1024)) * 10) / 10 : null;
+    const bitrateKbps = format.bit_rate ? Math.round(Number(format.bit_rate) / 1000) : null;
+
+    const videoStreams = [];
+    const audioStreams = [];
+    const subtitleStreams = [];
+
+    for (const s of streams) {
+        if (s.codec_type === 'video') {
+            const isAttachedPic = s.disposition?.attached_pic === 1 || s.disposition?.still_image === 1;
+            let fps = null;
+            if (s.avg_frame_rate && s.avg_frame_rate !== '0/0') {
+                const [num, den] = s.avg_frame_rate.split('/').map(Number);
+                if (den && num) fps = Math.round((num / den) * 100) / 100;
+            } else if (s.r_frame_rate && s.r_frame_rate !== '0/0') {
+                const [num, den] = s.r_frame_rate.split('/').map(Number);
+                if (den && num) fps = Math.round((num / den) * 100) / 100;
+            }
+
+            const info = {
+                codec: s.codec_name || 'unknown',
+                width: s.width || null,
+                height: s.height || null,
+                resolution: (s.width && s.height) ? `${s.width}x${s.height}` : null,
+                aspect_ratio: s.display_aspect_ratio || null,
+                fps,
+                pixel_format: s.pix_fmt || null,
+                bit_rate_kbps: s.bit_rate ? Math.round(Number(s.bit_rate) / 1000) : null
+            };
+            if (isAttachedPic) {
+                info.is_attached_pic = true;
+            }
+            videoStreams.push(info);
+        } else if (s.codec_type === 'audio') {
+            audioStreams.push({
+                codec: s.codec_name || 'unknown',
+                channels: s.channels ?? null,
+                channel_layout: s.channel_layout || null,
+                sample_rate_hz: s.sample_rate ? Number(s.sample_rate) : null,
+                bit_rate_kbps: s.bit_rate ? Math.round(Number(s.bit_rate) / 1000) : null,
+                language: s.tags?.language || null,
+                title: s.tags?.title || null
+            });
+        } else if (s.codec_type === 'subtitle') {
+            subtitleStreams.push({
+                codec: s.codec_name || 'unknown',
+                language: s.tags?.language || null,
+                title: s.tags?.title || null,
+                is_forced: s.disposition?.forced === 1,
+                is_default: s.disposition?.default === 1
+            });
+        }
+    }
+
+    const mainVideo = videoStreams.find((v) => !v.is_attached_pic) || videoStreams[0] || null;
+    const mainAudio = audioStreams[0] || null;
+
+    const result = {
+        ok: true,
+        file: filename,
+        format: format.format_name || null,
+        duration: durationFormatted,
+        duration_seconds: durationSec ? Math.round(durationSec * 100) / 100 : null,
+        size_mb: sizeMb,
+        bit_rate_kbps: bitrateKbps,
+        video: mainVideo,
+        audio: mainAudio
+    };
+
+    if (videoStreams.length > 1) result.video_streams = videoStreams;
+    if (audioStreams.length > 1) result.audio_streams = audioStreams;
+    if (subtitleStreams.length > 0) result.subtitle_streams = subtitleStreams;
+
+    return result;
 }

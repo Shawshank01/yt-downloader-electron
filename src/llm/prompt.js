@@ -31,6 +31,7 @@ export function buildSystemPrompt({ downloadFolder, browser, proxyEnabled, platf
         '- When the user agrees to a format code or container you suggested (e.g. 299+140 or mp4), you must pass those exact parameters in the tool call.',
         `- Call ${T.listSubtitles} before downloading subtitles or hardcoding them, and use a language code it returned.`,
         `- Call ${T.listDownloads} to find exact file names before re-encoding or deleting. Only delete files when the user asked for it or agreed to it.`,
+        `- Call ${T.getMediaInfo} to inspect the resolution, duration, codecs, or streams of an existing local media file in the download folder.`,
         '- Download a single video unless the user explicitly asks for a whole playlist.',
         '- Do several steps in a row when needed (for example: inspect info, then download), but stop and ask when something is ambiguous.',
         '- If a tool fails, read the error, explain it briefly in plain language, and either fix the problem or tell the user what to do. Do not retry the same failing call repeatedly.',

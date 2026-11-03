@@ -11,11 +11,13 @@ import { checkFfmpegSubtitlesSupport, findExecutable } from '../dependencies.js'
 import { taskManager } from './task-manager.js';
 import { logger } from './logger.js';
 import { attachLineStreamFilters, isProgressLine } from './log-filter.js';
-import { findVideoToReEncode, findHardsubSourceFiles } from './media-files.js';
+import { findVideoToReEncode, findHardsubSourceFiles, findMediaFile } from './media-files.js';
 import {
     buildFfmpegReEncodeArgs,
     buildFfmpegHardsubArgs,
-    runFfmpegWithCodecFallback
+    runFfmpegWithCodecFallback,
+    probeMedia,
+    summarizeMediaInfo
 } from './ffmpeg.js';
 
 const noop = () => { };
@@ -342,6 +344,27 @@ export async function reEncodeToMp4(downloadFolder, videoId, onProgress = noop) 
     } finally {
         taskManager.endTask(task);
     }
+}
+
+/**
+ * Inspect media metadata (codecs, resolution, duration, audio tracks) of a file in downloadFolder using ffprobe.
+ * @param {string} downloadFolder
+ * @param {string} fileHint Filename or identifier in the download folder.
+ * @returns {Promise<object>}
+ */
+export async function getMediaInfo(downloadFolder, fileHint) {
+    const media = await findMediaFile(downloadFolder, fileHint);
+    if (!media) {
+        return {
+            ok: false,
+            error: `No matching media file found for "${fileHint}" in the download folder.`
+        };
+    }
+    const res = await probeMedia(media.filePath);
+    if (!res.ok) {
+        return { ok: false, error: res.error };
+    }
+    return summarizeMediaInfo(res.data, media.file);
 }
 
 /** Download a video with subtitles and burn the subtitles into the video with ffmpeg. */

@@ -1,5 +1,5 @@
-// Tools built on ffmpeg (slow and CPU-intensive, so they always need confirmation by default).
-import { reEncodeToMp4, downloadWithHardsub } from '../../core/tools.js';
+// Tools built on ffmpeg and ffprobe.
+import { reEncodeToMp4, downloadWithHardsub, getMediaInfo } from '../../core/tools.js';
 import { requireFolder } from '../context.js';
 import { validateUrl, validateLang, validateFileHint, validateEnum } from '../validate.js';
 import { TOOL_NAMES } from './names.js';
@@ -9,6 +9,25 @@ const CODECS = ['h264', 'hevc'];
 const POSITIONS = ['bottom', 'top'];
 
 export const mediaTools = [
+    defineTool({
+        name: TOOL_NAMES.getMediaInfo,
+        description:
+            'Inspect the media metadata (duration, resolution, video/audio codecs, bitrates, audio tracks, and embedded subtitles) of an existing audio or video file in the download folder using ffprobe.',
+        risk: 'low',
+        properties: {
+            file: {
+                type: 'string',
+                description: 'File name (or unique part of it) of an existing video or audio file in the download folder from list_downloads.'
+            }
+        },
+        required: ['file'],
+        describe: (a) => `Inspect media info for "${a.file || 'media'}"`,
+        async run(args, ctx) {
+            const file = validateFileHint(args.file);
+            const folder = requireFolder(ctx);
+            return getMediaInfo(folder, file);
+        }
+    }),
     defineTool({
         name: TOOL_NAMES.downloadWithHardsub,
         description:

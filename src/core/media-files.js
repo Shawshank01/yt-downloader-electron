@@ -4,6 +4,12 @@ import { promises as fs } from 'fs';
 // Supported video file extensions for transcoding and discovery
 export const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v'];
 
+// Supported audio file extensions
+export const AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.opus', '.flac', '.wav', '.aac', '.ogg', '.weba', '.wma', '.alac'];
+
+// Combined media extensions for media discovery and inspection
+export const MEDIA_EXTENSIONS = [...VIDEO_EXTENSIONS, ...AUDIO_EXTENSIONS];
+
 // Supported image extensions for video thumbnails
 export const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.webp', '.png'];
 
@@ -142,4 +148,79 @@ export async function findHardsubSourceFiles(downloadFolder, subtitleLang, downl
     const thumbnailPath = thumbnailFile ? join(downloadFolder, thumbnailFile) : null;
 
     return { videoFile, videoPath, subtitlePath, thumbnailPath, videoName };
+}
+
+// Find a media file in downloadFolder by exact filename or name fragment
+export async function findMediaFile(downloadFolder, targetIdentifier) {
+    const allFiles = await fs.readdir(downloadFolder);
+
+    // Case 1: Direct match by filename in downloadFolder
+    const directMatch = allFiles.find((f) => f === targetIdentifier);
+    if (directMatch) {
+        const filePath = join(downloadFolder, directMatch);
+        try {
+            const stat = await fs.stat(filePath);
+            if (stat.isFile()) {
+                return { file: directMatch, filePath };
+            }
+        } catch {
+            return null;
+        }
+    }
+
+    // Case 2: Match by name fragment among media extensions
+    const targetLower = (targetIdentifier || '').toLowerCase();
+    const mediaCandidates = allFiles.filter((file) => {
+        const lower = file.toLowerCase();
+        return MEDIA_EXTENSIONS.some((ext) => lower.endsWith(ext)) &&
+            (!targetIdentifier || lower.includes(targetLower));
+    });
+
+    let chosenFile = null;
+    if (mediaCandidates.length > 0) {
+        if (mediaCandidates.length === 1) {
+            chosenFile = mediaCandidates[0];
+        } else {
+            const candidatesWithStats = await Promise.all(
+                mediaCandidates.map(async (file) => {
+                    try {
+                        const stat = await fs.stat(join(downloadFolder, file));
+                        return { file, mtime: stat.mtimeMs, isFile: stat.isFile() };
+                    } catch {
+                        return null;
+                    }
+                })
+            );
+            const valid = candidatesWithStats.filter((c) => c && c.isFile);
+            if (valid.length > 0) {
+                valid.sort((a, b) => b.mtime - a.mtime);
+                chosenFile = valid[0].file;
+            }
+        }
+    }
+
+    // Case 3: Fallback match among any regular files if no media extension matched
+    if (!chosenFile && targetIdentifier) {
+        const fallbackCandidates = allFiles.filter((file) => !file.startsWith('.') && file.toLowerCase().includes(targetLower));
+        if (fallbackCandidates.length > 0) {
+            const candidatesWithStats = await Promise.all(
+                fallbackCandidates.map(async (file) => {
+                    try {
+                        const stat = await fs.stat(join(downloadFolder, file));
+                        return { file, mtime: stat.mtimeMs, isFile: stat.isFile() };
+                    } catch {
+                        return null;
+                    }
+                })
+            );
+            const valid = candidatesWithStats.filter((c) => c && c.isFile);
+            if (valid.length > 0) {
+                valid.sort((a, b) => b.mtime - a.mtime);
+                chosenFile = valid[0].file;
+            }
+        }
+    }
+
+    if (!chosenFile) return null;
+    return { file: chosenFile, filePath: join(downloadFolder, chosenFile) };
 }

@@ -4,6 +4,7 @@
  */
 export const TOOL_NAMES = Object.freeze({
     getVideoInfo: 'get_video_info',
+    getMediaInfo: 'get_media_info',
     listFormats: 'list_formats',
     downloadVideo: 'download_video',
     downloadAudio: 'download_audio',
