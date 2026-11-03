@@ -384,8 +384,15 @@
     }
 
     function describeError(error) {
-        const needsSettings = ['auth', 'not_found', 'settings'].includes(error.kind);
-        return { text: error.message, needsSettings, rateLimited: error.kind === 'rate_limit' };
+        const isContextError = /download folder|cookie browser|proxy address/i.test(error.message);
+        const isFolderError = /download folder/i.test(error.message);
+        const needsSettings = !isContextError && ['auth', 'not_found', 'settings'].includes(error.kind);
+        return {
+            text: error.message,
+            needsSettings,
+            needsFolder: isFolderError,
+            rateLimited: error.kind === 'rate_limit'
+        };
     }
 
     function addError(error) {
@@ -398,6 +405,20 @@
             const hint = document.createElement('div');
             hint.textContent = 'Tip: you can switch to Classic mode, which does not use the AI.';
             el.appendChild(hint);
+        }
+        if (info.needsFolder) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = 'Choose Download Folder';
+            btn.addEventListener('click', () => {
+                if (typeof window.chooseFolder === 'function') {
+                    window.chooseFolder();
+                } else {
+                    const folderEl = $('downloadFolder');
+                    if (folderEl) folderEl.focus();
+                }
+            });
+            el.appendChild(btn);
         }
         if (info.needsSettings) {
             const btn = document.createElement('button');

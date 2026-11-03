@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } from 'electro
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { readFileSync, existsSync } from 'fs';
-import { mkdir } from 'fs/promises';
+import { mkdir, stat } from 'fs/promises';
 
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
 import {
@@ -74,22 +74,38 @@ async function promptInitialDownloadFolder(win) {
     const settings = await readSettings();
     if (win.isDestroyed()) return;
 
-    if (
-        settings.firstRunFolderPrompted ||
-        (typeof settings.downloadFolder === 'string' && settings.downloadFolder.trim() !== '')
-    ) {
+    let defaultFolder;
+    try {
+        defaultFolder = app.getPath('downloads');
+    } catch {
+        defaultFolder = join(app.getPath('home'), 'Downloads');
+    }
+
+    let hasValidFolder = false;
+    if (typeof settings.downloadFolder === 'string' && settings.downloadFolder.trim() !== '') {
+        try {
+            const s = await stat(settings.downloadFolder.trim());
+            hasValidFolder = s.isDirectory();
+        } catch {
+            hasValidFolder = false;
+        }
+    }
+
+    if (hasValidFolder) {
+        return;
+    }
+    if (settings.firstRunFolderPrompted && !settings.downloadFolder) {
         return;
     }
 
-    const defaultFolder = join(app.getPath('home'), 'YT Downloader Electron');
     const { response } = await dialog.showMessageBox(win, {
         type: 'question',
-        buttons: ['Create Default Folder', 'Select Existing Folder…', 'Cancel'],
+        buttons: ['Use Downloads Folder', 'Select Existing Folder…', 'Cancel'],
         defaultId: 0,
         cancelId: 2,
         title: 'Welcome to YT Downloader',
         message: 'Set Download Location',
-        detail: `Where would you like to save your downloads?\n\nYou can create the default folder in your User Directory:\n${defaultFolder}\n\nor select an existing folder instead.`
+        detail: `Where would you like to save your downloads?\n\nYou can use your standard Downloads folder:\n${defaultFolder}\n\nor select a different folder instead.`
     });
 
     if (win.isDestroyed()) return;
@@ -97,12 +113,33 @@ async function promptInitialDownloadFolder(win) {
     if (response === 0) {
         try {
             await mkdir(defaultFolder, { recursive: true });
+            await mergeSettings({ downloadFolder: defaultFolder, firstRunFolderPrompted: true });
+            if (!win.isDestroyed()) {
+                win.webContents.send('download-folder-updated', defaultFolder);
+            }
         } catch (err) {
-            console.error('[main] Failed to create default download folder:', err);
-        }
-        await mergeSettings({ downloadFolder: defaultFolder, firstRunFolderPrompted: true });
-        if (!win.isDestroyed()) {
-            win.webContents.send('download-folder-updated', defaultFolder);
+            console.error('[main] Failed to access or create Downloads folder:', err);
+            if (!win.isDestroyed()) {
+                await dialog.showMessageBox(win, {
+                    type: 'error',
+                    title: 'Folder Access Failed',
+                    message: 'Could not access or create the Downloads folder.',
+                    detail: `${err.message}\n\nPlease select an existing folder instead.`
+                });
+                const result = await dialog.showOpenDialog(win, {
+                    properties: ['openDirectory'],
+                    title: 'Select Download Folder'
+                });
+                if (!win.isDestroyed()) {
+                    if (!result.canceled && result.filePaths.length > 0) {
+                        const chosen = result.filePaths[0];
+                        await mergeSettings({ downloadFolder: chosen, firstRunFolderPrompted: true });
+                        win.webContents.send('download-folder-updated', chosen);
+                    } else {
+                        await mergeSettings({ firstRunFolderPrompted: true });
+                    }
+                }
+            }
         }
     } else if (response === 1) {
         const result = await dialog.showOpenDialog(win, {

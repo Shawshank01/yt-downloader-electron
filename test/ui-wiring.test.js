@@ -128,5 +128,12 @@ test('download-folder-updated event is exposed by preload, handled by main and r
     assert.match(rendererScript, /window\.electronAPI\?\.onDownloadFolderUpdated\?\.\(/);
 });
 
+test('context errors (download folder, browser, proxy) do not show Open AI Settings button and folder errors offer Choose Download Folder', () => {
+    assert.match(aiUi, /const isContextError = \/download folder\|cookie browser\|proxy address\/i\.test/);
+    assert.match(aiUi, /const needsSettings = !isContextError &&/);
+    assert.match(aiUi, /Choose Download Folder/);
+    assert.match(aiUi, /window\.chooseFolder/);
+});
+
 
 
