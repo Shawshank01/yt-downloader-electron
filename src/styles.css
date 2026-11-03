@@ -695,6 +695,7 @@ body[data-mode='ai'] .ai-panel {
     min-height: 0;
     overflow-y: auto;
     padding: 16px;
+    scroll-padding-bottom: 16px;
     border: 1px solid var(--border-subtle);
     border-radius: 12px;
     background-color: #16161a;
@@ -897,45 +898,59 @@ body[data-mode='ai'] .ai-panel {
 
 .ai-empty-hint {
     margin: auto;
-    max-width: 680px;
+    max-width: min(1380px, 98%);
     width: 100%;
     text-align: center;
     color: var(--text-secondary);
     line-height: 1.5;
-    font-size: 13.5px;
-    padding: 8px 6px;
+    font-size: 14px;
+    padding: 12px 8px;
 }
 
 .ai-empty-title {
     color: var(--text-primary);
-    font-size: 13.5px;
+    font-size: 15px;
     font-weight: 500;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
 }
 
 .ai-example-groups {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
     text-align: left;
+}
+
+@media (max-width: 900px) {
+    .ai-example-groups {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 520px) {
+    .ai-example-groups {
+        grid-template-columns: 1fr;
+    }
 }
 
 .ai-example-group {
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
-    padding: 10px 12px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .ai-example-cat {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--accent-teal);
-    margin-bottom: 8px;
+    margin-bottom: 10px;
+    text-align: center;
 }
 
 .ai-example-list {
@@ -944,21 +959,29 @@ body[data-mode='ai'] .ai-panel {
     margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
+    flex: 1;
 }
 
 .ai-example {
     background: transparent;
     border: 1px dashed var(--border-default);
-    color: #b0bec5;
-    padding: 6px 10px;
-    font-size: 12px;
+    color: #cbd5e1;
+    padding: 8px 12px;
+    font-size: 13px;
     border-radius: 6px;
     cursor: pointer;
-    text-align: left;
+    text-align: center;
+    justify-content: center;
     width: 100%;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
     transition: all 0.15s ease;
-    line-height: 1.35;
+    line-height: 1.4;
 }
 
 .ai-example:hover {

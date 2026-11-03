@@ -51,6 +51,7 @@
             category: 'File Management',
             items: [
                 'Show me the files in my download folder',
+                'Give me information about <filename>',
                 'Delete <filename> in my download folder'
             ]
         }
@@ -157,12 +158,24 @@
 
     function scrollMessagesToBottom() {
         els.messages.scrollTop = els.messages.scrollHeight;
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => {
+                els.messages.scrollTop = els.messages.scrollHeight;
+            });
+        }
     }
 
     function append(el) {
         clearEmptyHint();
         els.messages.appendChild(el);
         scrollMessagesToBottom();
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => {
+                if (el && typeof el.scrollIntoView === 'function') {
+                    el.scrollIntoView({ block: 'end', behavior: 'auto' });
+                }
+            });
+        }
     }
 
     function openLink(url) {
@@ -355,6 +368,7 @@
     function setBusy(value) {
         busy = value;
         els.sendBtn.disabled = value;
+        els.sendBtn.style.display = value ? 'none' : '';
         els.input.disabled = value;
         els.newChatBtn.disabled = value;
         els.stopBtn.style.display = value ? '' : 'none';
@@ -366,6 +380,7 @@
             hideConfirm();
             els.input.focus();
         }
+        scrollMessagesToBottom();
     }
 
     function describeError(error) {
@@ -399,13 +414,22 @@
         if (!text || busy) return;
 
         clearRetryProgress();
-        addMessage('user', text);
+        const userMsg = addMessage('user', text);
         els.input.value = '';
         assistantBubblesThisTurn = 0;
         lastAssistantText = '';
         streamingText = '';
         setBusy(true);
         els.progress.textContent = 'Thinking…';
+        scrollMessagesToBottom();
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => {
+                scrollMessagesToBottom();
+                if (userMsg && typeof userMsg.scrollIntoView === 'function') {
+                    userMsg.scrollIntoView({ block: 'end', behavior: 'auto' });
+                }
+            });
+        }
         try {
             const res = await api.send(text, getContext());
             if (!res.ok) {
@@ -532,6 +556,7 @@
                 const summary = summarizeResult(event.name, event.result);
                 step.detail.textContent = summary.length > 300 ? `${summary.slice(0, 300)}…` : summary;
                 els.progress.textContent = 'Thinking…';
+                scrollMessagesToBottom();
                 break;
             }
             case 'tool_denied': {
