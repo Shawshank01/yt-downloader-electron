@@ -22,11 +22,40 @@
         xai: { url: 'https://console.x.ai', text: 'Get an xAI API key from the xAI console' }
     };
     const KEYLESS_PROVIDERS = new Set(['ollama']);
-    const EXAMPLES = [
-        'Download this video in 720p: <paste a link>',
-        'Get the audio of <link> as an MP3',
-        'What subtitle languages does <link> have?',
-        'Show me the files in my download folder'
+    const EXAMPLE_GROUPS = [
+        {
+            category: 'Download & Audio',
+            items: [
+                'Download this video in 1080p: <link>',
+                'Get the audio of <link> as an MP3',
+                'Download the entire playlist: <link>'
+            ]
+        },
+        {
+            category: 'Subtitles & Processing',
+            items: [
+                'Download <link> with English subtitles burned in',
+                'Download English subtitles for <link>',
+                'Re-encode <filename> as high-quality MP4'
+            ]
+        },
+        {
+            category: 'Info & Inspection',
+            items: [
+                'Get video info for <link>',
+                'What subtitle languages does <link> have?',
+                'List all available video formats for <link>',
+                'Download the thumbnail of <link>'
+            ]
+        },
+        {
+            category: 'File Management & Tasks',
+            items: [
+                'Show me the files in my download folder',
+                'Delete <filename> in my download folder',
+                'Cancel the current task'
+            ]
+        }
     ];
 
     const els = {
@@ -205,23 +234,42 @@
         const hint = document.createElement('div');
         hint.className = 'ai-empty-hint';
         const title = document.createElement('div');
+        title.className = 'ai-empty-title';
         title.textContent = 'Tell me what you want to do with a video. Click an example to try it:';
         hint.appendChild(title);
-        const list = document.createElement('ul');
-        for (const example of EXAMPLES) {
-            const item = document.createElement('li');
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'ai-example';
-            btn.textContent = example;
-            btn.addEventListener('click', () => {
-                els.input.value = example;
-                els.input.focus();
-            });
-            item.appendChild(btn);
-            list.appendChild(item);
+
+        const groupsContainer = document.createElement('div');
+        groupsContainer.className = 'ai-example-groups';
+
+        for (const group of EXAMPLE_GROUPS) {
+            const section = document.createElement('div');
+            section.className = 'ai-example-group';
+
+            const catTitle = document.createElement('div');
+            catTitle.className = 'ai-example-cat';
+            catTitle.textContent = group.category;
+            section.appendChild(catTitle);
+
+            const list = document.createElement('ul');
+            list.className = 'ai-example-list';
+            for (const example of group.items) {
+                const item = document.createElement('li');
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'ai-example';
+                btn.textContent = example;
+                btn.addEventListener('click', () => {
+                    els.input.value = example;
+                    els.input.focus();
+                });
+                item.appendChild(btn);
+                list.appendChild(item);
+            }
+            section.appendChild(list);
+            groupsContainer.appendChild(section);
         }
-        hint.appendChild(list);
+
+        hint.appendChild(groupsContainer);
         els.messages.appendChild(hint);
     }
 
