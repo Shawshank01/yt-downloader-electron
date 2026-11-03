@@ -1210,6 +1210,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // Update UI when download folder is set by the main process (e.g. first-run prompt)
+    window.electronAPI?.onDownloadFolderUpdated?.((folder) => {
+        const folderEl = document.getElementById('downloadFolder');
+        if (folderEl && folder) {
+            folderEl.value = folder;
+        }
+    });
+
     // Persist settings on change
     const browserEl = document.getElementById('browser');
     if (browserEl) {

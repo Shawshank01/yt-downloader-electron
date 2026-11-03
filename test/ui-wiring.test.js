@@ -120,5 +120,13 @@ test('app info modal is wired to the brand icon and exposes info', () => {
     assert.match(rendererScript, /appInfoGithubLink/);
 });
 
+test('download-folder-updated event is exposed by preload, handled by main and received in renderer', () => {
+    assert.match(preload, /onDownloadFolderUpdated:\s*\(callback\)\s*=>/);
+    assert.match(preload, /ipcRenderer\.on\('download-folder-updated'/);
+    assert.match(main, /win\.webContents\.send\('download-folder-updated'/);
+    assert.match(main, /async function promptInitialDownloadFolder/);
+    assert.match(rendererScript, /window\.electronAPI\?\.onDownloadFolderUpdated\?\.\(/);
+});
+
 
 

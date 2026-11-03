@@ -13,6 +13,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
             ipcRenderer.removeListener('download-progress', listener);
         };
     },
+    onDownloadFolderUpdated: (callback) => {
+        const listener = (_, folder) => callback(folder);
+        ipcRenderer.on('download-folder-updated', listener);
+        return () => {
+            ipcRenderer.removeListener('download-folder-updated', listener);
+        };
+    },
     checkAppUpdate: () => ipcRenderer.invoke('check-app-update'),
     getCurrentVersion: () => ipcRenderer.invoke('get-current-version'),
     getAppInfo: () => ipcRenderer.invoke('get-app-info'),

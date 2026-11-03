@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } from 'electro
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { readFileSync } from 'fs';
+import { mkdir } from 'fs/promises';
 
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
 import {
@@ -67,6 +68,63 @@ ipcMain.handle('cancel-command', async () => {
     return cancelCurrentTask();
 });
 
+async function promptInitialDownloadFolder(win) {
+    if (!win || win.isDestroyed()) return;
+
+    const settings = await readSettings();
+    if (win.isDestroyed()) return;
+
+    if (
+        settings.firstRunFolderPrompted ||
+        (typeof settings.downloadFolder === 'string' && settings.downloadFolder.trim() !== '')
+    ) {
+        return;
+    }
+
+    const defaultFolder = join(app.getPath('home'), 'YT Downloader Electron');
+    const { response } = await dialog.showMessageBox(win, {
+        type: 'question',
+        buttons: ['Create Default Folder', 'Select Existing Folder…', 'Cancel'],
+        defaultId: 0,
+        cancelId: 2,
+        title: 'Welcome to YT Downloader',
+        message: 'Set Download Location',
+        detail: `Where would you like to save your downloads?\n\nYou can create the default folder in your User Directory:\n${defaultFolder}\n\nor select an existing folder instead.`
+    });
+
+    if (win.isDestroyed()) return;
+
+    if (response === 0) {
+        try {
+            await mkdir(defaultFolder, { recursive: true });
+        } catch (err) {
+            console.error('[main] Failed to create default download folder:', err);
+        }
+        await mergeSettings({ downloadFolder: defaultFolder, firstRunFolderPrompted: true });
+        if (!win.isDestroyed()) {
+            win.webContents.send('download-folder-updated', defaultFolder);
+        }
+    } else if (response === 1) {
+        const result = await dialog.showOpenDialog(win, {
+            properties: ['openDirectory'],
+            title: 'Select Download Folder'
+        });
+        if (!win.isDestroyed()) {
+            if (!result.canceled && result.filePaths.length > 0) {
+                const chosen = result.filePaths[0];
+                await mergeSettings({ downloadFolder: chosen, firstRunFolderPrompted: true });
+                if (!win.isDestroyed()) {
+                    win.webContents.send('download-folder-updated', chosen);
+                }
+            } else {
+                await mergeSettings({ firstRunFolderPrompted: true });
+            }
+        }
+    } else {
+        await mergeSettings({ firstRunFolderPrompted: true });
+    }
+}
+
 function createWindow() {
     const win = new BrowserWindow({
         fullscreenable: true,
@@ -80,6 +138,12 @@ function createWindow() {
 
     // Maximise the window
     win.maximize();
+
+    win.webContents.once('did-finish-load', () => {
+        promptInitialDownloadFolder(win).catch((err) => {
+            console.error('[main] Error prompting initial download folder:', err);
+        });
+    });
 }
 
 let asyncEncryptionAvailable = null;

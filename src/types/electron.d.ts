@@ -95,6 +95,7 @@ interface ElectronAPI {
         error?: string;
     }>;
     onProgress: (callback: (progress: string) => void) => () => void;
+    onDownloadFolderUpdated: (callback: (folder: string) => void) => () => void;
     checkAppUpdate: () => Promise<{
         error?: boolean;
         hasUpdate?: boolean;
