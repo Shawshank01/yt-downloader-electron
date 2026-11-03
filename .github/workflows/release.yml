@@ -218,36 +218,36 @@ jobs:
         git clone "https://x-access-token:${TAP_TOKEN}@github.com/Shawshank01/homebrew-tap.git" homebrew-tap
         mkdir -p homebrew-tap/Casks
 
-        cat <<EOF > homebrew-tap/Casks/yt-downloader.rb
-cask "yt-downloader" do
-  version "${VER}"
+        cat <<EOF | sed 's/^        //' > homebrew-tap/Casks/yt-downloader.rb
+        cask "yt-downloader" do
+          version "${VER}"
 
-  on_arm do
-    sha256 "${ARM64_SHA}"
-    url "https://github.com/Shawshank01/yt-downloader-electron/releases/download/v#{version}/YT-Downloader-mac-arm64-#{version}.dmg"
-  end
-  on_intel do
-    sha256 "${X64_SHA}"
-    url "https://github.com/Shawshank01/yt-downloader-electron/releases/download/v#{version}/YT-Downloader-mac-x64-#{version}.dmg"
-  end
+          on_arm do
+            sha256 "${ARM64_SHA}"
+            url "https://github.com/Shawshank01/yt-downloader-electron/releases/download/v#{version}/YT-Downloader-mac-arm64-#{version}.dmg"
+          end
+          on_intel do
+            sha256 "${X64_SHA}"
+            url "https://github.com/Shawshank01/yt-downloader-electron/releases/download/v#{version}/YT-Downloader-mac-x64-#{version}.dmg"
+          end
 
-  name "YT Downloader"
-  desc "Video downloader using yt-dlp and FFmpeg with AI assistance"
-  homepage "https://github.com/Shawshank01/yt-downloader-electron"
+          name "YT Downloader"
+          desc "Video downloader using yt-dlp and FFmpeg with AI assistance"
+          homepage "https://github.com/Shawshank01/yt-downloader-electron"
 
-  app "YT Downloader.app"
+          app "YT Downloader.app"
 
-  # Automatically strips quarantine upon installation
-  postflight_steps do
-    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/YT Downloader.app"]
-  end
+          # Automatically strips quarantine upon installation
+          postflight_steps do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/YT Downloader.app"]
+          end
 
-  zap trash: [
-    "~/Library/Application Support/yt-downloader-electron",
-    "~/Library/Preferences/com.ytdownloader.app.plist",
-  ]
-end
-EOF
+          zap trash: [
+            "~/Library/Application Support/yt-downloader-electron",
+            "~/Library/Preferences/com.ytdownloader.app.plist",
+          ]
+        end
+        EOF
 
         cd homebrew-tap
         git config user.name "github-actions[bot]"
