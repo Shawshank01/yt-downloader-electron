@@ -35,7 +35,21 @@ AI Mode UI
 
 ## Installation
 
-### Method 1: Direct Download (Recommended for Users)
+### Method 1: Homebrew (macOS)
+
+You can install and update the app using Homebrew:
+
+```bash
+brew install --cask Shawshank01/tap/yt-downloader
+```
+
+To update to new versions in the future:
+
+```bash
+brew upgrade yt-downloader
+```
+
+### Method 2: Direct Download
 
 1. Download the latest release from the [Releases](https://github.com/Shawshank01/yt-downloader-electron/releases) page.
 2. Extract the downloaded file and run the installer for your OS:
@@ -49,7 +63,7 @@ AI Mode UI
       xattr -cr /Applications/"YT Downloader.app"
       ```
 
-### Method 2: From Source (For Developers)
+### Method 3: From Source (For Developers)
 
 1. Clone the repository:
 

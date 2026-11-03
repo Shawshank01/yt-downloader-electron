@@ -187,5 +187,81 @@ jobs:
         body_path: release_notes.txt
         files: release_assets/*
 
+    - name: Update Homebrew Tap
+      if: success()
+      env:
+        TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        TAG_NAME: ${{ github.ref_name }}
+      shell: bash
+      run: |
+        if [ -z "$TAP_TOKEN" ]; then
+          echo "HOMEBREW_TAP_TOKEN secret is not set. Skipping Homebrew tap update."
+          exit 0
+        fi
+
+        VER="${TAG_NAME#v}"
+        ARM64_DMG=$(find release_assets -type f -name "YT-Downloader-mac-arm64-*.dmg" | head -n 1)
+        X64_DMG=$(find release_assets -type f -name "YT-Downloader-mac-x64-*.dmg" | head -n 1)
+
+        if [ -z "$ARM64_DMG" ] || [ -z "$X64_DMG" ]; then
+          echo "macOS DMG files not found in release_assets. Skipping Homebrew tap update."
+          exit 0
+        fi
+
+        ARM64_SHA=$(sha256sum "$ARM64_DMG" | awk '{print $1}')
+        X64_SHA=$(sha256sum "$X64_DMG" | awk '{print $1}')
+
+        echo "Updating Homebrew tap to version $VER..."
+        echo "arm64 sha256: $ARM64_SHA"
+        echo "x64 sha256:   $X64_SHA"
+
+        git clone "https://x-access-token:${TAP_TOKEN}@github.com/Shawshank01/homebrew-tap.git" homebrew-tap
+        mkdir -p homebrew-tap/Casks
+
+        cat <<EOF > homebrew-tap/Casks/yt-downloader.rb
+cask "yt-downloader" do
+  version "${VER}"
+
+  on_arm do
+    sha256 "${ARM64_SHA}"
+    url "https://github.com/Shawshank01/yt-downloader-electron/releases/download/v#{version}/YT-Downloader-mac-arm64-#{version}.dmg"
+  end
+  on_intel do
+    sha256 "${X64_SHA}"
+    url "https://github.com/Shawshank01/yt-downloader-electron/releases/download/v#{version}/YT-Downloader-mac-x64-#{version}.dmg"
+  end
+
+  name "YT Downloader"
+  desc "Video downloader using yt-dlp and FFmpeg with AI assistance"
+  homepage "https://github.com/Shawshank01/yt-downloader-electron"
+
+  app "YT Downloader.app"
+
+  # Automatically strips quarantine upon installation
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/YT Downloader.app"],
+                   sudo: false
+  end
+
+  zap trash: [
+    "~/Library/Application Support/yt-downloader-electron",
+    "~/Library/Preferences/com.ytdownloader.app.plist",
+  ]
+end
+EOF
+
+        cd homebrew-tap
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add Casks/yt-downloader.rb
+
+        if git diff --staged --quiet; then
+          echo "No changes to commit in homebrew-tap."
+        else
+          git commit -m "chore(cask): update yt-downloader to ${VER}"
+          git push origin main
+        fi
+
   tools:
     uses: ./.github/workflows/build-tools.yml
