@@ -43,7 +43,7 @@
     "name": "Michifumi",
     "email": "lelouch@outlook.ie"
   },
-  "license": "MIT",
+  "license": "GPL-2.0-only",
   "bugs": {
     "url": "https://github.com/Shawshank01/yt-downloader-electron/issues"
   },
