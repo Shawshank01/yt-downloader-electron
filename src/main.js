@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { mkdir } from 'fs/promises';
 
 import { checkAppUpdate, getCurrentVersion, isAutoUpdaterSupported } from './update.js';
@@ -126,8 +126,10 @@ async function promptInitialDownloadFolder(win) {
 }
 
 function createWindow() {
+    const iconPath = join(__dirname, '../build/icon.png');
     const win = new BrowserWindow({
         fullscreenable: true,
+        ...(existsSync(iconPath) ? { icon: iconPath } : {}),
         webPreferences: {
             preload: join(__dirname, 'preload.cjs'),
             nodeIntegration: false,
@@ -167,6 +169,14 @@ async function initSafeStorageAvailability() {
 }
 
 app.whenReady().then(async () => {
+    const iconPath = join(__dirname, '../build/icon.png');
+    if (process.platform === 'darwin' && app.dock && existsSync(iconPath)) {
+        try {
+            app.dock.setIcon(iconPath);
+        } catch (err) {
+            console.error('[main] Failed to set dock icon:', err);
+        }
+    }
     await initSafeStorageAvailability();
     createWindow();
 }).catch(console.error);
