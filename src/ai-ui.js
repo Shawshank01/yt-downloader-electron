@@ -34,26 +34,24 @@
         {
             category: 'Subtitles & Processing',
             items: [
+                'Re-encode <filename> as high-quality MP4',
                 'Download <link> with English subtitles burned in',
-                'Download English subtitles for <link>',
-                'Re-encode <filename> as high-quality MP4'
+                'Download English subtitles for <link>'
             ]
         },
         {
             category: 'Info & Inspection',
             items: [
-                'Get video info for <link>',
-                'What subtitle languages does <link> have?',
                 'List all available video formats for <link>',
+                'Are subtitles for <link> manual or auto-generated?',
                 'Download the thumbnail of <link>'
             ]
         },
         {
-            category: 'File Management & Tasks',
+            category: 'File Management',
             items: [
                 'Show me the files in my download folder',
-                'Delete <filename> in my download folder',
-                'Cancel the current task'
+                'Delete <filename> in my download folder'
             ]
         }
     ];
