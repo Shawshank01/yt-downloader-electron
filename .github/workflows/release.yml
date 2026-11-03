@@ -238,10 +238,8 @@ cask "yt-downloader" do
   app "YT Downloader.app"
 
   # Automatically strips quarantine upon installation
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/YT Downloader.app"],
-                   sudo: false
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/YT Downloader.app"]
   end
 
   zap trash: [
