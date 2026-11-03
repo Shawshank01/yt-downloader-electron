@@ -1,21 +1,32 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <!-- Background with a subtle gradient -->
-    <rect width="512" height="512" rx="128" fill="url(#bg_gradient)"/>
+  <defs>
+    <!-- Rounded squircle clipping path (standard macOS desktop icon: rx=128 for 512x512) -->
+    <clipPath id="squircle_clip">
+      <rect width="512" height="512" rx="128" />
+    </clipPath>
 
-    <!-- Main Symbol: A download arrow and tray -->
-    <g transform="translate(0, 20)">
-        <!-- The download arrow part -->
-        <path d="M256 120 L256 300" stroke="white" stroke-width="40" stroke-linecap="round"/>
-        <path d="M196 240 L256 300 L316 240" stroke="white" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
-        
-        <!-- The "shelf" for the download -->
-        <path d="M160 360 L352 360" stroke="white" stroke-width="40" stroke-linecap="round"/>
-    </g>
+    <!-- Subtle gradient of light and shadow based on the app background palette -->
+    <linearGradient id="bg_gradient" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#22222a" />
+      <stop offset="45%" stop-color="#141416" />
+      <stop offset="100%" stop-color="#0a0a0d" />
+    </linearGradient>
+  </defs>
 
-    <defs>
-        <linearGradient id="bg_gradient" x1="256" y1="0" x2="256" y2="512" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#4A5568"/>
-            <stop offset="1" stop-color="#2D3748"/>
-        </linearGradient>
-    </defs>
+  <g clip-path="url(#squircle_clip)">
+    <!-- App background with slight light and shadow gradient -->
+    <rect width="512" height="512" fill="url(#bg_gradient)" />
+
+    <!-- Earth: one-third arc of the horizon in app teal (#019D9C) -->
+    <path d="M -10 240 A 272 272 0 0 1 272 522" fill="none" stroke="#019D9C" stroke-width="22" stroke-linecap="round" />
+
+    <!-- Comet: lines of varying lengths converging at a single point (Claude icon style) -->
+    <line x1="230" y1="282" x2="241.0" y2="177.6" stroke="#019D9C" stroke-width="22" stroke-linecap="round" />
+    <line x1="230" y1="282" x2="290.2" y2="107.1" stroke="#019D9C" stroke-width="22" stroke-linecap="round" />
+    <line x1="230" y1="282" x2="301.5" y2="167.5" stroke="#019D9C" stroke-width="22" stroke-linecap="round" />
+    <line x1="230" y1="282" x2="417.4" y2="94.6" stroke="#019D9C" stroke-width="22" stroke-linecap="round" />
+    <line x1="230" y1="282" x2="353.0" y2="205.2" stroke="#019D9C" stroke-width="22" stroke-linecap="round" />
+    <line x1="230" y1="282" x2="423.8" y2="215.3" stroke="#019D9C" stroke-width="22" stroke-linecap="round" />
+    <line x1="230" y1="282" x2="344.4" y2="270.0" stroke="#019D9C" stroke-width="22" stroke-linecap="round" />
+  </g>
 </svg>
