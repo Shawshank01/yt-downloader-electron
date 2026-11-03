@@ -193,6 +193,31 @@ test('Gemini: multi-turn chains with previous_interaction_id and tool results', 
     assert.deepEqual(call.body.input[1].result, [{ type: 'text', text: '{"ok":false,"error":"x"}' }]);
 });
 
+test('Gemini: multi-turn input avoids sending empty text parts in content', async () => {
+    const fetchImpl = fakeFetch([{ json: { id: 'int_turn3', status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'ok' }] }] } }]);
+    const provider = new GeminiProvider({ apiKey: 'k', fetchImpl });
+
+    await provider.chat({
+        system: '',
+        messages: [
+            { role: 'user', text: 'first question' },
+            {
+                role: 'assistant',
+                text: '',
+                toolCalls: [{ id: 'call-1', name: 'download_video', args: {} }]
+            },
+            { role: 'tool', toolCallId: 'call-1', name: 'download_video', result: 'saved' },
+            { role: 'assistant', text: 'Done with first', toolCalls: [] },
+            { role: 'user', text: 'second question' }
+        ],
+        tools: TOOLS
+    });
+
+    const call = fetchImpl.calls[0];
+    const inputStr = JSON.stringify(call.body.input);
+    assert.ok(!inputStr.includes('"text":""'), 'should never send empty text string in input');
+});
+
 test('Gemini: error mapping (404 model, 429 quota, bad key, no key)', async () => {
     const run = async (response) => {
         const provider = new GeminiProvider({ apiKey: 'k', fetchImpl: fakeFetch([response]) });

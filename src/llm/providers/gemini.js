@@ -128,15 +128,35 @@ export class GeminiProvider {
         const input = [];
         for (const msg of pendingMessages) {
             if (msg.role === 'user') {
-                input.push({
-                    role: 'user',
-                    content: [{ type: 'text', text: msg.text }]
-                });
+                const text = typeof msg.text === 'string' ? msg.text.trim() : '';
+                if (text) {
+                    input.push({
+                        role: 'user',
+                        content: [{ type: 'text', text }]
+                    });
+                }
             } else if (msg.role === 'assistant') {
-                input.push({
-                    role: 'model',
-                    content: [{ type: 'text', text: msg.text || '' }]
-                });
+                const text = typeof msg.text === 'string' ? msg.text.trim() : '';
+                const content = [];
+                if (text) {
+                    content.push({ type: 'text', text });
+                }
+                if (Array.isArray(msg.toolCalls)) {
+                    for (const call of msg.toolCalls) {
+                        content.push({
+                            type: 'function_call',
+                            id: call.providerCallId || call.id,
+                            name: call.name,
+                            arguments: typeof call.args === 'string' ? call.args : JSON.stringify(call.args || {})
+                        });
+                    }
+                }
+                if (content.length > 0) {
+                    input.push({
+                        role: 'model',
+                        content
+                    });
+                }
             } else if (msg.role === 'tool') {
                 const textResult = typeof msg.result === 'string'
                     ? msg.result
@@ -145,7 +165,7 @@ export class GeminiProvider {
                     type: 'function_result',
                     name: msg.name,
                     call_id: msg.providerCallId || msg.toolCallId,
-                    result: [{ type: 'text', text: textResult }]
+                    result: [{ type: 'text', text: textResult || '{}' }]
                 });
             }
         }
