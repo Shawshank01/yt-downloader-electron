@@ -2,7 +2,7 @@
   <img src="build/icon.svg" alt="Video Downloader Icon" width="128">
 </p>
 
-# YT Downloader Electron
+# YT Downloader
 
 This is a user-friendly desktop application with **AI Assistance**. It uses yt-dlp for downloading videos from YouTube, X (Twitter), Instagram and many other platforms, and FFmpeg to changing the format, re-encoding and adding subtitles.
 

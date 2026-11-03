@@ -76,9 +76,9 @@ async function promptInitialDownloadFolder(win) {
 
     let defaultFolder;
     try {
-        defaultFolder = app.getPath('downloads');
+        defaultFolder = join(app.getPath('downloads'), 'YT Downloader');
     } catch {
-        defaultFolder = join(app.getPath('home'), 'Downloads');
+        defaultFolder = join(app.getPath('home'), 'Downloads', 'YT Downloader');
     }
 
     let hasValidFolder = false;
@@ -100,12 +100,12 @@ async function promptInitialDownloadFolder(win) {
 
     const { response } = await dialog.showMessageBox(win, {
         type: 'question',
-        buttons: ['Use Downloads Folder', 'Select Existing Folder…', 'Cancel'],
+        buttons: ['Create Default Folder', 'Select Existing Folder…', 'Cancel'],
         defaultId: 0,
         cancelId: 2,
         title: 'Welcome to YT Downloader',
         message: 'Set Download Location',
-        detail: `Where would you like to save your downloads?\n\nYou can use your standard Downloads folder:\n${defaultFolder}\n\nor select a different folder instead.`
+        detail: `Where would you like to save your downloads?\n\nYou can create the default folder:\n${defaultFolder}\n\nor select a different folder instead.`
     });
 
     if (win.isDestroyed()) return;
@@ -269,7 +269,7 @@ ipcMain.handle('get-app-info', async () => {
         // Fall back to default pinned versions
     }
     return {
-        name: 'YT-DLP Downloader',
+        name: 'YT Downloader',
         version: app.getVersion(),
         developer: 'Michifumi',
         isPackaged: app.isPackaged,

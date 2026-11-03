@@ -1271,6 +1271,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const info = await window.electronAPI.getAppInfo();
             if (info) {
+                const titleEl = document.getElementById('appInfoTitle');
+                if (titleEl && info.name) titleEl.textContent = info.name;
                 const versionBadge = document.getElementById('appInfoVersion');
                 if (versionBadge && info.version) versionBadge.textContent = `v${info.version}`;
                 if (info.bundledTools) {

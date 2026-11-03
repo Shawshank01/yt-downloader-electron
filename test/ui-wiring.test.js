@@ -135,5 +135,11 @@ test('context errors (download folder, browser, proxy) do not show Open AI Setti
     assert.match(aiUi, /window\.chooseFolder/);
 });
 
+test('app branding and title is "YT Downloader"', () => {
+    assert.match(html, /<title>YT Downloader<\/title>/);
+    assert.match(html, /<h1>YT Downloader<\/h1>/);
+    assert.ok(!html.includes('YT-DLP Downloader'));
+});
+
 
 
