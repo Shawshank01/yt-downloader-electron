@@ -10,6 +10,36 @@ import {
 import { TOOL_NAMES } from './names.js';
 import { defineTool, playlistProperty, playlistRisk, resolveSubtitle, runDownload, urlProperty } from './common.js';
 
+/**
+ * If formatCode is a combination like "137+140", YouTube multi-language / DRC tracks often
+ * have suffixed IDs like "140-0" or "140-2" instead of bare "140". Provide fallback selectors
+ * using yt-dlp's "/" operator so yt-dlp doesn't fail with "Requested format is not available".
+ *
+ * @param {string|undefined} formatCode
+ * @returns {string|undefined}
+ */
+export function resolveFormatCode(formatCode) {
+    if (!formatCode || formatCode.includes('/')) return formatCode;
+    const pairMatch = formatCode.match(/^([a-zA-Z0-9_.-]+)\+([a-zA-Z0-9_.-]+)$/);
+    if (pairMatch) {
+        const [, video, audio] = pairMatch;
+        if (audio === '140') {
+            return `${formatCode}/${video}+ba[acodec^=mp4a]/${video}+ba`;
+        }
+        if (audio === '251' || audio === '250' || audio === '249') {
+            return `${formatCode}/${video}+ba[acodec^=opus]/${video}+ba`;
+        }
+        return `${formatCode}/${video}+ba`;
+    }
+    if (formatCode === '140') {
+        return '140/ba[acodec^=mp4a]/ba';
+    }
+    if (formatCode === '251' || formatCode === '250' || formatCode === '249') {
+        return `${formatCode}/ba[acodec^=opus]/ba`;
+    }
+    return formatCode;
+}
+
 const AUDIO_FORMATS = ['mp3', 'm4a', 'opus', 'flac', 'wav', 'best'];
 const MERGE_FORMATS = ['mp4', 'mkv', 'webm'];
 
@@ -29,7 +59,7 @@ export const downloadTools = [
             },
             format_code: {
                 type: 'string',
-                description: 'Optional exact yt-dlp format code from list_formats, e.g. "299+140" or "137+140" (prefer avc1+m4a for broad device compatibility). Overrides max_height.'
+                description: 'Optional exact yt-dlp format code from list_formats (e.g. exact IDs like "137+140-0"). Prefer max_height instead of format_code for standard resolution requests (1080p, 720p, etc.).'
             },
             container: {
                 type: 'string',
@@ -55,7 +85,7 @@ export const downloadTools = [
 
             const specific = [];
             if (formatCode) {
-                specific.push('-f', formatCode);
+                specific.push('-f', resolveFormatCode(formatCode));
             } else if (container === 'mp4') {
                 if (maxHeight) {
                     specific.push(

@@ -28,7 +28,7 @@ export const infoTools = [
     defineTool({
         name: TOOL_NAMES.listFormats,
         description:
-            'List the available formats/qualities of a video (yt-dlp -F). Use this when the user wants a specific quality or format and you need the format codes.',
+            'List the available formats and stream IDs of a video (yt-dlp -F). Use this ONLY when the user explicitly asks to see available formats or requests a specific custom stream combination. For standard resolution requests (e.g. 1080p, 720p), use download_video with max_height instead.',
         properties: { url: urlProperty },
         required: ['url'],
         describe: (a) => `List formats for ${a.url}`,

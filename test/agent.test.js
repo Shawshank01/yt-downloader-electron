@@ -7,6 +7,7 @@ import { runAgent, shapeResult } from '../src/llm/agent.js';
 import { TOOLS, getToolDeclarations, getRisk, getTool } from '../src/llm/tool-registry.js';
 import { ProviderError } from '../src/llm/errors.js';
 import { buildSystemPrompt } from '../src/llm/prompt.js';
+import { resolveFormatCode } from '../src/llm/tools/download.js';
 
 /** A scripted provider: returns the queued replies in order and records what it was sent. */
 function scriptedProvider(replies) {
@@ -424,3 +425,34 @@ test('reencode_mp4 describe falls back to placeholder when file is omitted', () 
         'Re-encode "video" to MP4 (H.264/AAC); an existing .mp4 of the same name is replaced'
     );
 });
+
+test('resolveFormatCode adds resilient fallbacks for paired streams and multi-language track codes', () => {
+    assert.equal(
+        resolveFormatCode('137+140'),
+        '137+140/137+ba[acodec^=mp4a]/137+ba'
+    );
+    assert.equal(
+        resolveFormatCode('299+140'),
+        '299+140/299+ba[acodec^=mp4a]/299+ba'
+    );
+    assert.equal(
+        resolveFormatCode('248+251'),
+        '248+251/248+ba[acodec^=opus]/248+ba'
+    );
+    assert.equal(
+        resolveFormatCode('137+140-2'),
+        '137+140-2/137+ba'
+    );
+    assert.equal(
+        resolveFormatCode('140'),
+        '140/ba[acodec^=mp4a]/ba'
+    );
+    assert.equal(
+        resolveFormatCode('251'),
+        '251/ba[acodec^=opus]/ba'
+    );
+    assert.equal(resolveFormatCode('18'), '18');
+    assert.equal(resolveFormatCode('137+140/best'), '137+140/best');
+    assert.equal(resolveFormatCode(undefined), undefined);
+});
+
