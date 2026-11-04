@@ -46,7 +46,8 @@ brew install --cask Shawshank01/tap/yt-downloader
 To update to new versions in the future:
 
 ```bash
-brew upgrade yt-downloader
+git -C "$(brew --repository Shawshank01/tap)" pull
+brew upgrade --cask yt-downloader
 ```
 
 ### Method 2: Direct Download
@@ -149,7 +150,7 @@ Other settings:
 - **Conversations are not saved.** They live in memory only. **New chat** or closing the app discards them.
 - **The assistant cannot run arbitrary commands.** It picks from a fixed set of tools, and the app validates every value (URLs must be `http(s)`, file names cannot contain paths, and so on) and builds the `yt-dlp` / `ffmpeg` arguments itself. Files can only be written inside your chosen download folder. Browser cookies and proxy settings are never changed by the assistant.
 - **Treat website text as untrusted.** Video titles and descriptions are passed to the model as data; the assistant is instructed never to follow instructions found in them. Replies are rendered as formatted text, never as HTML, and links open in your browser only for `http(s)` URLs.
-- The terminal output (`pnpm start`) prints diagnostic lines starting with `[ai]` (timing, token counts, errors). They never contain your key, your messages or the replies. Nothing is written to a log file.
+- The terminal output (`pn start`) prints diagnostic lines starting with `[ai]` (timing, token counts, errors). They never contain your key, your messages or the replies. Nothing is written to a log file.
 
 ## Classic Mode Usage
 
@@ -268,7 +269,7 @@ pn run lint     # ESLint over src/ and test/
 pn test         # automated tests
 ```
 
-The tests (in `test/`) need no network access and no API key: they use mock HTTP responses and scripted fake models. They cover input validation, the tool layer, the AI providers, the agent loop, key storage, settings, the Markdown renderer and static checks of the interface wiring. They do **not** open the app window, so after changing the interface run `pnpm start` and try it by hand. The `test/` folder is excluded from the packaged installer.
+The tests (in `test/`) need no network access and no API key: they use mock HTTP responses and scripted fake models. They cover input validation, the tool layer, the AI providers, the agent loop, key storage, settings, the Markdown renderer and static checks of the interface wiring. They do **not** open the app window, so after changing the interface run `pn start` and try it by hand. The `test/` folder is excluded from the packaged installer.
 
 ### Project layout
 
@@ -293,14 +294,14 @@ src/
     key-store.js         encrypted API key storage (safeStorage)
     prompt.js            system prompt engineering
     providers/           gemini.js, xai.js, ollama.js, openai-compatible.js, http.js (retries)
-test/                  automated tests (136 unit tests, node:test runner)
+test/                  automated tests (node:test runner)
 ```
 
 ## Contributing
 
 1. Fork the repository
 2. Create your feature branch
-3. Make your changes and run `pnpm run lint` and `pnpm test`
+3. Make your changes and run `pn run lint` and `pn test`
 4. Commit your changes
 5. Push to the branch
 6. Create a Pull Request
