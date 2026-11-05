@@ -2,7 +2,7 @@
 
 // Conversation
 export const MAX_AGENT_STEPS = 8;            // model calls per user message
-export const MAX_TOOL_RESULT_CHARS = 6000;   // tool output kept in the model's context
+export const MAX_TOOL_RESULT_CHARS = 30000;  // tool output kept in the model's context
 export const MAX_HISTORY_MESSAGES = 40;
 export const MAX_USER_MESSAGE_CHARS = 4000;
 

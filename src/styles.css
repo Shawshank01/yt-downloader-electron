@@ -896,6 +896,37 @@ body[data-mode='ai'] .ai-panel {
     white-space: pre-wrap;
 }
 
+.ai-step-expander {
+    margin-top: 6px;
+}
+
+.ai-step-expander summary {
+    cursor: pointer;
+    color: var(--accent-teal);
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    user-select: none;
+}
+
+.ai-step-expander summary:hover {
+    text-decoration: underline;
+}
+
+.ai-step-raw {
+    margin: 6px 0 2px 0;
+    max-height: 260px;
+    overflow-y: auto;
+    background: #141418;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: pre;
+    color: #d4d4d8;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .ai-empty-hint {
     margin: auto;
     max-width: min(1380px, 98%);

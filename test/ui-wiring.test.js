@@ -141,5 +141,16 @@ test('app branding and title is "YT Downloader"', () => {
     assert.ok(!html.includes('YT-DLP Downloader'));
 });
 
+test('list_formats tool output attaches an expandable raw format viewer with safe pre element and styling', () => {
+    assert.match(aiUi, /event\.name === 'list_formats'/);
+    assert.match(aiUi, /document\.createElement\('details'\)/);
+    assert.match(aiUi, /document\.createElement\('summary'\)/);
+    assert.match(aiUi, /document\.createElement\('pre'\)/);
+    assert.match(aiUi, /pre\.textContent = event\.result\.output\.trim\(\)/);
+    assert.match(css, /\.ai-step-expander\s*\{/);
+    assert.match(css, /\.ai-step-raw\s*\{/);
+    assert.doesNotMatch(aiUi, /expander\.addEventListener\('toggle'/);
+});
+
 
 

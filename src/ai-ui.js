@@ -576,6 +576,19 @@
                 step.title.textContent = `${event.cancelled ? '⏹' : failed ? '✗' : '✓'} ${step.description}`;
                 const summary = summarizeResult(event.name, event.result);
                 step.detail.textContent = summary.length > 300 ? `${summary.slice(0, 300)}…` : summary;
+
+                if (event.name === 'list_formats' && event.result && typeof event.result.output === 'string' && event.result.output.trim()) {
+                    const expander = document.createElement('details');
+                    expander.className = 'ai-step-expander';
+                    const summaryEl = document.createElement('summary');
+                    summaryEl.textContent = 'View full format list';
+                    const pre = document.createElement('pre');
+                    pre.className = 'ai-step-raw';
+                    pre.textContent = event.result.output.trim();
+                    expander.append(summaryEl, pre);
+                    step.detail.append(expander);
+                }
+
                 els.progress.textContent = 'Thinking…';
                 scrollMessagesToBottom();
                 break;
