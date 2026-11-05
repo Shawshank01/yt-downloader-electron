@@ -8,6 +8,7 @@ import { TOOLS, getToolDeclarations, getRisk, getTool } from '../src/llm/tool-re
 import { ProviderError } from '../src/llm/errors.js';
 import { buildSystemPrompt } from '../src/llm/prompt.js';
 import { resolveFormatCode } from '../src/llm/tools/download.js';
+import { MESSAGES } from '../src/llm/messages.js';
 
 /** A scripted provider: returns the queued replies in order and records what it was sent. */
 function scriptedProvider(replies) {
@@ -79,6 +80,26 @@ test('streamed text is retained when the provider final answer is empty', async 
     assert.equal(res.text, 'hello world');
     assert.equal(events.filter((event) => event.type === 'assistant_delta').length, 2);
     assert.equal(events.at(-1).text, 'hello world');
+});
+
+test('empty model completion retries once and finishes when answer is provided', async () => {
+    const provider = scriptedProvider([{ text: '' }, { text: 'Recovered answer!' }]);
+    const history = [];
+    const res = await runAgent({ provider, system: 's', history, userText: 'hi', ctx: {} });
+    assert.equal(res.text, 'Recovered answer!');
+    assert.equal(res.stoppedBecause, 'done');
+    assert.equal(res.steps, 2);
+    assert.deepEqual(history.map((m) => m.role), ['user', 'assistant', 'user', 'assistant']);
+    assert.match(history[2].text, /Please answer/);
+});
+
+test('consecutive empty completions fall back to emptyAnswer after 1 retry', async () => {
+    const provider = scriptedProvider([{ text: '' }, { text: '' }]);
+    const history = [];
+    const res = await runAgent({ provider, system: 's', history, userText: 'hi', ctx: {} });
+    assert.equal(res.text, MESSAGES.emptyAnswer);
+    assert.equal(res.stoppedBecause, 'done');
+    assert.equal(res.steps, 2);
 });
 
 test('tool call → result fed back → final answer (list_downloads against a real folder)', async () => {

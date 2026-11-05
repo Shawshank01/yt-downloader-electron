@@ -3,6 +3,7 @@
 export const MESSAGES = {
     stopped: 'Stopped.',
     emptyAnswer: '(The assistant returned an empty answer.)',
+    emptyAnswerRetryPrompt: 'Please answer the user\'s request or call the appropriate tool. Do not leave the response empty.',
     cancelledByUser: 'Cancelled by the user.',
     declinedByUser: 'The user declined to run this action.',
     toolNotRun: 'Not run: the request failed.',

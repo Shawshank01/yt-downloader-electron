@@ -79,6 +79,7 @@ export async function runAgent({
     history.push({ role: 'user', text: userText });
 
     let steps = 0;
+    let retriedEmpty = false;
     const finishAborted = () => {
         cancelCurrentTask();
         const text = MESSAGES.stopped;
@@ -114,6 +115,22 @@ export async function runAgent({
 
         const toolCalls = reply.toolCalls.filter((c) => c.name);
         const replyText = reply.text || streamedText;
+
+        if (toolCalls.length === 0 && !replyText && steps < maxSteps && !retriedEmpty) {
+            retriedEmpty = true;
+            history.push({
+                role: 'assistant',
+                text: '',
+                toolCalls: [],
+                ...(reply.raw ? { raw: reply.raw } : {})
+            });
+            history.push({
+                role: 'user',
+                text: MESSAGES.emptyAnswerRetryPrompt
+            });
+            continue;
+        }
+
         history.push({
             role: 'assistant',
             text: replyText,

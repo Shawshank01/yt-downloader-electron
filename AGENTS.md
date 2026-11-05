@@ -69,7 +69,7 @@ src/llm/                 Electron-free:
   providers/               gemini, xai, ollama, openai-compatible, index (PROVIDER_TYPES capabilities),
                            http.js (requestJson/requestStream, retries), stream.js (SSE / NDJSON readers)
   prompt.js, messages.js, limits.js, redact.js, validate.js, errors.js, key-store.js
-test/                    node:test suite (162 tests)
+test/                    node:test suite (164 tests)
 ```
 
 `core/` and `llm/` never import Electron. Anything Electron-specific (safeStorage, userData path, windows) is injected from `main.js`.
