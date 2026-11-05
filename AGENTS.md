@@ -145,7 +145,7 @@ macOS (dev run): `~/Library/Application Support/yt-downloader-electron/`
 ```bash
 pn install
 pn run lint     # ESLint, src/ and test/
-pn test         # node --test test/   (130 tests, about 2 s, no network, no API key)
+pn test         # node --test test/   (161 tests, no network, no API key)
 ```
 
 Test files: `validate`, `providers` (adapters with mocked `fetch`, retries), `agent` (scripted fake model), `chat-service`, `llm-core` (conversation, confirmations, redaction, streaming, prompt/registry consistency, security checks), `infrastructure` (settings store, logger, bundled-tool detection), `api-contract` (`electron.d.ts` matches `preload.cjs`; every invoked IPC channel has a handler), `key-store`, `markdown`, `ui-wiring` (static checks: element IDs, script order, no `innerHTML`).

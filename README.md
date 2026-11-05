@@ -56,7 +56,7 @@ brew upgrade --cask yt-downloader
 2. Extract the downloaded file and run the installer for your OS:
     - **Linux:** `.AppImage`
     - **macOS:** `.dmg` (download `mac-arm64` if you are using an M-series Mac)
-    - **Windows:** `.exe` installer (dwonload `win-x64` if you're not sure which to choose)
+    - **Windows:** `.exe` installer (download `win-x64` if you're not sure which to choose)
 3. **First Run:**
     - On **macOS**, drag `YT Downloader.app` to `/Applications`, then open Terminal and run:
 
@@ -121,8 +121,8 @@ Rather than relying on fragile prompt engineering or bloated frameworks, the AI 
 - **Zero Shell Access & Strict Typed Tools**: The model is never given a raw shell. Every tool call validates parameters against strict schemas, building safe argument vectors directly (`src/llm/validate.js`).
 - **Self-Healing Context & Parameter Recovery**: The harness detects and repairs dropped parameters across multi-turn sessions (e.g. automatically recovering user-typed video URLs from earlier turns when follow-up requests say *"download 1080p as mp4"*).
 - **Prompt Injection Defense & URL Provenance**: Untrusted web data (video titles, descriptions, subtitles) is strictly quarantined from execution; URLs not typed by the user are flagged as foreign and require explicit user confirmation (`src/llm/provenance.js`).
-- **Native Format Intelligence**: Eliminates unnecessary re-encoding by dynamically injecting stream-prioritisation flags (`--format-sort res,ext:mp4:m4a`), downloading and remuxing native MP4 streams directly in seconds.
-- **Zero Framework Bloat**: Pure ES modules without LangChain or LlamaIndex wrappers. The core engine and harness are completely decoupled from Electron and covered by 136+ automated tests running in under 2 seconds.
+- **Native Format Intelligence**: Eliminates unnecessary re-encoding by dynamically injecting stream-prioritisation flags (`--format-sort res,vcodec:h264,ext:mp4:m4a`), downloading and remuxing native MP4 streams directly in seconds.
+- **Zero Framework Bloat**: Pure ES modules without LangChain or LlamaIndex wrappers. The core engine and harness are completely decoupled from Electron and covered by 161 automated tests.
 
 ### Setting it up
 
@@ -135,7 +135,7 @@ Rather than relying on fragile prompt engineering or bloated frameworks, the AI 
 | --- | --- | --- |
 | **Google Gemini** (default, model `gemma-4-26b-a4b-it`) | Free API key from [Google AI Studio](https://aistudio.google.com/apikey) | Free tier can be busy (HTTP 503) or rate limited, the app retries automatically. Your messages go to Google. |
 | **xAI (Grok)** (model `grok-4.3`) | API key from the [xAI console](https://console.x.ai) | Uses xAI's Responses API at `https://api.x.ai/v1/responses`. Your messages go to Musk. |
-| **Ollama (local & cloud)** | [Ollama](https://ollama.com) running with small models, for example `LFM3-1.7B`. | Everything stays on your computer if you run a local model. Small models are faster but less reliable. |
+| **Ollama (local & cloud)** | [Ollama](https://ollama.com) running with a tool-capable model, for example `LFM3:1.7b`, `Qwen3`. | Everything stays on your computer if you run a local model. Small models are faster but less reliable. |
 | **OpenAI-compatible** | Server URL, model name, usually an API key | Works with llama.cpp, OpenAI, OpenRouter, Groq, LM Studio and similar. |
 
 Other settings:
@@ -248,7 +248,7 @@ The app includes a built-in update checker:
    - On **macOS**, when reading browser cookies, macOS may block data access until permitted. Follow the in-app prompt or navigate to **System Settings > Privacy & Security > Files & Folders**, enable access for `YT Downloader.app` under the corresponding browser, and restart the app. Full Disk Access may be required
 
 3. **AI Mode Issues**
-   - **"Gemini is having problems (HTTP 503)"**: Google's servers are overloaded, which happens on the free tier. The app already retries three times. Try again in a minute, switch provider, or use Classic mode.
+   - **"Gemini is having problems (HTTP 503)"**: Google's servers are overloaded, which happens on the free tier. The app automatically retries once, for up to two attempts total. Try again in a minute, switch provider, or use Classic mode.
    - **"Rate limit or quota reached" (HTTP 429)**: you used up the free quota. Wait, switch provider, or use Classic mode.
    - **"rejected the API key"** or **"could not find model"**: open **AI Settings**, re-paste the key, check the model name, and use **Test connection**.
    - **Slow answers**: keep **Response speed** on *Fast*. With Ollama, the first answer after starting a model is slower.
@@ -287,7 +287,7 @@ src/
     ffmpeg.js, media-files.js, log-filter.js
   llm/                 The Agent Harness (Electron-free AI execution engine)
     agent.js             the harness loop: state machine, model calls, tool dispatch, error recovery
-    tool-registry.js     the 12 tools the model may call (schemas, validation, argument building)
+    tool-registry.js     the 13 tools the model may call (schemas, validation, argument building)
     validate.js          strict validation and normalization of model-supplied values
     provenance.js        tracks user-typed URL origins to guard against indirect prompt injection
     chat-service.js      settings, conversation history, confirmations, cancel, error handling

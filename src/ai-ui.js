@@ -691,7 +691,7 @@
             xai:
                 'Your messages, video links and the results of actions are sent to xAI. Check xAI\u2019s data and privacy terms. Choose Ollama if you want everything to stay on your computer.',
             ollama:
-                'Everything stays on your computer. Ollama must be running, and the model must support tool calling (for example qwen3 or llama3.1). Small models are less reliable.',
+                'Everything stays on your computer. Ollama must be running, and the model must support tool calling (for example LFM3-1.7B, Qwen3). Small models are less reliable.',
             'openai-compatible':
                 'Your messages are sent to the server URL above. Use this for OpenAI, OpenRouter, Groq, LM Studio and similar services.'
         };
