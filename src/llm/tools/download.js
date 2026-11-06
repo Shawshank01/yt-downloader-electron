@@ -8,7 +8,7 @@ import {
     validateBool
 } from '../validate.js';
 import { TOOL_NAMES } from './names.js';
-import { defineTool, playlistProperty, playlistRisk, resolveSubtitle, runDownload, urlProperty } from './common.js';
+import { AUDIO_FORMATS, defineTool, playlistProperty, playlistRisk, resolveSubtitle, runDownload, urlProperty } from './common.js';
 
 /**
  * If formatCode is a combination like "137+140", YouTube multi-language / DRC tracks often
@@ -40,7 +40,6 @@ export function resolveFormatCode(formatCode) {
     return formatCode;
 }
 
-const AUDIO_FORMATS = ['mp3', 'm4a', 'opus', 'flac', 'wav', 'best'];
 const MERGE_FORMATS = ['mp4', 'mkv', 'webm'];
 
 const langProperty = { type: 'string', description: 'Subtitle language code from list_subtitles, e.g. "en".' };

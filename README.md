@@ -302,7 +302,7 @@ src/
     key-store.js         encrypted API key storage (safeStorage)
     prompt.js            system prompt engineering
     providers/           gemini.js, xai.js, ollama.js, openai-compatible.js, http.js (retries)
-test/                  automated tests (node:test runner, 165 tests)
+test/                  automated tests (node:test runner, 178 tests)
 ```
 
 ## Contributing

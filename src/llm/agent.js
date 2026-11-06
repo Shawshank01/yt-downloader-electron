@@ -1,8 +1,9 @@
+import { promises as fs } from 'fs';
 import { ProviderError } from './errors.js';
 import { ValidationError } from './validate.js';
 import { getTool, getRisk, getToolDeclarations, TOOL_NAMES } from './tool-registry.js';
 import { cancelCurrentTask } from '../core/tools.js';
-import { MAX_AGENT_STEPS, MAX_TOOL_RESULT_CHARS } from './limits.js';
+import { MAX_AGENT_STEPS, MAX_TOOL_RESULT_CHARS, MAX_DELETE_FILES } from './limits.js';
 import { MESSAGES } from './messages.js';
 import { isForeignUrl, extractUrls } from './provenance.js';
 
@@ -316,9 +317,57 @@ async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMo
                 (typeof args.file === 'string' && args.file.trim()) ||
                 (typeof args.filename === 'string' && args.filename.trim()) ||
                 (typeof args.name === 'string' && args.name.trim());
-            if (single) {
+            if (single && single.toLowerCase() !== 'all' && single !== '*') {
                 args.files = [single];
             }
+        } else if (args.files.length === 1 && (args.files[0]?.toLowerCase() === 'all' || args.files[0] === '*')) {
+            delete args.files;
+        }
+
+        // If files are missing, empty, or requested "all", attempt to recover the files to delete
+        if (!Array.isArray(args.files) || args.files.length === 0) {
+            const lastUser = history.findLast((m) => m.role === 'user');
+            const userText = lastUser?.text || '';
+            const isAll = /\b(all|everything|all files|clean up)\b/i.test(userText) || args.all === true;
+
+            // 1. Check recent list_downloads result in history
+            let filesFromHistory = [];
+            for (let i = history.length - 1; i >= 0; i--) {
+                const msg = history[i];
+                if (msg.role === 'tool' && msg.name === TOOL_NAMES.listDownloads && msg.result?.ok && Array.isArray(msg.result.files)) {
+                    filesFromHistory = msg.result.files.map((f) => (typeof f === 'string' ? f : f?.name)).filter(Boolean);
+                    break;
+                }
+            }
+
+            if (isAll) {
+                if (filesFromHistory.length > 0) {
+                    args.files = filesFromHistory.slice(0, MAX_DELETE_FILES);
+                } else if (ctx?.downloadFolder) {
+                    try {
+                        const entries = await fs.readdir(ctx.downloadFolder, { withFileTypes: true });
+                        const diskFiles = entries.filter((e) => e.isFile() && !e.name.startsWith('.')).map((e) => e.name);
+                        args.files = diskFiles.slice(0, MAX_DELETE_FILES);
+                    } catch { /* ignore read error */ }
+                }
+            } else {
+                // Not asking for all: see if user referred to a specific file or if history has a single file
+                const recovered = recoverFileFromHistory(history);
+                if (recovered) {
+                    args.files = [recovered];
+                } else if (filesFromHistory.length === 1) {
+                    args.files = [filesFromHistory[0]];
+                } else if (ctx?.downloadFolder) {
+                    try {
+                        const entries = await fs.readdir(ctx.downloadFolder, { withFileTypes: true });
+                        const diskFiles = entries.filter((e) => e.isFile() && !e.name.startsWith('.')).map((e) => e.name);
+                        if (diskFiles.length === 1) {
+                            args.files = [diskFiles[0]];
+                        }
+                    } catch { /* ignore read error */ }
+                }
+            }
+
             if (call.args && typeof call.args === 'object' && Array.isArray(args.files)) {
                 call.args.files = args.files;
             }
@@ -371,10 +420,36 @@ async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMo
                 call.args.format_code = args.format_code;
             }
         }
+
+        if (!args.max_height) {
+            const rawHeight = args.height ?? args.resolution ?? args.res ?? args.quality ?? args.maxHeight;
+            if (rawHeight !== undefined && rawHeight !== null) {
+                const parsed = parseInt(String(rawHeight).replace(/[^0-9]/g, ''), 10);
+                if (Number.isInteger(parsed) && parsed >= 144 && parsed <= 4320) {
+                    args.max_height = parsed;
+                }
+            }
+        }
+
+        if (!args.max_height) {
+            const lastUser = history.findLast((m) => m.role === 'user');
+            const userText = lastUser?.text || '';
+            const heightMatch = userText.match(/\b(2160|1440|1080|720|480|360|240|144)p?\b/i);
+            if (heightMatch) {
+                args.max_height = parseInt(heightMatch[1], 10);
+            } else if (/\b4k\b/i.test(userText)) {
+                args.max_height = 2160;
+            } else if (/\b2k\b/i.test(userText)) {
+                args.max_height = 1440;
+            }
+        }
+        if (call.args && typeof call.args === 'object' && args.max_height) {
+            call.args.max_height = args.max_height;
+        }
     }
 
-    // Reconcile format for download_audio
-    if (call.name === TOOL_NAMES.downloadAudio) {
+    // Reconcile format for download_audio and extract_audio_from_file
+    if (call.name === TOOL_NAMES.downloadAudio || call.name === TOOL_NAMES.extractAudioFromFile) {
         if (!args.format) {
             const lastUser = history.findLast((m) => m.role === 'user');
             const userText = lastUser?.text || '';
@@ -398,6 +473,27 @@ async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMo
                 call.args.format = args.format;
             }
         }
+    }
+
+    if (call.name === TOOL_NAMES.deleteFiles && (!Array.isArray(args.files) || args.files.length === 0)) {
+        if (ctx?.downloadFolder) {
+            try {
+                const entries = await fs.readdir(ctx.downloadFolder, { withFileTypes: true });
+                const diskFiles = entries.filter((e) => e.isFile() && !e.name.startsWith('.'));
+                if (diskFiles.length === 0) {
+                    return {
+                        ok: true,
+                        message: 'There are no files in the download folder to delete.',
+                        deleted: [],
+                        skipped: []
+                    };
+                }
+            } catch { /* ignore read error */ }
+        }
+        return {
+            ok: false,
+            error: 'Please specify which files you want to delete (e.g. from list_downloads).'
+        };
     }
 
     const { risk, reason } = assessRisk(tool, args, history);

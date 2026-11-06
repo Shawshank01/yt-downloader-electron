@@ -15,7 +15,7 @@ It originally had only a form-based UI ("Classic mode"). The goal of the current
 | Phase | Result | Status |
 | --- | --- | --- |
 | 1. Refactor | `src/main.js` split into Electron-free modules in `src/core/`. `main.js` is thin IPC handlers. Classic behaviour unchanged. | Done, user-verified |
-| 2. AI backend | `src/llm/`: 12 tools, input validation, agent loop, four provider adapters, system prompt. | Done |
+| 2. AI backend | `src/llm/`: 13 tools, input validation, agent loop, four provider adapters, system prompt. | Done |
 | 3A. Main-process integration | Encrypted API-key storage, chat service (settings, conversation, confirmations, cancel), IPC and preload API (`window.electronAPI.ai`). | Done, user-verified (key save, connection test) |
 | 3B. UI | Classic / AI switch, chat panel, AI settings dialog, Allow/Deny dialog, live progress, streamed replies, auto-scroll, shared Browser / Download Folder / SOCKS5 context controls. | Done, user-verified |
 | Follow-ups | Gemini `thinkingLevel`, streamed Markdown replies, retries on HTTP 503 and similar, xAI Responses provider, Ollama streaming, empty-parameter tool schema fix, diagnostic `[ai]` log lines. | Done |
@@ -69,14 +69,14 @@ src/llm/                 Electron-free:
   providers/               gemini, xai, ollama, openai-compatible, index (PROVIDER_TYPES capabilities),
                            http.js (requestJson/requestStream, retries), stream.js (SSE / NDJSON readers)
   prompt.js, messages.js, limits.js, redact.js, validate.js, errors.js, key-store.js
-test/                    node:test suite (165 tests)
+test/                    node:test suite (178 tests)
 ```
 
 `core/` and `llm/` never import Electron. Anything Electron-specific (safeStorage, userData path, windows) is injected from `main.js`.
 
 ### Tools the model can call (`src/llm/tools/`)
 
-`get_online_video_info`, `list_formats`, `list_subtitles` (info.js); `download_video` (max_height / format_code / container / playlist), `download_audio` (mp3, m4a, opus, flac, wav, best), `download_thumbnail`, `download_subtitles` (download.js); `get_local_media_info`, `download_with_hardsub`, `reencode_mp4` (media.js); `list_downloads`, `delete_files` (files.js).
+`get_online_video_info`, `list_formats`, `list_subtitles` (info.js); `download_video` (max_height / format_code / container / playlist), `download_audio` (best, m4a, mp3, opus, flac, wav), `download_thumbnail`, `download_subtitles` (download.js); `get_local_media_info`, `download_with_hardsub`, `reencode_mp4`, `extract_audio_from_file` (media.js); `list_downloads`, `delete_files` (files.js).
 
 Tools are declared with `defineTool()` using names from `TOOL_NAMES`; the system prompt uses the same constants, and a test fails if the prompt mentions a tool or parameter that does not exist. Each tool has a `risk` (`low`/`high`, optionally a function of the arguments), a `describe()` text for the confirmation dialog, and a `run(args, ctx)` that validates everything and builds yt-dlp/ffmpeg **argument arrays**. High risk: hardsub, re-encode, delete_files, any `playlist: true` download, and any call whose `url` the user did not type (see invariant 11).
 
@@ -145,7 +145,7 @@ macOS (dev run): `~/Library/Application Support/yt-downloader-electron/`
 ```bash
 pn install
 pn run lint     # ESLint, src/ and test/
-pn test         # node --test test/   (161 tests, no network, no API key)
+pn test         # node --test test/   (178 tests, no network, no API key)
 ```
 
 Test files: `validate`, `providers` (adapters with mocked `fetch`, retries), `agent` (scripted fake model), `chat-service`, `llm-core` (conversation, confirmations, redaction, streaming, prompt/registry consistency, security checks), `infrastructure` (settings store, logger, bundled-tool detection), `api-contract` (`electron.d.ts` matches `preload.cjs`; every invoked IPC channel has a handler), `key-store`, `markdown`, `ui-wiring` (static checks: element IDs, script order, no `innerHTML`).
@@ -161,7 +161,7 @@ CI (`.github/workflows/lint.yml`) runs lint and tests on pushes and pull request
 
 ## 8. Known limitations and rough edges
 
-- The assistant can do only what the 12 tools allow. **No trimming, GIFs, joining, resizing, speed change, SponsorBlock, chapter/metadata editing, downloading a time range, or audio extraction from a local file.** It says so and suggests a command instead.
+- The assistant can do only what the 13 tools allow. **No trimming, GIFs, joining, resizing, speed change, SponsorBlock, chapter/metadata editing, or downloading a time range.** It says so and suggests a command instead.
 - One conversation at a time; history is lost on New chat or quit; capped at 40 messages.
 - UI strings and the system prompt are English only (the model answers in the user's language). `messages.js` centralises the text but is not a translation layer.
 - **`renderer.js` (about 1,200 lines) and `ai-ui.js` (about 760 lines) are large classic scripts** sharing global state and DOM IDs. They were deliberately not split because nothing but a manual click-through can catch wiring mistakes. If you split them, do it with a smoke test of each dialog.

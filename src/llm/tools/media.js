@@ -1,10 +1,10 @@
 // Tools built on ffmpeg and ffprobe.
-import { reEncodeToMp4, downloadWithHardsub, getLocalMediaInfo } from '../../core/tools.js';
+import { reEncodeToMp4, downloadWithHardsub, getLocalMediaInfo, extractAudioFromFile } from '../../core/tools.js';
 import { findMediaFile } from '../../core/media-files.js';
 import { requireFolder } from '../context.js';
 import { validateUrl, validateLang, validateFileHint, validateEnum } from '../validate.js';
 import { TOOL_NAMES } from './names.js';
-import { defineTool, mediaOutcome, progressOf, resolveSubtitle, urlProperty } from './common.js';
+import { AUDIO_FORMATS, defineTool, mediaOutcome, outcome, progressOf, resolveSubtitle, urlProperty } from './common.js';
 
 const CODECS = ['h264', 'hevc'];
 const POSITIONS = ['bottom', 'top'];
@@ -111,6 +111,52 @@ export const mediaTools = [
             }
             const file = validateFileHint(fileHint);
             return mediaOutcome(await reEncodeToMp4(folder, file, progressOf(ctx)));
+        }
+    }),
+    defineTool({
+        name: TOOL_NAMES.extractAudioFromFile,
+        description:
+            'Extract the audio track from an existing video file in the download folder using ffmpeg. Fast, local, and works offline without downloading. Default format: "best" (preserves original audio codec without re-encoding). Use "mp3" for legacy player compatibility.',
+        risk: 'low',
+        properties: {
+            file: {
+                type: 'string',
+                description: 'File name (or unique part of it) of an existing video in the download folder from list_downloads.'
+            },
+            format: {
+                type: 'string',
+                enum: AUDIO_FORMATS,
+                description:
+                    'Output audio format. "best" preserves original audio quality without re-encoding. Default: best. Use "mp3" for legacy device compatibility.'
+            }
+        },
+        required: ['file'],
+        describe: (a) => `Extract audio (${a.format || 'best'}) from "${a.file || 'video'}"`,
+        async run(args, ctx) {
+            const folder = requireFolder(ctx);
+            let fileHint = typeof args.file === 'string' ? args.file.trim() : '';
+            if (!fileHint) {
+                try {
+                    const candidate = await findMediaFile(folder, '');
+                    if (candidate) {
+                        fileHint = candidate.file;
+                    }
+                } catch { /* ignore read errors */ }
+            }
+            if (!fileHint) {
+                return {
+                    ok: false,
+                    error: 'Please specify which video file in the download folder you want to extract audio from (e.g. from list_downloads).'
+                };
+            }
+            const file = validateFileHint(fileHint);
+            const format = validateEnum(args.format, AUDIO_FORMATS, 'format', 'best');
+            const res = await extractAudioFromFile(folder, file, { format }, progressOf(ctx));
+            return outcome(res, {
+                file: res.file,
+                files: res.file ? [res.file] : [],
+                message: res.message
+            });
         }
     })
 ];

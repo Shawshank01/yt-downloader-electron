@@ -6,7 +6,7 @@ import { join } from 'path';
 import { spawnSync } from 'child_process';
 import { findMediaFile } from '../src/core/media-files.js';
 import { probeMedia, summarizeMediaInfo } from '../src/core/ffmpeg.js';
-import { getLocalMediaInfo } from '../src/core/tools.js';
+import { getLocalMediaInfo, extractAudioFromFile } from '../src/core/tools.js';
 import { getTool, getRisk } from '../src/llm/tool-registry.js';
 import { runAgent } from '../src/llm/agent.js';
 import { ValidationError } from '../src/llm/validate.js';
@@ -273,4 +273,52 @@ test('get_local_media_info handles missing file argument gracefully', async () =
     // Probing dummy file fails ffprobe, but it successfully resolved clip.mp4 rather than throwing "file must be a string"
     assert.equal(probeRes.ok, false);
     assert.notEqual(probeRes.error, '"file" must be a string.');
+});
+
+test('extract_audio_from_file tool declaration and describe', () => {
+    const tool = getTool('extract_audio_from_file');
+    assert.ok(tool);
+    assert.equal(tool.name, 'extract_audio_from_file');
+    assert.equal(getRisk(tool, {}), 'low');
+    assert.equal(tool.describe({ file: 'clip.mp4' }), 'Extract audio (best) from "clip.mp4"');
+    assert.equal(tool.describe({ file: 'clip.mp4', format: 'mp3' }), 'Extract audio (mp3) from "clip.mp4"');
+    assert.equal(tool.describe({}), 'Extract audio (best) from "video"');
+    assert.deepEqual(tool.parameters.required, ['file']);
+    assert.ok(tool.parameters.properties.file);
+    assert.ok(tool.parameters.properties.format);
+});
+
+test('extractAudioFromFile extracts audio track using ffmpeg', async () => {
+    const dir = await makeFolder({});
+    const testVideo = join(dir, 'test_video.mp4');
+
+    // Generate a 0.5s MP4 with an AAC audio track
+    const create = spawnSync('ffmpeg', [
+        '-y',
+        '-f', 'lavfi', '-i', 'color=c=black:s=320x240:d=0.5',
+        '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+        '-t', '0.5',
+        '-c:v', 'libx264',
+        '-c:a', 'aac',
+        testVideo
+    ]);
+
+    if (create.status !== 0) {
+        // Skip if ffmpeg cannot generate video in this environment
+        return;
+    }
+
+    // 1. Extract with format 'best' -> should copy AAC track to .m4a
+    const bestRes = await extractAudioFromFile(dir, 'test_video', { format: 'best' });
+    assert.equal(bestRes.success, true);
+    assert.equal(bestRes.file, 'test_video.m4a');
+    const m4aStat = await fs.stat(join(dir, 'test_video.m4a'));
+    assert.ok(m4aStat.size > 0);
+
+    // 2. Extract with format 'mp3' -> should transcode to .mp3
+    const mp3Res = await extractAudioFromFile(dir, 'test_video', { format: 'mp3' });
+    assert.equal(mp3Res.success, true);
+    assert.equal(mp3Res.file, 'test_video.mp3');
+    const mp3Stat = await fs.stat(join(dir, 'test_video.mp3'));
+    assert.ok(mp3Stat.size > 0);
 });

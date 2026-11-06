@@ -5,7 +5,7 @@
 // and any future caller (e.g. an LLM agent) share exactly the same implementation.
 import { spawn } from 'child_process';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, parse } from 'path';
 import { promises as fs } from 'fs';
 import { checkFfmpegSubtitlesSupport, findExecutable } from '../dependencies.js';
 import { taskManager } from './task-manager.js';
@@ -15,7 +15,10 @@ import { findVideoToReEncode, findHardsubSourceFiles, findMediaFile } from './me
 import {
     buildFfmpegReEncodeArgs,
     buildFfmpegHardsubArgs,
+    buildFfmpegExtractAudioArgs,
+    determineAudioExtension,
     runFfmpegWithCodecFallback,
+    runFfmpegProcess,
     probeMedia,
     summarizeMediaInfo
 } from './ffmpeg.js';
@@ -398,6 +401,139 @@ export async function getLocalMediaInfo(downloadFolder, fileHint) {
 
 // Backward-compatible alias
 export const getMediaInfo = getLocalMediaInfo;
+
+/**
+ * Extract audio from a media file in downloadFolder using ffmpeg.
+ * @param {string} downloadFolder
+ * @param {string} fileHint
+ * @param {object} [options]
+ * @param {string} [options.format='best']
+ * @param {function} [onProgress]
+ * @returns {Promise<{success: boolean, cancelled: boolean, message: string, error?: string, file?: string, saved_path?: string}>}
+ */
+export async function extractAudioFromFile(downloadFolder, fileHint, options = {}, onProgress = noop) {
+    const format = options.format || 'best';
+    logger.info('Extracting audio from file:', { downloadFolder, fileHint, format });
+
+    let task;
+    try {
+        task = taskManager.startTask('extract-audio');
+    } catch (err) {
+        return {
+            success: false,
+            cancelled: false,
+            message: `Error: ${err.message}`,
+            error: err.message
+        };
+    }
+
+    try {
+        const media = await findMediaFile(downloadFolder, fileHint);
+        if (!media) {
+            return {
+                success: false,
+                cancelled: false,
+                message: `No matching media file found for "${fileHint}" in the download folder.`,
+                error: `No matching media file found for "${fileHint}" in the download folder.`
+            };
+        }
+
+        // Probe media to discover audio streams and native codec
+        const probeRes = await probeMedia(media.filePath);
+        if (!probeRes.ok) {
+            return {
+                success: false,
+                cancelled: false,
+                message: `Failed to probe media file: ${probeRes.error}`,
+                error: probeRes.error
+            };
+        }
+
+        const streams = Array.isArray(probeRes.data?.streams) ? probeRes.data.streams : [];
+        const audioStream = streams.find((s) => s.codec_type === 'audio');
+        if (!audioStream) {
+            return {
+                success: false,
+                cancelled: false,
+                message: `No audio stream found in "${media.file}".`,
+                error: `No audio stream found in "${media.file}".`
+            };
+        }
+
+        const nativeCodec = (audioStream.codec_name || '').toLowerCase();
+        const ext = determineAudioExtension(format, nativeCodec);
+        const baseName = parse(media.file).name;
+
+        // Choose non-conflicting final filename
+        let finalFilename = `${baseName}.${ext}`;
+        let finalPath = join(downloadFolder, finalFilename);
+        try {
+            await fs.stat(finalPath);
+            finalFilename = `${baseName}_audio.${ext}`;
+            finalPath = join(downloadFolder, finalFilename);
+        } catch { /* safe to use original filename */ }
+
+        const tempFilename = `${baseName}_extracting_${Date.now()}.${ext}`;
+        const tempPath = join(downloadFolder, tempFilename);
+
+        onProgress(`Extracting audio (${ext}) from ${media.file}...`);
+
+        const args = buildFfmpegExtractAudioArgs({
+            inputPath: media.filePath,
+            outputPath: tempPath,
+            format,
+            nativeCodec
+        });
+
+        const result = await runFfmpegProcess({
+            task,
+            args,
+            onProgress,
+            logPrefix: `Extract audio from ${media.file}`
+        });
+
+        if (result.isCancelled) {
+            try { await fs.unlink(tempPath); } catch { /* ignore */ }
+            return {
+                success: false,
+                cancelled: true,
+                message: 'Audio extraction cancelled by user.',
+                error: 'Action cancelled by user.'
+            };
+        }
+
+        if (result.success) {
+            await fs.rename(tempPath, finalPath);
+            logger.info(`Successfully extracted audio: ${finalPath}`);
+            return {
+                success: true,
+                cancelled: false,
+                file: finalFilename,
+                saved_path: finalPath,
+                message: `Audio extracted successfully! Saved as: ${finalFilename}`
+            };
+        } else {
+            try { await fs.unlink(tempPath); } catch { /* ignore */ }
+            const err = result.error || `FFmpeg exit code ${result.code}`;
+            return {
+                success: false,
+                cancelled: false,
+                message: `Failed to extract audio from ${media.file}. ${err}`,
+                error: err
+            };
+        }
+    } catch (err) {
+        logger.error('Audio extraction error:', err);
+        return {
+            success: false,
+            cancelled: false,
+            message: `Error during audio extraction: ${err.message}`,
+            error: err.message
+        };
+    } finally {
+        taskManager.endTask(task);
+    }
+}
 
 /** Download a video with subtitles and burn the subtitles into the video with ffmpeg. */
 export async function downloadWithHardsub(options, onProgress = noop) {

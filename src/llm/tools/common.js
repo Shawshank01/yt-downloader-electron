@@ -49,6 +49,8 @@ export const playlistProperty = {
     description: 'Set true ONLY if the user explicitly asked to download a whole playlist.'
 };
 
+export const AUDIO_FORMATS = ['best', 'm4a', 'mp3', 'opus', 'flac', 'wav'];
+
 /** Whole-playlist operations are high risk; everything else is low. */
 export const playlistRisk = (args) => (args.playlist === true ? 'high' : 'low');
 

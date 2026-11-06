@@ -400,3 +400,150 @@ export function summarizeMediaInfo(data, filename) {
 
     return result;
 }
+
+/**
+ * Determine the most suitable file extension for an audio stream.
+ * @param {string} format 'best' | 'mp3' | 'm4a' | 'opus' | 'flac' | 'wav'
+ * @param {string} [nativeCodec] e.g. 'aac', 'opus', 'mp3', 'flac'
+ * @returns {string} File extension without leading dot.
+ */
+export function determineAudioExtension(format, nativeCodec = '') {
+    if (format === 'best') {
+        const codec = (nativeCodec || '').toLowerCase();
+        if (codec === 'aac') return 'm4a';
+        if (codec === 'opus') return 'opus';
+        if (codec === 'mp3') return 'mp3';
+        if (codec === 'flac') return 'flac';
+        if (codec === 'vorbis') return 'ogg';
+        if (codec === 'alac') return 'm4a';
+        if (codec === 'wav' || codec.startsWith('pcm_')) return 'wav';
+        return 'm4a';
+    }
+    return format;
+}
+
+/**
+ * Construct FFmpeg arguments to extract audio from a video file.
+ * @param {object} params
+ * @param {string} params.inputPath
+ * @param {string} params.outputPath
+ * @param {string} [params.format='best']
+ * @param {string} [params.nativeCodec='']
+ * @returns {string[]}
+ */
+export function buildFfmpegExtractAudioArgs({ inputPath, outputPath, format = 'best', nativeCodec = '' }) {
+    const args = ['-y', '-i', inputPath, '-vn'];
+
+    if (format === 'best') {
+        args.push('-c:a', 'copy');
+    } else if (format === 'mp3') {
+        if (nativeCodec === 'mp3') {
+            args.push('-c:a', 'copy');
+        } else {
+            args.push('-c:a', 'libmp3lame', '-q:a', '2');
+        }
+    } else if (format === 'm4a') {
+        if (nativeCodec === 'aac') {
+            args.push('-c:a', 'copy');
+        } else {
+            args.push('-c:a', 'aac', '-b:a', '192k');
+        }
+    } else if (format === 'opus') {
+        if (nativeCodec === 'opus') {
+            args.push('-c:a', 'copy');
+        } else {
+            args.push('-c:a', 'libopus', '-b:a', '160k');
+        }
+    } else if (format === 'flac') {
+        if (nativeCodec === 'flac') {
+            args.push('-c:a', 'copy');
+        } else {
+            args.push('-c:a', 'flac');
+        }
+    } else if (format === 'wav') {
+        args.push('-c:a', 'pcm_s16le');
+    } else {
+        args.push('-c:a', 'copy');
+    }
+
+    args.push(outputPath);
+    return args;
+}
+
+/**
+ * Run a generic FFmpeg process attached to a task, streaming progress.
+ * @param {object} params
+ * @param {object} params.task
+ * @param {string[]} params.args
+ * @param {function} [params.onProgress]
+ * @param {string} [params.logPrefix='FFmpeg']
+ * @returns {Promise<{success: boolean, code: number, error: string, isCancelled: boolean}>}
+ */
+export async function runFfmpegProcess({ task, args, onProgress = () => {}, logPrefix = 'FFmpeg' }) {
+    logger.info(`${logPrefix} FFmpeg args:`, args);
+
+    const stderrLines = [];
+    let totalDurationSeconds = 0;
+    let headerBuffer = '';
+
+    const exitCode = await new Promise((resolve) => {
+        let child;
+        try {
+            child = taskManager.spawnProcess(task, 'ffmpeg', args);
+        } catch {
+            resolve(-1);
+            return;
+        }
+
+        const handleData = (data) => {
+            if (task.isCancelled) return;
+            const str = data.toString();
+
+            if (!totalDurationSeconds) {
+                headerBuffer += str;
+                const durMatch = headerBuffer.match(/Duration:\s*(\d{2}):(\d{2}):([\d.]+)/);
+                if (durMatch) {
+                    const durSec = parseInt(durMatch[1], 10) * 3600 + parseInt(durMatch[2], 10) * 60 + parseFloat(durMatch[3]);
+                    if (durSec > 0.5) {
+                        totalDurationSeconds = durSec;
+                        headerBuffer = '';
+                    }
+                } else if (headerBuffer.length > 4096) {
+                    headerBuffer = headerBuffer.slice(-1024);
+                }
+            }
+
+            if (str.includes('time=')) {
+                const timeMatch = str.match(/time=\s*(\d{2}):(\d{2}):([\d.]+)/);
+                const speedMatch = str.match(/speed=\s*([\d.]+)x/i);
+                if (timeMatch && totalDurationSeconds > 0) {
+                    const curSec = parseInt(timeMatch[1], 10) * 3600 + parseInt(timeMatch[2], 10) * 60 + parseFloat(timeMatch[3]);
+                    const pct = Math.min(99.9, Math.max(0, (curSec / totalDurationSeconds) * 100));
+                    const speedVal = speedMatch ? parseFloat(speedMatch[1]) : 0;
+                    const speedStr = speedVal > 0 ? ` at ${speedVal.toFixed(1)}x` : '';
+                    onProgress(`[ffmpeg] ${pct.toFixed(1)}%${speedStr}`);
+                } else {
+                    onProgress(`${logPrefix}: ${str.trim()}`);
+                }
+            } else {
+                const lines = str.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+                stderrLines.push(...lines);
+                if (stderrLines.length > 50) {
+                    stderrLines.splice(0, stderrLines.length - 50);
+                }
+            }
+        };
+
+        child.stdout.on('data', handleData);
+        child.stderr.on('data', handleData);
+        child.on('close', (code) => resolve(code));
+    });
+
+    const errorSnippet = stderrLines.slice(-15).join('\n');
+    return {
+        success: exitCode === 0 && !task.isCancelled,
+        code: exitCode,
+        error: exitCode === 0 ? '' : errorSnippet,
+        isCancelled: task.isCancelled
+    };
+}

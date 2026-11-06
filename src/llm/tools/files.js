@@ -74,8 +74,7 @@ export const fileTools = [
             }
         },
         required: ['files'],
-        describe: (a) => `Delete ${Array.isArray(a.files) ? a.files.length : '?'} file(s): ${Array.isArray(a.files) ? a.files.join(', ') : ''
-            }`,
+        describe: (a) => `Delete ${Array.isArray(a.files) ? a.files.length : 0} file(s): ${Array.isArray(a.files) ? a.files.join(', ') : ''}`,
         async run(args, ctx) {
             const folder = requireFolder(ctx);
             if (!Array.isArray(args.files) || args.files.length === 0 || args.files.length > MAX_DELETE_FILES) {

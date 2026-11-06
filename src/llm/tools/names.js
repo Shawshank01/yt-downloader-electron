@@ -13,6 +13,7 @@ export const TOOL_NAMES = Object.freeze({
     downloadSubtitles: 'download_subtitles',
     downloadWithHardsub: 'download_with_hardsub',
     reencodeMp4: 'reencode_mp4',
+    extractAudioFromFile: 'extract_audio_from_file',
     listDownloads: 'list_downloads',
     deleteFiles: 'delete_files'
 });

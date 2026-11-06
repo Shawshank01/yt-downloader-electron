@@ -249,6 +249,51 @@ test('download_video reconciles format_code from user text or affirmative respon
     assert.match(starts[0].description, /format 299\+140/);
 });
 
+test('download_video reconciles max_height from user text (e.g. 720p)', async () => {
+    const events = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('download_video', { url: 'https://youtube.com/watch?v=height-test' })] },
+        { text: 'done' }
+    ]);
+    const history = [];
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText: 'download it as 720p https://youtube.com/watch?v=height-test',
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events.push(e)
+    });
+
+    const starts = events.filter((e) => e.type === 'tool_start');
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].args.max_height, 720);
+    assert.equal(starts[0].args.container, 'mp4');
+    assert.match(starts[0].description, /max 720p/);
+});
+
+test('download_video resolves resolution or quality alias to max_height', async () => {
+    const events = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('download_video', { url: 'https://youtube.com/watch?v=alias-test', resolution: '480p' })] },
+        { text: 'done' }
+    ]);
+    const history = [];
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText: 'download https://youtube.com/watch?v=alias-test',
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events.push(e)
+    });
+
+    const starts = events.filter((e) => e.type === 'tool_start');
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].args.max_height, 480);
+    assert.match(starts[0].description, /max 480p/);
+});
+
 test('download_audio reconciles format to best by default and mp3 for compatibility/device issues', async () => {
     // 1. Unspecified format defaults to 'best'
     const events1 = [];
@@ -291,6 +336,42 @@ test('download_audio reconciles format to best by default and mp3 for compatibil
     assert.equal(starts2.length, 1);
     assert.equal(starts2[0].args.format, 'mp3');
     assert.equal(starts2[0].description, 'Download audio (mp3) from https://youtube.com/watch?v=audio-compat');
+});
+
+test('extract_audio_from_file recovers file and reconciles format to best/mp3', async () => {
+    const events = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('extract_audio_from_file', {})] },
+        { text: 'done' }
+    ]);
+    const history = [
+        { role: 'user', text: 'what files do i have' },
+        { role: 'assistant', text: 'You have:', toolCalls: [{ id: 'c1', name: 'list_downloads', args: {} }] },
+        {
+            role: 'tool',
+            toolCallId: 'c1',
+            name: 'list_downloads',
+            result: {
+                ok: true,
+                files: [{ name: 'MyVideo.mp4', is_video: true }]
+            }
+        }
+    ];
+
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText: 'i want the audio from this file',
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events.push(e)
+    });
+
+    const starts = events.filter((e) => e.type === 'tool_start');
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].args.file, 'MyVideo.mp4');
+    assert.equal(starts[0].args.format, 'best');
+    assert.equal(starts[0].description, 'Extract audio (best) from "MyVideo.mp4"');
 });
 
 test('get_local_media_info resolves filename alias', async () => {
@@ -407,6 +488,72 @@ test('delete_files normalizes string files or file alias to array', async () => 
     assert.equal(starts.length, 2);
     assert.deepEqual(starts[0].args.files, ['single.mp4']);
     assert.deepEqual(starts[1].args.files, ['another.mp4']);
+});
+
+test('delete_files recovers file list when user says delete all files', async () => {
+    const folder = await makeFolder({ 'video1.mp4': 'a', 'video2.m4a': 'b' });
+    const requests = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('delete_files', {})] },
+        { text: 'deleted' }
+    ]);
+    const history = [
+        { role: 'user', text: 'show me my files' },
+        { role: 'assistant', text: 'Here are files:', toolCalls: [{ id: 'c1', name: 'list_downloads', args: {} }] },
+        {
+            role: 'tool',
+            toolCallId: 'c1',
+            name: 'list_downloads',
+            result: {
+                ok: true,
+                files: [{ name: 'video1.mp4' }, { name: 'video2.m4a' }]
+            }
+        }
+    ];
+
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText: 'delete all files',
+        ctx: { downloadFolder: folder },
+        confirm: async (r) => {
+            requests.push(r);
+            return true;
+        }
+    });
+
+    assert.equal(requests.length, 1);
+    assert.deepEqual(requests[0].args.files, ['video1.mp4', 'video2.m4a']);
+    assert.equal(requests[0].description, 'Delete 2 file(s): video1.mp4, video2.m4a');
+});
+
+test('delete_files on empty download folder reports empty without asking confirmation', async () => {
+    const emptyFolder = await makeFolder({});
+    const requests = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('delete_files', {})] },
+        { text: 'done' }
+    ]);
+
+    const history = [];
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText: 'delete all files',
+        ctx: { downloadFolder: emptyFolder },
+        confirm: async (r) => {
+            requests.push(r);
+            return true;
+        }
+    });
+
+    // Confirmation must NOT be requested because there are no files to delete
+    assert.equal(requests.length, 0);
+    const toolMsg = history.find((m) => m.role === 'tool');
+    assert.equal(toolMsg.result.ok, true);
+    assert.match(toolMsg.result.message, /no files in the download folder/);
 });
 
 test('unknown tools and missing download folder are reported, not thrown', async () => {
