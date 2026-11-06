@@ -1,5 +1,5 @@
 // Read-only tools: look things up without downloading.
-import { getFormatInfo, listSubtitles } from '../../core/tools.js';
+import { getOnlineVideoInfo, listSubtitles } from '../../core/tools.js';
 import { validateUrl } from '../validate.js';
 import { TOOL_NAMES } from './names.js';
 import { commonArgs, defineTool, lastLines, outcome, runYtDlpIn, urlProperty } from './common.js';
@@ -13,16 +13,9 @@ export const infoTools = [
         describe: (a) => `Look up video info for ${a.url}`,
         async run(args, ctx) {
             const url = validateUrl(args.url);
-            const res = await getFormatInfo([
-                ...commonArgs(ctx),
-                '--no-playlist',
-                '--skip-download',
-                '--print', '%(title)s\t%(uploader)s\t%(duration_string)s\t%(is_live)s',
-                url
-            ]);
+            const res = await getOnlineVideoInfo(url, ctx);
             if (!res.ok) return { ok: false, error: lastLines(res.error, 10) };
-            const [title, uploader, duration, isLive] = res.output.split('\n')[0].split('\t');
-            return { ok: true, title, uploader, duration, is_live: isLive === 'True' };
+            return res;
         }
     }),
     defineTool({

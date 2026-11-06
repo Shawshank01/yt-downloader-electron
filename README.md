@@ -135,7 +135,7 @@ Rather than relying on fragile prompt engineering or bloated frameworks, the AI 
 
 | Provider | Needs | Notes |
 | --- | --- | --- |
-| **Google Gemini** (default, model `gemma-4-26b-a4b-it`) | Free API key from [Google AI Studio](https://aistudio.google.com/apikey) | Free tier can be busy (HTTP 503) or rate limited, the app retries automatically. Your messages go to Google. |
+| **Google Gemini** (default, model `gemini-3.5-flash-lite`) | Free API key from [Google AI Studio](https://aistudio.google.com/apikey) | Free tier can be busy (HTTP 503) or rate limited, the app retries automatically. Your messages go to Google. |
 | **xAI (Grok)** (model `grok-4.3`) | API key from the [xAI console](https://console.x.ai) | Uses xAI's Responses API at `https://api.x.ai/v1/responses`. Your messages go to Musk. |
 | **Ollama (local & cloud)** | [Ollama](https://ollama.com) running with a tool-capable model, for example `LFM3:1.7b`, `Qwen3`. | Everything stays on your computer if you run a local model. Small models are faster but less reliable. |
 | **OpenAI-compatible** | Server URL, model name, usually an API key | Works with llama.cpp, OpenAI, OpenRouter, Groq, LM Studio and similar. |
@@ -289,7 +289,7 @@ src/
   update.js            GitHub release update checker
   index.html, styles.css
   core/                Electron-free yt-dlp / ffmpeg operations shared by Classic and AI mode
-    tools.js             runYtDlp, listSubtitles, reEncodeToMp4, downloadWithHardsub, getLocalMediaInfo, ...
+    tools.js             runYtDlp, queryYtDlp, listSubtitles, reEncodeToMp4, downloadWithHardsub, getLocalMediaInfo, getOnlineVideoInfo, ...
     task-manager.js      one running task at a time, cancellation
     ffmpeg.js, media-files.js, log-filter.js, logger.js
   llm/                 The Agent Harness (Electron-free AI execution engine)

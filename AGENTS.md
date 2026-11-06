@@ -117,7 +117,7 @@ Call model, run requested tools **one at a time** (the app allows one yt-dlp/ffm
 
 **Gemini** (`providers/gemini.js`)
 
-- REST Interactions API (`POST /v1beta/interactions` with `stream: true` for SSE streaming), header `x-goog-api-key` (never in the URL). Default model `gemma-4-26b-a4b-it`; the ID is editable.
+- REST Interactions API (`POST /v1beta/interactions` with `stream: true` for SSE streaming), header `x-goog-api-key` (never in the URL). Default model `gemini-3.5-flash-lite`; the ID is editable.
 - Multi-turn state is managed server-side via `previous_interaction_id`, with function calls returning `function_result` inputs.
 - Gemini 3.8 Flash defaults to `thinkingLevel: medium`, which was slow. The app sends `low` by default (low / medium / high) in `generation_config.thinking_level`. **`minimal` is rejected.** If a model rejects the thinking config (HTTP 400 mentioning "thinking"), the request is retried once without it; this works for streaming too.
 - Function declarations with empty `parameters.properties` have been rejected (400). Parameter-less tools are declared with only name and description (`toGeminiDeclaration`).

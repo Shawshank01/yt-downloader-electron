@@ -130,11 +130,11 @@ export async function runYtDlp(args, onProgress = noop) {
 }
 
 /**
- * Run a short, non-task yt-dlp query (e.g. to fetch metadata for a format code).
+ * Run a short, non-task yt-dlp query (e.g. to fetch metadata or check stream info).
  * @param {string[]} args
  * @returns {Promise<{ok: boolean, output: string, error: string}>}
  */
-export async function getFormatInfo(args) {
+export async function queryYtDlp(args) {
     const executable = await findExecutable('yt-dlp');
     if (!executable) {
         return { ok: false, output: '', error: 'yt-dlp is not installed.' };
@@ -147,7 +147,7 @@ export async function getFormatInfo(args) {
             child.stdout.on('data', (d) => stdout += d);
             child.stderr.on('data', (d) => stderr += d);
             child.on('error', (err) => {
-                logger.error('get-format-info process error:', err);
+                logger.error('yt-dlp query process error:', err);
                 resolve({ ok: false, output: '', error: err.message });
             });
             child.on('close', (code) => {
@@ -157,6 +157,34 @@ export async function getFormatInfo(args) {
             resolve({ ok: false, output: '', error: err.message });
         }
     });
+}
+
+// Backward-compatible alias for Classic mode IPC (get-format-info)
+export const getFormatInfo = queryYtDlp;
+
+/**
+ * Fetch online video metadata (title, uploader, duration, live status) via yt-dlp without downloading.
+ * @param {string} url
+ * @param {{browser?: string, proxy?: string}} [options]
+ * @returns {Promise<{ok: boolean, title?: string, uploader?: string, duration?: string, is_live?: boolean, error?: string}>}
+ */
+export async function getOnlineVideoInfo(url, options = {}) {
+    const { browser, proxy } = options;
+    const args = ['--no-playlist', '--skip-download', '--remote-components', 'ejs:github'];
+    if (browser) {
+        args.push('--cookies-from-browser', browser);
+    }
+    if (proxy) {
+        args.push('--proxy', proxy);
+    }
+    args.push('--print', '%(title)s\t%(uploader)s\t%(duration_string)s\t%(is_live)s', url);
+
+    const res = await queryYtDlp(args);
+    if (!res.ok) {
+        return { ok: false, error: res.error };
+    }
+    const [title = '', uploader = '', duration = '', isLive = ''] = (res.output || '').split('\n')[0].split('\t');
+    return { ok: true, title, uploader, duration, is_live: isLive === 'True' };
 }
 
 /** Extract manual / original-language auto subtitles from a yt-dlp info JSON object. */
