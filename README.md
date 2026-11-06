@@ -4,7 +4,7 @@
 
 # YT Downloader
 
-This is a user-friendly desktop application with **AI Assistance**. It uses yt-dlp for downloading videos from YouTube, X (Twitter), Instagram and many other platforms, and FFmpeg to changing the format, re-encoding and adding subtitles.
+This is a user-friendly desktop application with **AI Assistance**. It uses yt-dlp for downloading videos from YouTube, X (Twitter), Instagram and many other platforms, and FFmpeg for checking the format, re-encoding and adding subtitles.
 
 It has two interfaces that you can switch between at any time:
 
@@ -53,7 +53,7 @@ brew upgrade --cask yt-downloader
 ### Method 2: Direct Download
 
 1. Download the latest release from the [Releases](https://github.com/Shawshank01/yt-downloader-electron/releases) page.
-2. Extract the downloaded file and run the installer for your OS:
+2. Run the installer or image for your OS:
     - **Linux:** `.AppImage`
     - **macOS:** `.dmg` (download `mac-arm64` if you are using an M-series Mac)
     - **Windows:** `.exe` installer (download `win-x64` if you're not sure which to choose)
@@ -85,6 +85,8 @@ brew upgrade --cask yt-downloader
    pnpm start
    ```
 
+   *(On macOS, you can also double-click `start.command` in the project root to install dependencies and launch the app automatically.)*
+
 #### Building Distributables
 
 To build the application for your platform:
@@ -108,7 +110,7 @@ Click **AI** in the top-right corner to switch from the form to a chat. Use natu
 - *"Download it, then re-encode it to a compatible MP4"* (multi-step requests work)
 - *"Show me the files in my download folder"* / *"Delete the leftover subtitle files"*
 
-The assistant can use these tools: video info, list formats, download video, download audio (MP3, M4A, Opus, FLAC, WAV), download thumbnail, list and download subtitles, hardsub, re-encode to MP4, list and delete files in the download folder, and cancel the running task.
+The assistant can use these tools: online media info, local media info (inspecting codecs/duration of existing files), download video, download audio (MP3, M4A, Opus, FLAC, WAV), download thumbnail, list and download subtitles, hardsub, re-encode to MP4, list and delete files in the download folder.
 
 > [!NOTE]
 > The assistant can only do what those tools allow. For example it cannot trim a video yet; it will say so and suggest an `ffmpeg` command instead. Everything it does uses the same download folder, browser-cookie and proxy settings as Classic mode.
@@ -122,7 +124,7 @@ Rather than relying on fragile prompt engineering or bloated frameworks, the AI 
 - **Self-Healing Context & Parameter Recovery**: The harness detects and repairs dropped parameters across multi-turn sessions (e.g. automatically recovering user-typed video URLs from earlier turns when follow-up requests say *"download 1080p as mp4"*).
 - **Prompt Injection Defense & URL Provenance**: Untrusted web data (video titles, descriptions, subtitles) is strictly quarantined from execution; URLs not typed by the user are flagged as foreign and require explicit user confirmation (`src/llm/provenance.js`).
 - **Native Format Intelligence**: Eliminates unnecessary re-encoding by dynamically injecting stream-prioritisation flags (`--format-sort res,vcodec:h264,ext:mp4:m4a`), downloading and remuxing native MP4 streams directly in seconds.
-- **Zero Framework Bloat**: Pure ES modules without LangChain or LlamaIndex wrappers. The core engine and harness are completely decoupled from Electron and covered by 161 automated tests.
+- **Zero Framework Bloat**: Pure ES modules without LangChain or LlamaIndex wrappers. The core engine and harness are completely decoupled from Electron and covered by automated tests.
 
 ### Setting it up
 
@@ -140,7 +142,7 @@ Rather than relying on fragile prompt engineering or bloated frameworks, the AI 
 
 Other settings:
 
-- **Response speed**: *Fast* (default) is quick and enough for downloads; *Balanced* and *Thorough* think longer and are much slower. The similar applies to xAI.
+- **Reasoning effort**: *Fast* (default) is quick and enough for downloads; *Balanced* and *Thorough* think longer and are slower. A similar setting applies to xAI (*None*, *Low*, *Medium*, *High*, *Extra thorough*).
 - **Ask me before running**: *Risky actions only* (default: re-encode, hardsub, deleting files, downloading playlists), *Every action*, or *Never*. When a confirmation is needed you get an Allow / Deny dialog; Deny is the default button.
 
 ### Privacy and security
@@ -164,7 +166,7 @@ Other settings:
 2. **Format Selection**
    - Enter the video URL
    - Select "List Formats" to see available formats
-   - Choose "Choose Format" and enter the format code
+   - Choose "Download (Custom Format)" and enter the format code
    - Click "Run"
 
 3. **Subtitle Download**
@@ -176,10 +178,10 @@ Other settings:
 
 4. **MP4 Re-encoding (H.264/AAC)**
    - Enter the video URL
-   - Select "Download & Re-encode as MP4 (H.264/AAC)"
+   - Select "Download & Re-encode as high quality MP4 (H.264/AAC)"
    - Click "Run"
    - The video will be downloaded and then re-encoded using FFmpeg with:
-     - Video: H.264 (libx264) with CRF 18 and veryslow preset for maximum quality
+     - Video: H.264 (libx264) with CRF 22 and veryslow preset for high quality
      - Audio: AAC (aac_at preferred with CVBR 128k, falls back to libfdk_aac, then aac if not available)
      - Container: MP4 with proper AVC1 tag
 
@@ -191,7 +193,7 @@ Other settings:
    - Click "Run"
    - Select the subtitle language from the popup dialog
    - The app will securely download the best video quality and automatically hardcode the subtitles using macOS hardware acceleration (`videotoolbox`) or universal encoders on Windows and Linux (`libx264`/`libx265`).
-   - *Note: Subtitle fonts adapt automatically to your operating system (PingFang SC/Songti SC on macOS, Microsoft YaHei/Arial on Windows, DejaVu Sans on Linux).*
+   - *Note: Subtitle fonts adapt automatically to your operating system (PingFang SC on macOS, Microsoft YaHei on Windows, DejaVu Sans on Linux).*
 
 6. **SOCKS5 Proxy Mode**
    - Toggle the **SOCKS5 Proxy** switch to route all `yt-dlp` requests (including subtitle metadata fetching and media downloads) through a proxy server.
@@ -205,7 +207,7 @@ During any long-running download or encoding action, a "Cancel Action" button wi
 
 The app includes a built-in update checker:
 
-1. Click the "Check for Updates" button to:
+1. Click the app icon / brand button in the header to open the **About** modal, then click **"Check for Updates"** to:
    - Check for a new version of the app
    - See your current version
 2. If a new version is available, you will be prompted to open the [GitHub Releases](https://github.com/Shawshank01/yt-downloader-electron/releases/latest) page to download the latest installer for your platform (macOS, Windows, or Linux).
@@ -213,7 +215,7 @@ The app includes a built-in update checker:
 
 > [!NOTE]
 >
-> Release installers use their bundled copies of `yt-dlp` and `FFmpeg`. Development runs use tools installed on your `PATH`.
+> Release installers use their bundled copies of `yt-dlp`, `FFmpeg`, and `Deno` (for yt-dlp's challenge solver). Development runs use tools installed on your `PATH`.
 
 ## Troubleshooting
 
@@ -251,7 +253,7 @@ The app includes a built-in update checker:
    - **"Gemini is having problems (HTTP 503)"**: Google's servers are overloaded, which happens on the free tier. The app automatically retries once, for up to two attempts total. Try again in a minute, switch provider, or use Classic mode.
    - **"Rate limit or quota reached" (HTTP 429)**: you used up the free quota. Wait, switch provider, or use Classic mode.
    - **"rejected the API key"** or **"could not find model"**: open **AI Settings**, re-paste the key, check the model name, and use **Test connection**.
-   - **Slow answers**: keep **Response speed** on *Fast*. With Ollama, the first answer after starting a model is slower.
+   - **Slow answers**: keep **Reasoning effort** on *Fast*. With Ollama, the first answer after starting a model is slower.
    - **A download fails with a cookie error**: AI mode uses the browser selected in the *Browser for Cookies* box, exactly like Classic mode. Choose the right browser (or *No cookies*) and ask again.
 
 4. **start.command Issues (macOS)**
@@ -280,14 +282,20 @@ src/
   renderer.js          Classic interface
   ai-ui.js             AI mode interface: mode switch, chat, settings dialog, confirmation dialog
   markdown.js          Small safe Markdown renderer for assistant replies
+  dependencies.js      PATH setup, bundled-tool lookup, dependency checks
+  check-dependencies.js Pre-start dependency validation
+  settings-store.js    user-settings.json: atomic writes, first-run defaults
+  settings-schema.js   Allow-list for the generic set-settings IPC channel
+  update.js            GitHub release update checker
   index.html, styles.css
   core/                Electron-free yt-dlp / ffmpeg operations shared by Classic and AI mode
-    tools.js             runYtDlp, listSubtitles, reEncodeToMp4, downloadWithHardsub, ...
+    tools.js             runYtDlp, listSubtitles, reEncodeToMp4, downloadWithHardsub, getMediaInfo, ...
     task-manager.js      one running task at a time, cancellation
-    ffmpeg.js, media-files.js, log-filter.js
+    ffmpeg.js, media-files.js, log-filter.js, logger.js
   llm/                 The Agent Harness (Electron-free AI execution engine)
     agent.js             the harness loop: state machine, model calls, tool dispatch, error recovery
-    tool-registry.js     the 13 tools the model may call (schemas, validation, argument building)
+    tool-registry.js     assembles and registers the 13 agent tools
+    tools/               names.js, common.js, info.js, download.js, media.js, files.js, control.js
     validate.js          strict validation and normalization of model-supplied values
     provenance.js        tracks user-typed URL origins to guard against indirect prompt injection
     chat-service.js      settings, conversation history, confirmations, cancel, error handling
