@@ -257,3 +257,20 @@ test('agent runs get_local_media_info and tool rejects path traversal', async ()
 
     assert.ok(res.text.includes('Duration is'));
 });
+
+test('get_local_media_info handles missing file argument gracefully', async () => {
+    const emptyFolder = await makeFolder({});
+    const tool = getTool('get_local_media_info');
+
+    // When folder has no media files and args.file is omitted, returns error object without throwing
+    const emptyRes = await tool.run({}, { downloadFolder: emptyFolder });
+    assert.equal(emptyRes.ok, false);
+    assert.match(emptyRes.error, /Please specify which file/);
+
+    // When folder has a media file and args.file is omitted, falls back to probing that file
+    const folderWithMedia = await makeFolder({ 'clip.mp4': 'dummy' });
+    const probeRes = await tool.run({}, { downloadFolder: folderWithMedia });
+    // Probing dummy file fails ffprobe, but it successfully resolved clip.mp4 rather than throwing "file must be a string"
+    assert.equal(probeRes.ok, false);
+    assert.notEqual(probeRes.error, '"file" must be a string.');
+});

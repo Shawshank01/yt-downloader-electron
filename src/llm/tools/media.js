@@ -1,5 +1,6 @@
 // Tools built on ffmpeg and ffprobe.
 import { reEncodeToMp4, downloadWithHardsub, getLocalMediaInfo } from '../../core/tools.js';
+import { findMediaFile } from '../../core/media-files.js';
 import { requireFolder } from '../context.js';
 import { validateUrl, validateLang, validateFileHint, validateEnum } from '../validate.js';
 import { TOOL_NAMES } from './names.js';
@@ -23,8 +24,24 @@ export const mediaTools = [
         required: ['file'],
         describe: (a) => `Inspect media info for "${a.file || 'media'}"`,
         async run(args, ctx) {
-            const file = validateFileHint(args.file);
             const folder = requireFolder(ctx);
+            let fileHint = typeof args.file === 'string' ? args.file.trim() : '';
+            if (!fileHint) {
+                // If file is omitted, see if there is an unambiguous media file in the download folder
+                try {
+                    const candidate = await findMediaFile(folder, '');
+                    if (candidate) {
+                        fileHint = candidate.file;
+                    }
+                } catch { /* ignore read errors */ }
+            }
+            if (!fileHint) {
+                return {
+                    ok: false,
+                    error: 'Please specify which file in the download folder you want to inspect (e.g. from list_downloads).'
+                };
+            }
+            const file = validateFileHint(fileHint);
             return getLocalMediaInfo(folder, file);
         }
     }),
@@ -84,8 +101,15 @@ export const mediaTools = [
         required: ['file'],
         describe: (a) => `Re-encode "${a.file || 'video'}" to MP4 (H.264/AAC); an existing .mp4 of the same name is replaced`,
         async run(args, ctx) {
-            const file = validateFileHint(args.file);
             const folder = requireFolder(ctx);
+            let fileHint = typeof args.file === 'string' ? args.file.trim() : '';
+            if (!fileHint) {
+                return {
+                    ok: false,
+                    error: 'Please specify which video file in the download folder you want to re-encode (e.g. from list_downloads).'
+                };
+            }
+            const file = validateFileHint(fileHint);
             return mediaOutcome(await reEncodeToMp4(folder, file, progressOf(ctx)));
         }
     })

@@ -183,6 +183,64 @@ function assessRisk(tool, args, history) {
     return { risk, reason: undefined };
 }
 
+/**
+ * Recover a local file name from recent conversation turns (e.g. list_downloads,
+ * download results, previous tool calls, or user mentions) when the model omitted it.
+ */
+function recoverFileFromHistory(history) {
+    if (!Array.isArray(history) || history.length === 0) return undefined;
+
+    const lastUser = history.findLast((m) => m.role === 'user');
+    const userText = lastUser?.text || '';
+
+    // 1. Look backwards for recent tool results or tool calls
+    for (let i = history.length - 1; i >= 0; i--) {
+        const msg = history[i];
+        if (msg.role === 'tool' && msg.result) {
+            // list_downloads tool returns { ok: true, files: [{ name, is_video, ... }] }
+            if (Array.isArray(msg.result.files) && msg.result.files.length > 0) {
+                const first = msg.result.files[0];
+                if (typeof first === 'object' && first?.name) {
+                    // If user mentioned part of a file name in their message, match it
+                    const matched = msg.result.files.find(
+                        (f) => typeof f.name === 'string' && userText.toLowerCase().includes(f.name.toLowerCase())
+                    );
+                    if (matched) return matched.name;
+                    // Otherwise prefer the first video file or the first file
+                    const videoFile = msg.result.files.find((f) => f.is_video);
+                    return videoFile ? videoFile.name : first.name;
+                }
+                // download_video, download_audio, etc. return { ok: true, files: ['name.mp4'] }
+                if (typeof first === 'string' && first.trim()) {
+                    return first.trim();
+                }
+            }
+            if (typeof msg.result.file === 'string' && msg.result.file.trim()) {
+                return msg.result.file.trim();
+            }
+        } else if (msg.role === 'assistant' && Array.isArray(msg.toolCalls)) {
+            const prevCallWithFile = msg.toolCalls.find(
+                (tc) => typeof tc.args?.file === 'string' && tc.args.file.trim()
+            );
+            if (prevCallWithFile) {
+                return prevCallWithFile.args.file.trim();
+            }
+        }
+    }
+
+    // 2. Check user messages for an explicit media file name (e.g. "my_video.mp4")
+    if (userText) {
+        const fileMatch = userText.match(
+            /\b([^\s"'<>]+\.(?:mp4|mkv|webm|m4a|mp3|opus|flac|wav|mov|avi))\b/i
+        );
+        if (fileMatch) {
+            return fileMatch[1];
+        }
+    }
+
+    return undefined;
+}
+
 async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMode, signal }) {
     const tool = getTool(call.name);
     if (!tool) {
@@ -220,6 +278,49 @@ async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMo
             }
             if (call.args && typeof call.args === 'object' && args.url) {
                 call.args.url = args.url;
+            }
+        }
+    }
+
+    // Normalise common model parameter hallucinations if the tool expects a 'file'
+    if (tool.parameters?.properties?.file) {
+        if (!args.file || typeof args.file !== 'string' || !args.file.trim()) {
+            const alias =
+                args.filename ||
+                args.file_name ||
+                args.filePath ||
+                args.filepath ||
+                args.file_path ||
+                args.name ||
+                args.video ||
+                args.video_file ||
+                args.media ||
+                args.path ||
+                args.target;
+            if (typeof alias === 'string' && alias.trim()) {
+                args.file = alias.trim();
+            } else {
+                args.file = recoverFileFromHistory(history);
+            }
+            if (call.args && typeof call.args === 'object' && args.file) {
+                call.args.file = args.file;
+            }
+        }
+    }
+
+    // Normalise common model parameter hallucinations if the tool expects 'files' (e.g. delete_files)
+    if (tool.parameters?.properties?.files) {
+        if (!Array.isArray(args.files)) {
+            const single =
+                (typeof args.files === 'string' && args.files.trim()) ||
+                (typeof args.file === 'string' && args.file.trim()) ||
+                (typeof args.filename === 'string' && args.filename.trim()) ||
+                (typeof args.name === 'string' && args.name.trim());
+            if (single) {
+                args.files = [single];
+            }
+            if (call.args && typeof call.args === 'object' && Array.isArray(args.files)) {
+                call.args.files = args.files;
             }
         }
     }
@@ -268,6 +369,33 @@ async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMo
             }
             if (call.args && typeof call.args === 'object' && args.format_code) {
                 call.args.format_code = args.format_code;
+            }
+        }
+    }
+
+    // Reconcile format for download_audio
+    if (call.name === TOOL_NAMES.downloadAudio) {
+        if (!args.format) {
+            const lastUser = history.findLast((m) => m.role === 'user');
+            const userText = lastUser?.text || '';
+            if (
+                /\bmp3\b/i.test(userText) ||
+                /\b(compatib|can['’]?t play|won['’]?t play|doesn['’]?t play|not playing|device|car stereo|legacy|player)\b/i.test(userText)
+            ) {
+                args.format = 'mp3';
+            } else if (/\bm4a\b/i.test(userText)) {
+                args.format = 'm4a';
+            } else if (/\bopus\b/i.test(userText)) {
+                args.format = 'opus';
+            } else if (/\bflac\b/i.test(userText)) {
+                args.format = 'flac';
+            } else if (/\bwav\b/i.test(userText)) {
+                args.format = 'wav';
+            } else {
+                args.format = 'best';
+            }
+            if (call.args && typeof call.args === 'object' && args.format) {
+                call.args.format = args.format;
             }
         }
     }

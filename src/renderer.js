@@ -26,14 +26,14 @@ async function fetchFormatMeta(formatCode, browser, url) {
     }
 
     // Cache miss — use yt-dlp --print for a fast single-format lookup
-    const args = [...getProxyArgs(), '-f', formatCode, '--print', '%(ext)s %(acodec)s %(vcodec)s', '--no-download'];
+    const args = [...getProxyArgs(), '-f', formatCode, '--print', '%(ext)s\t%(acodec)s\t%(vcodec)s', '--no-download'];
     if (browser) args.push('--cookies-from-browser', browser);
     args.push(url);
 
     const result = await window.electronAPI.getFormatInfo(args);
     if (!result.ok || !result.output) return null;
 
-    const [ext, acodec, vcodec] = result.output.split(' ');
+    const [ext = '', acodec = '', vcodec = ''] = result.output.split('\t');
     return { ext, acodec: acodec || 'none', vcodec: vcodec || 'none' };
 }
 

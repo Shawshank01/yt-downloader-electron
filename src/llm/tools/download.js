@@ -125,22 +125,23 @@ export const downloadTools = [
     }),
     defineTool({
         name: TOOL_NAMES.downloadAudio,
-        description: 'Download only the audio of a video and convert it to an audio format (default mp3).',
+        description:
+            'Download only the audio of a video (default "best" keeps the original audio codec without re-encoding). Use "mp3" when compatibility with legacy devices or players is requested.',
         risk: playlistRisk,
         properties: {
             url: urlProperty,
             format: {
                 type: 'string',
                 enum: AUDIO_FORMATS,
-                description: 'Audio format. "best" keeps the original audio codec. Default: mp3.'
+                description: 'Audio format. "best" preserves original audio quality without re-encoding. Default: best. Use "mp3" for legacy device compatibility.'
             },
             playlist: playlistProperty
         },
         required: ['url'],
-        describe: (a) => `Download audio (${a.format || 'mp3'}) from ${a.url}`,
+        describe: (a) => `Download audio (${a.format || 'best'}) from ${a.url}`,
         async run(args, ctx) {
             const url = validateUrl(args.url);
-            const format = validateEnum(args.format, AUDIO_FORMATS, 'format', 'mp3');
+            const format = validateEnum(args.format, AUDIO_FORMATS, 'format', 'best');
             const playlist = validateBool(args.playlist, 'playlist');
 
             const specific = ['-f', 'bestaudio/best', '-x', '--audio-format', format];

@@ -249,6 +249,166 @@ test('download_video reconciles format_code from user text or affirmative respon
     assert.match(starts[0].description, /format 299\+140/);
 });
 
+test('download_audio reconciles format to best by default and mp3 for compatibility/device issues', async () => {
+    // 1. Unspecified format defaults to 'best'
+    const events1 = [];
+    const provider1 = scriptedProvider([
+        { toolCalls: [call('download_audio', { url: 'https://youtube.com/watch?v=audio-best' })] },
+        { text: 'done' }
+    ]);
+    await runAgent({
+        provider: provider1,
+        system: 's',
+        history: [],
+        userText: 'extract the audio from https://youtube.com/watch?v=audio-best',
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events1.push(e)
+    });
+    const starts1 = events1.filter((e) => e.type === 'tool_start');
+    assert.equal(starts1.length, 1);
+    assert.equal(starts1[0].args.format, 'best');
+    assert.equal(starts1[0].description, 'Download audio (best) from https://youtube.com/watch?v=audio-best');
+
+    // 2. Mentions device / compatibility issue reconciles to 'mp3'
+    const events2 = [];
+    const provider2 = scriptedProvider([
+        { toolCalls: [call('download_audio', { url: 'https://youtube.com/watch?v=audio-compat' })] },
+        { text: 'done' }
+    ]);
+    const history2 = [
+        { role: 'user', text: 'download https://youtube.com/watch?v=audio-compat' },
+        { role: 'assistant', text: 'Done', toolCalls: [] }
+    ];
+    await runAgent({
+        provider: provider2,
+        system: 's',
+        history: history2,
+        userText: "Why can't I play it on my device? Please make it compatible with my player",
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events2.push(e)
+    });
+    const starts2 = events2.filter((e) => e.type === 'tool_start');
+    assert.equal(starts2.length, 1);
+    assert.equal(starts2[0].args.format, 'mp3');
+    assert.equal(starts2[0].description, 'Download audio (mp3) from https://youtube.com/watch?v=audio-compat');
+});
+
+test('get_local_media_info resolves filename alias', async () => {
+    const events = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('get_local_media_info', { filename: 'clip.mp4' })] },
+        { text: 'done' }
+    ]);
+    const history = [];
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText: 'inspect clip',
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events.push(e)
+    });
+
+    const starts = events.filter((e) => e.type === 'tool_start');
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].args.file, 'clip.mp4');
+    assert.equal(starts[0].description, 'Inspect media info for "clip.mp4"');
+});
+
+test('get_local_media_info recovers file from list_downloads in history', async () => {
+    const events = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('get_local_media_info', {})] },
+        { text: 'done' }
+    ]);
+    const history = [
+        { role: 'user', text: 'what file do i have now' },
+        { role: 'assistant', text: 'You have one file:', toolCalls: [{ id: 'c1', name: 'list_downloads', args: {} }] },
+        {
+            role: 'tool',
+            toolCallId: 'c1',
+            name: 'list_downloads',
+            result: {
+                ok: true,
+                files: [{ name: 'We Haven Seen THIS Version.mp4', is_video: true }]
+            }
+        }
+    ];
+
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText: 'give me the info of this video',
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events.push(e)
+    });
+
+    const starts = events.filter((e) => e.type === 'tool_start');
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].args.file, 'We Haven Seen THIS Version.mp4');
+    assert.equal(starts[0].description, 'Inspect media info for "We Haven Seen THIS Version.mp4"');
+});
+
+test('get_local_media_info recovers file from download_video in history', async () => {
+    const events = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('get_local_media_info', {})] },
+        { text: 'done' }
+    ]);
+    const history = [
+        { role: 'user', text: 'download it' },
+        { role: 'assistant', text: 'Downloading...', toolCalls: [{ id: 'd1', name: 'download_video', args: { url: 'https://youtube.com/watch?v=xyz' } }] },
+        {
+            role: 'tool',
+            toolCallId: 'd1',
+            name: 'download_video',
+            result: {
+                ok: true,
+                files: ['DownloadedVideo.mp4']
+            }
+        }
+    ];
+
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText: 'give me the info of this video',
+        ctx: { downloadFolder: '/tmp' },
+        onEvent: (e) => events.push(e)
+    });
+
+    const starts = events.filter((e) => e.type === 'tool_start');
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].args.file, 'DownloadedVideo.mp4');
+    assert.equal(starts[0].description, 'Inspect media info for "DownloadedVideo.mp4"');
+});
+
+test('delete_files normalizes string files or file alias to array', async () => {
+    const events = [];
+    const provider = scriptedProvider([
+        { toolCalls: [call('delete_files', { files: 'single.mp4' })] },
+        { toolCalls: [call('delete_files', { file: 'another.mp4' })] },
+        { text: 'done' }
+    ]);
+    const history = [];
+    await runAgent({
+        provider,
+        system: 's',
+        history,
+        userText: 'clean up',
+        ctx: { downloadFolder: '/tmp' },
+        confirmMode: 'never', // bypass confirm for test
+        onEvent: (e) => events.push(e)
+    });
+
+    const starts = events.filter((e) => e.type === 'tool_start');
+    assert.equal(starts.length, 2);
+    assert.deepEqual(starts[0].args.files, ['single.mp4']);
+    assert.deepEqual(starts[1].args.files, ['another.mp4']);
+});
+
 test('unknown tools and missing download folder are reported, not thrown', async () => {
     const provider = scriptedProvider([
         { toolCalls: [call('rm_rf', {}), call('list_downloads', {}, 'c2')] },
