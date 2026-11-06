@@ -193,7 +193,7 @@ The app includes a built-in update checker:
    - **HTTP 429 (Rate Limit)**: Quota exhausted. Wait for it to reset or switch to a local Ollama model.
    - **Authentication Errors**: Open **AI Settings**, re-enter your key, and use **Test connection**.
 
-### Project Layout
+## Project Layout
 
 ```text
 src/
