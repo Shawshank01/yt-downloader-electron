@@ -157,10 +157,11 @@
     }
 
     function scrollMessagesToBottom() {
+        if (!els.messages) return;
         els.messages.scrollTop = els.messages.scrollHeight;
         if (typeof requestAnimationFrame === 'function') {
             requestAnimationFrame(() => {
-                els.messages.scrollTop = els.messages.scrollHeight;
+                if (els.messages) els.messages.scrollTop = els.messages.scrollHeight;
             });
         }
     }
@@ -169,13 +170,6 @@
         clearEmptyHint();
         els.messages.appendChild(el);
         scrollMessagesToBottom();
-        if (typeof requestAnimationFrame === 'function') {
-            requestAnimationFrame(() => {
-                if (el && typeof el.scrollIntoView === 'function') {
-                    el.scrollIntoView({ block: 'end', behavior: 'auto' });
-                }
-            });
-        }
     }
 
     function openLink(url) {
@@ -435,7 +429,7 @@
         if (!text || busy) return;
 
         clearRetryProgress();
-        const userMsg = addMessage('user', text);
+        addMessage('user', text);
         els.input.value = '';
         assistantBubblesThisTurn = 0;
         lastAssistantText = '';
@@ -443,14 +437,6 @@
         setBusy(true);
         els.progress.textContent = 'Thinking…';
         scrollMessagesToBottom();
-        if (typeof requestAnimationFrame === 'function') {
-            requestAnimationFrame(() => {
-                scrollMessagesToBottom();
-                if (userMsg && typeof userMsg.scrollIntoView === 'function') {
-                    userMsg.scrollIntoView({ block: 'end', behavior: 'auto' });
-                }
-            });
-        }
         try {
             const res = await api.send(text, getContext());
             if (!res.ok) {

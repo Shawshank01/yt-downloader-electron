@@ -694,8 +694,9 @@ body[data-mode='ai'] .ai-panel {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    overflow-anchor: none;
+    overscroll-behavior-y: contain;
     padding: 16px;
-    scroll-padding-bottom: 16px;
     border: 1px solid var(--border-subtle);
     border-radius: 12px;
     background-color: #16161a;
@@ -703,6 +704,10 @@ body[data-mode='ai'] .ai-panel {
     flex-direction: column;
     gap: 12px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.ai-messages > * {
+    flex-shrink: 0;
 }
 
 .ai-msg {
@@ -1022,6 +1027,7 @@ body[data-mode='ai'] .ai-panel {
 }
 
 .ai-progress {
+    flex-shrink: 0;
     min-height: 18px;
     font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
     font-size: 12px;
@@ -1037,6 +1043,7 @@ body[data-mode='ai'] .ai-panel {
 }
 
 .ai-composer {
+    flex-shrink: 0;
     display: flex;
     gap: 10px;
     align-items: flex-end;

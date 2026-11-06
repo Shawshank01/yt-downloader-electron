@@ -152,5 +152,13 @@ test('list_formats tool output attaches an expandable raw format viewer with saf
     assert.doesNotMatch(aiUi, /expander\.addEventListener\('toggle'/);
 });
 
+test('chat messages container scrolling avoids scrollIntoView traps and flex clamping', () => {
+    assert.doesNotMatch(aiUi, /\.scrollIntoView\(/);
+    assert.match(aiUi, /els\.messages\.scrollTop\s*=\s*els\.messages\.scrollHeight/);
+    assert.match(css, /\.ai-messages\s*>\s*\*\s*\{\s*flex-shrink:\s*0;\s*\}/);
+    assert.match(css, /overflow-anchor:\s*none;/);
+});
+
+
 
 
