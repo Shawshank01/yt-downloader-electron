@@ -314,7 +314,7 @@ test('xAI: appears as a provider with its own key slot, defaults, and works end 
 
     let s = await service.getSettings();
     assert.deepEqual(Object.keys(s.providers), ['gemini', 'xai', 'ollama', 'openai-compatible']);
-    assert.equal(s.providers.xai.label, 'xAI (Grok)');
+    assert.equal(s.providers.xai.label, 'xAI Grok');
     assert.equal(s.providers.xai.needsApiKey, true);
     assert.equal(s.providers.xai.model, 'grok-4.3');
     assert.equal(s.providers.xai.baseUrl, 'https://api.x.ai/v1');

@@ -27,7 +27,7 @@ export const PROVIDER_TYPES = {
         }
     },
     xai: {
-        label: 'xAI (Grok)',
+        label: 'xAI Grok',
         defaultModel: DEFAULT_XAI_MODEL,
         defaultBaseUrl: DEFAULT_XAI_BASE_URL,
         needsApiKey: true,
