@@ -3,8 +3,8 @@
  * built from them, so renaming a tool cannot leave the prompt pointing at one that no longer exists.
  */
 export const TOOL_NAMES = Object.freeze({
-    getVideoInfo: 'get_video_info',
-    getMediaInfo: 'get_media_info',
+    getOnlineVideoInfo: 'get_online_video_info',
+    getLocalMediaInfo: 'get_local_media_info',
     listFormats: 'list_formats',
     downloadVideo: 'download_video',
     downloadAudio: 'download_audio',
@@ -14,6 +14,5 @@ export const TOOL_NAMES = Object.freeze({
     downloadWithHardsub: 'download_with_hardsub',
     reencodeMp4: 'reencode_mp4',
     listDownloads: 'list_downloads',
-    deleteFiles: 'delete_files',
-    cancelTask: 'cancel_task'
+    deleteFiles: 'delete_files'
 });

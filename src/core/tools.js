@@ -131,14 +131,15 @@ export async function runYtDlp(args, onProgress = noop) {
 
 /**
  * Run a short, non-task yt-dlp query (e.g. to fetch metadata for a format code).
+ * @param {string[]} args
  * @returns {Promise<{ok: boolean, output: string, error: string}>}
  */
-export function getFormatInfo(args) {
-    return findExecutable('yt-dlp').then((executable) => new Promise((resolve) => {
-        if (!executable) {
-            resolve({ ok: false, output: '', error: 'yt-dlp is not installed.' });
-            return;
-        }
+export async function getFormatInfo(args) {
+    const executable = await findExecutable('yt-dlp');
+    if (!executable) {
+        return { ok: false, output: '', error: 'yt-dlp is not installed.' };
+    }
+    return new Promise((resolve) => {
         try {
             const child = spawn(executable, args);
             let stdout = '';
@@ -155,7 +156,7 @@ export function getFormatInfo(args) {
         } catch (err) {
             resolve({ ok: false, output: '', error: err.message });
         }
-    }));
+    });
 }
 
 /** Extract manual / original-language auto subtitles from a yt-dlp info JSON object. */
@@ -352,7 +353,7 @@ export async function reEncodeToMp4(downloadFolder, videoId, onProgress = noop) 
  * @param {string} fileHint Filename or identifier in the download folder.
  * @returns {Promise<object>}
  */
-export async function getMediaInfo(downloadFolder, fileHint) {
+export async function getLocalMediaInfo(downloadFolder, fileHint) {
     const media = await findMediaFile(downloadFolder, fileHint);
     if (!media) {
         return {
@@ -366,6 +367,9 @@ export async function getMediaInfo(downloadFolder, fileHint) {
     }
     return summarizeMediaInfo(res.data, media.file);
 }
+
+// Backward-compatible alias
+export const getMediaInfo = getLocalMediaInfo;
 
 /** Download a video with subtitles and burn the subtitles into the video with ffmpeg. */
 export async function downloadWithHardsub(options, onProgress = noop) {

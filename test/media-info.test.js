@@ -6,7 +6,7 @@ import { join } from 'path';
 import { spawnSync } from 'child_process';
 import { findMediaFile } from '../src/core/media-files.js';
 import { probeMedia, summarizeMediaInfo } from '../src/core/ffmpeg.js';
-import { getMediaInfo } from '../src/core/tools.js';
+import { getLocalMediaInfo } from '../src/core/tools.js';
 import { getTool, getRisk } from '../src/llm/tool-registry.js';
 import { runAgent } from '../src/llm/agent.js';
 import { ValidationError } from '../src/llm/validate.js';
@@ -19,10 +19,10 @@ async function makeFolder(files = {}) {
     return dir;
 }
 
-test('get_media_info declaration and describe', () => {
-    const tool = getTool('get_media_info');
+test('get_local_media_info declaration and describe', () => {
+    const tool = getTool('get_local_media_info');
     assert.ok(tool);
-    assert.equal(tool.name, 'get_media_info');
+    assert.equal(tool.name, 'get_local_media_info');
     assert.equal(getRisk(tool, {}), 'low');
     assert.equal(tool.describe({ file: 'song.mp3' }), 'Inspect media info for "song.mp3"');
     assert.equal(tool.describe({}), 'Inspect media info for "media"');
@@ -183,11 +183,11 @@ test('summarizeMediaInfo handles empty or missing metadata safely', () => {
     assert.equal(empty.audio, null);
 });
 
-test('probeMedia and getMediaInfo report error on missing or invalid file', async () => {
+test('probeMedia and getLocalMediaInfo report error on missing or invalid file', async () => {
     const folder = await makeFolder({ 'not_media.txt': 'just plain text' });
 
     // Missing file in folder
-    const missingRes = await getMediaInfo(folder, 'missing.mp4');
+    const missingRes = await getLocalMediaInfo(folder, 'missing.mp4');
     assert.equal(missingRes.ok, false);
     assert.match(missingRes.error, /No matching media file found/);
 
@@ -214,7 +214,7 @@ test('probeMedia inspects a real media file with ffprobe', async () => {
         return;
     }
 
-    const res = await getMediaInfo(dir, 'test_sample');
+    const res = await getLocalMediaInfo(dir, 'test_sample');
     assert.equal(res.ok, true);
     assert.equal(res.file, 'test_sample.mp3');
     assert.equal(res.audio?.codec, 'mp3');
@@ -222,9 +222,9 @@ test('probeMedia inspects a real media file with ffprobe', async () => {
     assert.equal(res.audio?.sample_rate_hz, 44100);
 });
 
-test('agent runs get_media_info and tool rejects path traversal', async () => {
+test('agent runs get_local_media_info and tool rejects path traversal', async () => {
     const folder = await makeFolder({ 'song.mp3': 'data' });
-    const tool = getTool('get_media_info');
+    const tool = getTool('get_local_media_info');
 
     // Path traversal attempt should throw ValidationError
     await assert.rejects(
@@ -232,7 +232,7 @@ test('agent runs get_media_info and tool rejects path traversal', async () => {
         ValidationError
     );
 
-    // Agent executes get_media_info turn
+    // Agent executes get_local_media_info turn
     const provider = {
         id: 'scripted',
         async chat({ messages }) {
@@ -242,7 +242,7 @@ test('agent runs get_media_info and tool rejects path traversal', async () => {
             }
             return {
                 text: '',
-                toolCalls: [{ id: 'call-1', name: 'get_media_info', args: { file: 'song.mp3' } }]
+                toolCalls: [{ id: 'call-1', name: 'get_local_media_info', args: { file: 'song.mp3' } }]
             };
         }
     };

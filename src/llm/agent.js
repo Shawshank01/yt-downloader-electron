@@ -34,8 +34,7 @@ export function shapeResult(result, maxChars) {
     return shaped;
 }
 
-function needsConfirmation(confirmMode, toolName, risk) {
-    if (toolName === TOOL_NAMES.cancelTask) return false;
+function needsConfirmation(confirmMode, risk) {
     if (confirmMode === 'never') return false;
     if (confirmMode === 'always') return true;
     return risk === 'high';
@@ -276,7 +275,7 @@ async function executeToolCall(call, { ctx, history, onEvent, confirm, confirmMo
     const { risk, reason } = assessRisk(tool, args, history);
     const description = safeDescribe(tool, args);
 
-    if (needsConfirmation(confirmMode, tool.name, risk)) {
+    if (needsConfirmation(confirmMode, risk)) {
         const approved = await askConfirmation(confirm, {
             id: call.id, name: tool.name, args, description, risk, reason
         });

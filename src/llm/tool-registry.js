@@ -12,13 +12,12 @@ import { infoTools } from './tools/info.js';
 import { downloadTools } from './tools/download.js';
 import { mediaTools } from './tools/media.js';
 import { fileTools } from './tools/files.js';
-import { controlTools } from './tools/control.js';
 
 export { TOOL_NAMES } from './tools/names.js';
 
 /** @typedef {import('./tools/common.js').ToolContext} ToolContext */
 
-export const TOOLS = [...infoTools, ...downloadTools, ...mediaTools, ...fileTools, ...controlTools];
+export const TOOLS = [...infoTools, ...downloadTools, ...mediaTools, ...fileTools];
 
 const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 

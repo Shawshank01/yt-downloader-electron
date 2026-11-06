@@ -243,7 +243,7 @@ test('URLs the user did not type need confirmation, even for low-risk tools', as
     assert.equal(isForeignUrl(history, '--exec rm'), false, 'malformed values are left to validation');
 
     const script = [
-        { toolCalls: [{ id: '1', name: 'get_video_info', args: { url: 'https://evil.example/x' } }] },
+        { toolCalls: [{ id: '1', name: 'get_online_video_info', args: { url: 'https://evil.example/x' } }] },
         { text: 'done' }
     ];
     const provider = { id: 's', async chat() { return { text: '', toolCalls: [], raw: null, ...script.shift() }; } };

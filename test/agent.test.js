@@ -339,10 +339,10 @@ test('no confirm callback means high-risk actions are denied by default; "never"
     assert.deepEqual(h2.find((m) => m.role === 'tool').result.deleted, ['tmp.vtt']);
 });
 
-test('"always" mode asks even for low-risk tools, but never for cancel_task', async () => {
+test('"always" mode asks even for low-risk tools', async () => {
     const folder = await makeFolder();
     const provider = scriptedProvider([
-        { toolCalls: [call('list_downloads', {}), call('cancel_task', {}, 'c2')] },
+        { toolCalls: [call('list_downloads', {})] },
         { text: 'k' }
     ]);
     const asked = [];

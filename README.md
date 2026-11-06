@@ -110,7 +110,7 @@ Click **AI** in the top-right corner to switch from the form to a chat. Use natu
 - *"Download it, then re-encode it to a compatible MP4"* (multi-step requests work)
 - *"Show me the files in my download folder"* / *"Delete the leftover subtitle files"*
 
-The assistant can use these tools: online media info, local media info (inspecting codecs/duration of existing files), download video, download audio (MP3, M4A, Opus, FLAC, WAV), download thumbnail, list and download subtitles, hardsub, re-encode to MP4, list and delete files in the download folder.
+The assistant can use these tools: online video info, local media info (inspecting codecs/duration of existing files), list formats, download video, download audio (MP3, M4A, Opus, FLAC, WAV), download thumbnail, list and download subtitles, hardsub, re-encode to MP4, and list and delete files in the download folder.
 
 > [!NOTE]
 > The assistant can only do what those tools allow. For example it cannot trim a video yet; it will say so and suggest an `ffmpeg` command instead. Everything it does uses the same download folder, browser-cookie and proxy settings as Classic mode.
@@ -124,7 +124,7 @@ Rather than relying on fragile prompt engineering or bloated frameworks, the AI 
 - **Self-Healing Context & Parameter Recovery**: The harness detects and repairs dropped parameters across multi-turn sessions (e.g. automatically recovering user-typed video URLs from earlier turns when follow-up requests say *"download 1080p as mp4"*).
 - **Prompt Injection Defense & URL Provenance**: Untrusted web data (video titles, descriptions, subtitles) is strictly quarantined from execution; URLs not typed by the user are flagged as foreign and require explicit user confirmation (`src/llm/provenance.js`).
 - **Native Format Intelligence**: Eliminates unnecessary re-encoding by dynamically injecting stream-prioritisation flags (`--format-sort res,vcodec:h264,ext:mp4:m4a`), downloading and remuxing native MP4 streams directly in seconds.
-- **Zero Framework Bloat**: Pure ES modules without LangChain or LlamaIndex wrappers. The core engine and harness are completely decoupled from Electron and covered by automated tests.
+- **Zero Framework Bloat**: Pure ES modules without LangChain or LlamaIndex wrappers. The core engine and harness are completely decoupled from Electron and covered by 165 automated tests.
 
 ### Setting it up
 
@@ -289,20 +289,20 @@ src/
   update.js            GitHub release update checker
   index.html, styles.css
   core/                Electron-free yt-dlp / ffmpeg operations shared by Classic and AI mode
-    tools.js             runYtDlp, listSubtitles, reEncodeToMp4, downloadWithHardsub, getMediaInfo, ...
+    tools.js             runYtDlp, listSubtitles, reEncodeToMp4, downloadWithHardsub, getLocalMediaInfo, ...
     task-manager.js      one running task at a time, cancellation
     ffmpeg.js, media-files.js, log-filter.js, logger.js
   llm/                 The Agent Harness (Electron-free AI execution engine)
     agent.js             the harness loop: state machine, model calls, tool dispatch, error recovery
-    tool-registry.js     assembles and registers the 13 agent tools
-    tools/               names.js, common.js, info.js, download.js, media.js, files.js, control.js
+    tool-registry.js     assembles and registers the 12 agent tools
+    tools/               names.js, common.js, info.js, download.js, media.js, files.js
     validate.js          strict validation and normalization of model-supplied values
     provenance.js        tracks user-typed URL origins to guard against indirect prompt injection
     chat-service.js      settings, conversation history, confirmations, cancel, error handling
     key-store.js         encrypted API key storage (safeStorage)
     prompt.js            system prompt engineering
     providers/           gemini.js, xai.js, ollama.js, openai-compatible.js, http.js (retries)
-test/                  automated tests (node:test runner)
+test/                  automated tests (node:test runner, 165 tests)
 ```
 
 ## Contributing

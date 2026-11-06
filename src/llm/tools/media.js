@@ -1,5 +1,5 @@
 // Tools built on ffmpeg and ffprobe.
-import { reEncodeToMp4, downloadWithHardsub, getMediaInfo } from '../../core/tools.js';
+import { reEncodeToMp4, downloadWithHardsub, getLocalMediaInfo } from '../../core/tools.js';
 import { requireFolder } from '../context.js';
 import { validateUrl, validateLang, validateFileHint, validateEnum } from '../validate.js';
 import { TOOL_NAMES } from './names.js';
@@ -10,7 +10,7 @@ const POSITIONS = ['bottom', 'top'];
 
 export const mediaTools = [
     defineTool({
-        name: TOOL_NAMES.getMediaInfo,
+        name: TOOL_NAMES.getLocalMediaInfo,
         description:
             'Inspect the media metadata (duration, resolution, video/audio codecs, bitrates, audio tracks, and embedded subtitles) of an existing audio or video file in the download folder using ffprobe.',
         risk: 'low',
@@ -25,7 +25,7 @@ export const mediaTools = [
         async run(args, ctx) {
             const file = validateFileHint(args.file);
             const folder = requireFolder(ctx);
-            return getMediaInfo(folder, file);
+            return getLocalMediaInfo(folder, file);
         }
     }),
     defineTool({

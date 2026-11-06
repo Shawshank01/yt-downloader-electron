@@ -65,7 +65,7 @@ src/llm/                 Electron-free:
   provenance.js            Is a URL one the user typed?
   tool-registry.js         Assembles tools/ ; getTool, getRisk, getToolDeclarations
   tools/                   names.js (TOOL_NAMES), common.js (defineTool, helpers),
-                           info.js, download.js, media.js, files.js, control.js
+                           info.js, download.js, media.js, files.js
   providers/               gemini, xai, ollama, openai-compatible, index (PROVIDER_TYPES capabilities),
                            http.js (requestJson/requestStream, retries), stream.js (SSE / NDJSON readers)
   prompt.js, messages.js, limits.js, redact.js, validate.js, errors.js, key-store.js
@@ -76,9 +76,9 @@ test/                    node:test suite (165 tests)
 
 ### Tools the model can call (`src/llm/tools/`)
 
-`get_video_info`, `list_formats`, `list_subtitles` (info.js); `download_video` (max_height / format_code / container / playlist), `download_audio` (mp3, m4a, opus, flac, wav, best), `download_thumbnail`, `download_subtitles` (download.js); `get_media_info`, `download_with_hardsub`, `reencode_mp4` (media.js); `list_downloads`, `delete_files` (files.js); `cancel_task` (control.js).
+`get_online_video_info`, `list_formats`, `list_subtitles` (info.js); `download_video` (max_height / format_code / container / playlist), `download_audio` (mp3, m4a, opus, flac, wav, best), `download_thumbnail`, `download_subtitles` (download.js); `get_local_media_info`, `download_with_hardsub`, `reencode_mp4` (media.js); `list_downloads`, `delete_files` (files.js).
 
-Tools are declared with `defineTool()` using names from `TOOL_NAMES`; the system prompt and the agent's `cancel_task` check use the same constants, and a test fails if the prompt mentions a tool or parameter that does not exist. Each tool has a `risk` (`low`/`high`, optionally a function of the arguments), a `describe()` text for the confirmation dialog, and a `run(args, ctx)` that validates everything and builds yt-dlp/ffmpeg **argument arrays**. High risk: hardsub, re-encode, delete_files, any `playlist: true` download, and any call whose `url` the user did not type (see invariant 11).
+Tools are declared with `defineTool()` using names from `TOOL_NAMES`; the system prompt uses the same constants, and a test fails if the prompt mentions a tool or parameter that does not exist. Each tool has a `risk` (`low`/`high`, optionally a function of the arguments), a `describe()` text for the confirmation dialog, and a `run(args, ctx)` that validates everything and builds yt-dlp/ffmpeg **argument arrays**. High risk: hardsub, re-encode, delete_files, any `playlist: true` download, and any call whose `url` the user did not type (see invariant 11).
 
 ### Providers
 
@@ -161,7 +161,7 @@ CI (`.github/workflows/lint.yml`) runs lint and tests on pushes and pull request
 
 ## 8. Known limitations and rough edges
 
-- The assistant can do only what the 13 tools allow. **No trimming, GIFs, joining, resizing, speed change, SponsorBlock, chapter/metadata editing, downloading a time range, or audio extraction from a local file.** It says so and suggests a command instead.
+- The assistant can do only what the 12 tools allow. **No trimming, GIFs, joining, resizing, speed change, SponsorBlock, chapter/metadata editing, downloading a time range, or audio extraction from a local file.** It says so and suggests a command instead.
 - One conversation at a time; history is lost on New chat or quit; capped at 40 messages.
 - UI strings and the system prompt are English only (the model answers in the user's language). `messages.js` centralises the text but is not a translation layer.
 - **`renderer.js` (about 1,200 lines) and `ai-ui.js` (about 760 lines) are large classic scripts** sharing global state and DOM IDs. They were deliberately not split because nothing but a manual click-through can catch wiring mistakes. If you split them, do it with a smoke test of each dialog.

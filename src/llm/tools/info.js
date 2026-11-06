@@ -6,7 +6,7 @@ import { commonArgs, defineTool, lastLines, outcome, runYtDlpIn, urlProperty } f
 
 export const infoTools = [
     defineTool({
-        name: TOOL_NAMES.getVideoInfo,
+        name: TOOL_NAMES.getOnlineVideoInfo,
         description: 'Get basic information (title, uploader, duration) about a video URL without downloading it.',
         properties: { url: urlProperty },
         required: ['url'],
